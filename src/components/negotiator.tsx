@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
 import type { NegotiationEvent, Offer, Product, SellerQuote } from "@/lib/types";
 
@@ -30,8 +30,38 @@ export function Negotiator() {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [haggle, setHaggle] = useState("");
   const [error, setError] = useState("");
+  // undefined = still checking, null = needs to sign up
+  const [user, setUser] = useState<{ name: string } | null | undefined>(undefined);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setUser)
+      .catch(() => setUser(null));
+  }, []);
+
+  /** Sign up first if needed; returns false (with an error shown) when signup fails. */
+  async function ensureUser() {
+    if (user) return true;
+    const res = await fetch("/api/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, phone }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setPhase("error");
+      setError(data.error || "Couldn't sign you up. Try again.");
+      return false;
+    }
+    setUser(data);
+    return true;
+  }
 
   async function negotiate(body: Record<string, string>) {
+    if (!(await ensureUser())) return;
     setPhase("running");
     setSteps([]);
     setProduct(null);
@@ -47,7 +77,8 @@ export function Negotiator() {
         body: JSON.stringify(body),
       });
       if (!res.ok || !res.body) {
-        const { error } = await res.json().catch(() => ({ error: "" }));
+        const { error, needsSignup } = await res.json().catch(() => ({ error: "" }));
+        if (needsSignup) setUser(null);
         throw new Error(error || "Negotiation failed. Try again.");
       }
 
@@ -95,6 +126,11 @@ export function Negotiator() {
 
   async function onFile(file: File | undefined) {
     if (!file) return;
+    if (user === null && (!name.trim() || !phone.trim())) {
+      setPhase("error");
+      setError("Add your name and mobile number first.");
+      return;
+    }
     if (!file.type.startsWith("image/")) {
       setPhase("error");
       setError("Upload an image of your cart, wishlist or product page.");
@@ -115,6 +151,42 @@ export function Negotiator() {
           if (url.trim()) negotiate({ url: url.trim() });
         }}
       >
+        {user === null && (
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="signup-name" className="text-muted">
+                Your name
+              </label>
+              <input
+                id="signup-name"
+                autoComplete="name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={busy}
+                className="rounded-xl border border-line bg-panel px-4 py-3 text-fg focus:border-saffron focus:outline-none disabled:opacity-60"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="signup-phone" className="text-muted">
+                Mobile number
+              </label>
+              <input
+                id="signup-phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                required
+                placeholder="98765 43210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={busy}
+                className="rounded-xl border border-line bg-panel px-4 py-3 text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
+              />
+            </div>
+          </div>
+        )}
+        {user && <p className="text-muted">Hi {user.name.split(" ")[0]}, what are you buying today?</p>}
         <label htmlFor="product-url" className="text-muted">
           Product link from Amazon, Flipkart, Myntra, Croma, Swiggy or anywhere else
         </label>

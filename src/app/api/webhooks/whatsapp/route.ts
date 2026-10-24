@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { inr, runNegotiation } from "@/lib/negotiate";
 import type { DealInput } from "@/lib/types";
+import { normalizePhone, signUp } from "@/lib/users";
 import { fetchTwilioMedia, sendWhatsApp, validateTwilioRequest } from "@/lib/whatsapp";
 
 export const maxDuration = 60;
@@ -33,7 +34,9 @@ export async function POST(request: Request) {
       const input: DealInput = url
         ? { kind: "url", url }
         : { kind: "screenshot", imageBase64: await fetchTwilioMedia(mediaUrl!), mediaType: mediaType! };
-      const deal = await runNegotiation(input, { channel: "whatsapp", waFrom: from });
+      const phone = normalizePhone(from.replace(/^whatsapp:/, ""));
+      const user = phone ? await signUp({ name: params.ProfileName || "WhatsApp shopper", phone, channel: "whatsapp" }) : undefined;
+      const deal = await runNegotiation(input, { channel: "whatsapp", waFrom: from, userId: user?.id });
       await sendWhatsApp(
         from,
         `⚡ ${deal.product.title}\n${inr(deal.originalPrice)} → *${inr(deal.dealPrice)}* + ${deal.perk}\nYou save ${inr(deal.saved)}. Lock it in 180s:\n${process.env.NEXT_PUBLIC_APP_URL}/deal/${deal.id}`,

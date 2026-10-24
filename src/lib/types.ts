@@ -47,10 +47,11 @@ export interface Deal extends Offer {
   city?: string;
   channel: Channel;
   waFrom?: string;
+  userId?: string;
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */
-export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom">;
+export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId">;
 
 export interface TickerEvent {
   id: string;
@@ -61,6 +62,7 @@ export interface TickerEvent {
 }
 
 export interface Stats {
+  users: number;
   deals: number;
   paid: number;
   saved: number;
@@ -74,3 +76,35 @@ export type NegotiationEvent =
   | { type: "haggle"; text: string }
   | { type: "deal"; deal: PublicDeal }
   | { type: "error"; message: string };
+
+export interface User {
+  id: string;
+  name: string;
+  phone: string; // E.164, e.g. +919876543210
+  email?: string;
+  channel: Channel;
+  city?: string;
+  createdAt: number;
+}
+
+export type ActivityType =
+  | "signup"
+  | "negotiation_started"
+  | "agent_step"
+  | "product_identified"
+  | "sellers_compared"
+  | "offer_computed"
+  | "deal_created"
+  | "payment_link_created"
+  | "payment_received"
+  | "negotiation_failed";
+
+/** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
+export interface Activity {
+  at: number;
+  type: ActivityType;
+  actor: "user" | "agent" | "system" | "human";
+  userId?: string;
+  dealId?: string;
+  detail: string;
+}

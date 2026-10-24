@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const recentlyLive = Date.now() < deal.expiresAt + 30_000;
   if (deal.status !== "paid" && deal.pinelabsOrderId && recentlyLive) {
     try {
-      if (PAID_STATUSES.has(await getOrderStatus(deal.pinelabsOrderId))) deal = await markPaid(deal);
+      if (PAID_STATUSES.has(await getOrderStatus(deal.pinelabsOrderId))) deal = await markPaid(deal, "pinelabs");
     } catch (err) {
       console.warn("Pine Labs status check failed", err);
     }

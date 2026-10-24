@@ -1,4 +1,7 @@
 import { runNegotiation } from "@/lib/negotiate";
+import { requestCity } from "@/lib/request";
+import { store } from "@/lib/store";
+import { currentUser } from "@/lib/users";
 import type { DealInput, NegotiationEvent } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -18,20 +21,22 @@ function parseInput(body: { url?: string; imageBase64?: string; mediaType?: stri
 
 /** Runs the negotiation and streams progress as newline-delimited JSON events. */
 export async function POST(request: Request) {
+  const user = await currentUser();
+  if (!user) return Response.json({ error: "Sign up to get your deal.", needsSignup: true }, { status: 401 });
   const input = parseInput(await request.json().catch(() => ({})));
   if (!input) return Response.json({ error: "Send a product URL or a screenshot (max 5MB)" }, { status: 400 });
 
-  const rawCity = request.headers.get("x-vercel-ip-city");
-  const city = rawCity ? decodeURIComponent(rawCity) : undefined;
+  const city = requestCity(request) ?? user.city;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
       const emit = (e: NegotiationEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
-        await runNegotiation(input, { city, channel: "web" }, emit);
+        await runNegotiation(input, { city, channel: "web", userId: user.id }, emit);
       } catch (err) {
         console.error("negotiation failed", err);
+        await store.log({ type: "negotiation_failed", actor: "agent", userId: user.id, detail: String(err).slice(0, 300) });
         emit({ type: "error", message: "Couldn't read that item. Try another link or a clearer screenshot." });
       } finally {
         controller.close();

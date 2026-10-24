@@ -8,5 +8,5 @@ export async function POST(request: Request) {
   if (!deal) return Response.json({ error: "not found" }, { status: 404 });
   if (!deal.simulate) return Response.json({ error: "simulation disabled" }, { status: 403 });
   if (deal.status === "expired") return Response.json({ error: "deal expired" }, { status: 409 });
-  return Response.json(toPublic(await markPaid(deal)));
+  return Response.json(toPublic(await markPaid(deal, "simulated")));
 }

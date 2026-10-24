@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const ref = event.data?.merchant_order_reference;
   if (event.event_type === "ORDER_PROCESSED" && ref) {
     const deal = await store.getDeal(ref);
-    if (deal) await markPaid(deal);
+    if (deal) await markPaid(deal, "pinelabs-webhook");
   }
   return Response.json({ ok: true });
 }
