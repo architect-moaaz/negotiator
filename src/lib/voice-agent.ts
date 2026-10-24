@@ -103,8 +103,8 @@ unclear = anything else.`,
 export function openingLine(deal: Deal) {
   const n = deal.negotiation!;
   const offer = n.approval!.price;
-  const who = n.call?.role === "seller" ? `for ${n.terms.sellerName}` : "for the GhostCart deal desk";
-  return `Hi, this is the GhostCart agent calling ${who}. A shopper wants ${shortTitle(deal.product.title)} for ${spokenInr(offer)}. It's listed at ${spokenInr(deal.product.price)}, and my best offer to them was ${spokenInr(n.currentOffer)}. Should I accept their ${spokenInr(offer)}? Say yes, no, or name your price. You can also press 1 to approve or 2 to reject.`;
+  const who = n.call?.role === "seller" ? `for ${n.terms.sellerName}` : "for the deal desk";
+  return `Hi, GhostCart agent calling ${who}. A shopper offers ${spokenInr(offer)} for ${shortTitle(deal.product.title)}, listed at ${spokenInr(deal.product.price)}. Accept? Say yes, no, or a price. Or press 1 to approve, 2 to reject.`;
 }
 
 /** Product titles are long; read the first few words. */

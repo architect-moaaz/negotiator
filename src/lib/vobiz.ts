@@ -41,8 +41,7 @@ export async function placeCall({ to, dealId }: { to: string; dealId: string }) 
       hangup_url: voiceUrl("hangup", dealId),
       hangup_method: "POST",
       caller_name: "GhostCart",
-      time_limit: 180,
-      hangup_on_ring: 30,
+      time_limit: 180, // hangup_on_ring would also cut answered calls (it counts from first ring)
     }),
     signal: AbortSignal.timeout(8000),
   });
