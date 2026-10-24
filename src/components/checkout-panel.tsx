@@ -132,6 +132,42 @@ function Tracking({ c }: { c: PublicCheckout }) {
 }
 
 /** After the lock fee: 30 minutes to add a delivery address and pay the balance, then the order is placed. */
+const CONFETTI = Array.from({ length: 48 }, (_, i) => i);
+const CONFETTI_COLORS = ["#f4b740", "#4fd1a5", "#ff5a5f", "#edeaf5", "#9b8cff"];
+
+/** "Yay, order placed!" toast with a burst of confetti (skipped for people who prefer reduced motion). */
+function OrderPlacedParty() {
+  return (
+    <>
+      <div
+        className="pointer-events-none fixed inset-0 z-40 overflow-hidden motion-reduce:hidden"
+        aria-hidden
+      >
+        {CONFETTI.map((i) => (
+          <span
+            key={i}
+            className="animate-confetti absolute -top-[5%] rounded-sm"
+            style={{
+              left: `${(i * 37) % 100}%`,
+              width: i % 3 ? 8 : 12,
+              height: i % 3 ? 14 : 8,
+              background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+              animationDelay: `${(i % 12) * 80}ms`,
+              animationDuration: `${2.2 + (i % 5) * 0.4}s`,
+            }}
+          />
+        ))}
+      </div>
+      <p
+        role="status"
+        className="animate-pop-in fixed inset-x-0 top-6 z-50 mx-auto w-fit rounded-full bg-paid px-6 py-3 text-lg font-semibold text-ink shadow-2xl shadow-black/40"
+      >
+        🎉 Yay! Your order is placed
+      </p>
+    </>
+  );
+}
+
 export function CheckoutPanel({
   deal,
   now,
@@ -151,6 +187,18 @@ export function CheckoutPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [prefillName, setPrefillName] = useState("");
+  // Celebrate only when the order is placed while this page is open, not on every later visit.
+  const [prevStep, setPrevStep] = useState(step);
+  const [celebrate, setCelebrate] = useState(false);
+  if (step !== prevStep) {
+    setPrevStep(step);
+    if (step === "ordered") setCelebrate(true);
+  }
+  useEffect(() => {
+    if (!celebrate) return;
+    const t = setTimeout(() => setCelebrate(false), 5000);
+    return () => clearTimeout(t);
+  }, [celebrate]);
 
   useEffect(() => {
     fetch("/api/me", { cache: "no-store" })
@@ -191,6 +239,7 @@ export function CheckoutPanel({
 
   return (
     <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      {celebrate && <OrderPlacedParty />}
       <section>
         <p className="text-muted">
           {step === "ordered"
