@@ -17,8 +17,9 @@ const IN_RETAILERS = [
 
 export function sellerName(url: string) {
   try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    const name = host.split(".")[0];
+    const labels = new URL(url).hostname.split(".");
+    // Registrable name: tatacliq from luxury.tatacliq.com, amazon from amazon.co.in.
+    const name = labels.length > 2 && /^(co|com|net|org)$/.test(labels[labels.length - 2]) ? labels[labels.length - 3] : labels[labels.length - 2] ?? labels[0];
     return name.charAt(0).toUpperCase() + name.slice(1);
   } catch {
     return "Store";
@@ -86,14 +87,13 @@ export async function findAlternatives(query: string, excludeUrl?: string): Prom
       scrapeOptions: { formats: ["product"], onlyMainContent: true, timeout: 12000, location: { country: "IN", languages: ["en-IN", "en"] } },
     });
     return (result.web ?? [])
-      .map((r) => {
+      .map((r): SellerQuote | null => {
         const url = "url" in r && r.url ? r.url : (r as { metadata?: { sourceURL?: string } }).metadata?.sourceURL;
         const product = "product" in r ? fromProfile(r.product, url ?? "") : null;
         if (!url || !product) return null;
-        return { seller: sellerName(url), url, price: product.price, inStock: product.inStock };
+        return { seller: sellerName(url), title: product.title, url, price: product.price, inStock: product.inStock };
       })
-      .filter((q): q is SellerQuote => !!q && q.price > 0)
-      .slice(0, 4);
+      .filter((q): q is SellerQuote => !!q && q.price > 0);
   } catch (err) {
     console.warn("findAlternatives failed", err);
     return [];
@@ -115,4 +115,35 @@ export function queryFromUrl(url: string) {
   } catch {
     return null;
   }
+}
+
+/** Model-number-like tokens ("wh1000xm5", "128gb", "airforce1"…) that must match for two listings to be the same product. */
+function modelTokens(title: string) {
+  return new Set(
+    title
+      .toLowerCase()
+      .replace(/(\w)[-\s](?=\d)/g, "$1") // "wh-1000xm5" / "iphone 15" -> "wh1000xm5" / "iphone15"
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3 && /\d/.test(t) && /[a-z]/.test(t)),
+  );
+}
+
+/**
+ * Keep only listings that are plausibly the same product: matching model tokens and a price within
+ * a sane band of the source. One quote per seller (the cheapest), at most four.
+ */
+export function sameProductQuotes(product: Product, quotes: SellerQuote[]) {
+  const wanted = modelTokens(`${product.brand ?? ""} ${product.title}`);
+  const bySeller = new Map<string, SellerQuote>();
+  for (const q of quotes) {
+    if (q.price < product.price * 0.75 || q.price > product.price * 1.6) continue;
+    if (wanted.size && q.title) {
+      const have = modelTokens(q.title);
+      if (![...wanted].some((t) => have.has(t))) continue;
+    }
+    if (q.seller === product.seller && q.price >= product.price) continue;
+    const prev = bySeller.get(q.seller);
+    if (!prev || q.price < prev.price) bySeller.set(q.seller, q);
+  }
+  return [...bySeller.values()].sort((a, b) => a.price - b.price).slice(0, 4);
 }

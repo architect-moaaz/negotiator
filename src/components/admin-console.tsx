@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
-import type { Activity, PublicDeal, Stats, User } from "@/lib/types";
+import type { Activity, NegotiationTerms, PublicDeal, Stats, User } from "@/lib/types";
 
-type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string };
+type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms };
 interface AdminData {
   stats: Stats;
   users: User[];
   activity: Activity[];
   deals: AdminDeal[];
 }
-type Tab = "users" | "activity" | "deals";
+type Tab = "approvals" | "users" | "activity" | "deals";
 
 const TOKEN_KEY = "gc_admin_token";
 const ist = (at: number) =>
@@ -29,7 +29,9 @@ export function AdminConsole() {
   const [token, setToken] = useState("");
   const [data, setData] = useState<AdminData | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>("approvals");
+  const [deciding, setDeciding] = useState<string | null>(null);
+  const [deskName, setDeskName] = useState("");
 
   const load = useCallback(async (t: string) => {
     const res = await fetch("/api/admin/logs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
@@ -60,7 +62,7 @@ export function AdminConsole() {
 
   useEffect(() => {
     if (!data) return;
-    const t = setInterval(() => load(token), 10_000);
+    const t = setInterval(() => load(token), 4000);
     return () => clearInterval(t);
   }, [data, token, load]);
 
@@ -91,6 +93,18 @@ export function AdminConsole() {
   }
 
   const usersById = new Map(data.users.map((u) => [u.id, u]));
+  const approvals = data.deals.filter((d) => d.status === "awaiting_approval");
+
+  async function decide(id: string, decision: "approved" | "rejected") {
+    setDeciding(id);
+    await fetch("/api/admin/decision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id, decision, by: deskName.trim() || "Deal desk" }),
+    });
+    setDeciding(null);
+    load(token);
+  }
   const exportTab = () => {
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
     if (tab === "users")
@@ -111,6 +125,7 @@ export function AdminConsole() {
   };
 
   const tabs: [Tab, string, number][] = [
+    ["approvals", "Approvals", approvals.length],
     ["users", "Signups", data.users.length],
     ["activity", "Agent & payment log", data.activity.length],
     ["deals", "Deals", data.deals.length],
@@ -125,9 +140,11 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
-          Download CSV
-        </button>
+        {tab !== "approvals" && (
+          <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
+            Download CSV
+          </button>
+        )}
       </header>
 
       <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
@@ -143,6 +160,59 @@ export function AdminConsole() {
           </button>
         ))}
       </div>
+
+      {tab === "approvals" && (
+        <div className="mt-6 space-y-4">
+          <div className="flex max-w-sm flex-col gap-2">
+            <label htmlFor="desk-name" className="text-muted">
+              Your name (recorded with each decision)
+            </label>
+            <input
+              id="desk-name"
+              value={deskName}
+              onChange={(e) => setDeskName(e.target.value)}
+              placeholder="Deal desk"
+              className="rounded-xl border border-line bg-panel px-4 py-2.5 focus:border-saffron focus:outline-none"
+            />
+          </div>
+          {approvals.length === 0 && <p className="py-6 text-muted">No offers waiting. When a shopper pushes below the agent&apos;s limit, it shows up here.</p>}
+          {approvals.map((d) => {
+            const price = d.negotiation?.approvalPrice ?? 0;
+            const t = d.terms;
+            return (
+              <article key={d.id} className="rounded-2xl border border-saffron/60 p-5">
+                <p className="text-lg font-semibold">{d.product.title}</p>
+                <p className="mt-1 text-muted">
+                  {d.userId ? usersById.get(d.userId)?.name : "Shopper"} wants it for <span className="text-fg">{inr(price)}</span>
+                  {t && (
+                    <>
+                      {" "}
+                      · best market {inr(t.benchmark)} · agent limit {inr(t.autoLimit)} · floor {inr(t.floor)} · margin left after deal{" "}
+                      {inr(price - t.floor)}
+                    </>
+                  )}
+                </p>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    disabled={deciding === d.id}
+                    onClick={() => decide(d.id, "approved")}
+                    className="rounded-xl bg-paid px-5 py-2.5 font-semibold text-paper-ink disabled:opacity-50"
+                  >
+                    Approve {inr(price)}
+                  </button>
+                  <button
+                    disabled={deciding === d.id}
+                    onClick={() => decide(d.id, "rejected")}
+                    className="rounded-xl border border-line px-5 py-2.5 hover:border-alarm disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[44rem] text-left text-sm">
@@ -181,7 +251,7 @@ export function AdminConsole() {
               ))}
           </tbody>
         </table>
-        {tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
+        {tab !== "approvals" && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
       </div>
     </div>
   );

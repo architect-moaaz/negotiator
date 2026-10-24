@@ -295,11 +295,11 @@ export function Negotiator() {
             <>
               <div className="receipt-rule my-4" />
               <div className="print-line flex items-baseline justify-between">
-                <span>Your price</span>
+                <span>Opening offer</span>
                 <span className="text-2xl font-semibold">{inr(offer.dealPrice)}</span>
               </div>
               <p className="text-right text-paper-muted">
-                <s>{inr(offer.originalPrice)}</s> · you save {inr(offer.saved)}
+                <s>{inr(offer.originalPrice)}</s> · now haggle for lower
               </p>
             </>
           )}

@@ -7,6 +7,6 @@ export async function POST(request: Request) {
   const deal = id ? await store.getDeal(id) : undefined;
   if (!deal) return Response.json({ error: "not found" }, { status: 404 });
   if (!deal.simulate) return Response.json({ error: "simulation disabled" }, { status: 403 });
-  if (deal.status === "expired") return Response.json({ error: "deal expired" }, { status: 409 });
+  if (deal.status !== "pending" && deal.status !== "paid") return Response.json({ error: `deal ${deal.status}` }, { status: 409 });
   return Response.json(toPublic(await markPaid(deal, "simulated")));
 }

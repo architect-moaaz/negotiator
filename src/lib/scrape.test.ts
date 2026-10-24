@@ -14,3 +14,31 @@ describe("queryFromUrl", () => {
     expect(queryFromUrl("not a url")).toBeNull();
   });
 });
+
+describe("sellerName", () => {
+  it("uses the registrable domain", async () => {
+    const { sellerName } = await import("./scrape");
+    expect(sellerName("https://luxury.tatacliq.com/x")).toBe("Tatacliq");
+    expect(sellerName("https://www.amazon.in/x")).toBe("Amazon");
+    expect(sellerName("https://www.amazon.co.in/x")).toBe("Amazon");
+  });
+});
+
+describe("sameProductQuotes", () => {
+  it("drops other models, implausible prices and duplicate sellers", async () => {
+    const { sameProductQuotes } = await import("./scrape");
+    const product = { title: "SONY WH-1000XM5 Wireless Noise Cancellation", brand: "Sony", seller: "Flipkart", price: 19989, inStock: true };
+    const q = (seller: string, title: string, price: number) => ({ seller, title, price, url: `https://${seller}.in/${price}`, inStock: true });
+    const kept = sameProductQuotes(product, [
+      q("Amazon", "Sony WH-1000XM5 Headphones", 19989),
+      q("Amazon", "Sony WH1000XM5 Black", 19490),
+      q("Amazon", "Sony WH-1000XM4 Headphones", 13989), // older model
+      q("Croma", "Sony WH-1000XM5 (Renewed)", 9999), // implausibly cheap
+      q("Tatacliq", "Sony WH-1000XM5", 22990),
+    ]);
+    expect(kept.map((k) => [k.seller, k.price])).toEqual([
+      ["Amazon", 19490],
+      ["Tatacliq", 22990],
+    ]);
+  });
+});

@@ -15,6 +15,7 @@ export interface Product {
 
 export interface SellerQuote {
   seller: string;
+  title?: string;
   url: string;
   price: number;
   inStock: boolean;
@@ -28,7 +29,34 @@ export interface Offer {
   bestSeller: string;
 }
 
-export type DealStatus = "pending" | "paid" | "expired";
+/** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid | expired */
+export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "expired";
+
+/** Private limits for the seller agent. Never sent to the browser. */
+export interface NegotiationTerms {
+  category: string;
+  commissionRate: number;
+  benchmark: number; // cheapest in-stock price we found
+  budget: number; // max discount GhostCart can fund from its commission
+  floor: number; // benchmark - budget: below this we lose money
+  autoLimit: number; // the agent may agree down to here on its own; lower needs human approval
+  opening: number;
+}
+
+export interface NegotiationMessage {
+  from: "agent" | "shopper" | "desk";
+  text: string;
+  price?: number;
+  at: number;
+}
+
+export interface Negotiation {
+  terms: NegotiationTerms;
+  currentOffer: number;
+  rounds: number;
+  messages: NegotiationMessage[];
+  approval?: { price: number; requestedAt: number; decidedAt?: number; decision?: "approved" | "rejected"; decidedBy?: string };
+}
 export type Channel = "web" | "whatsapp";
 
 export interface Deal extends Offer {
@@ -36,6 +64,7 @@ export interface Deal extends Offer {
   product: Product;
   alternatives: SellerQuote[];
   haggle: string;
+  negotiation?: Negotiation;
   lockFee: number; // INR charged via UPI to lock the deal
   upiIntent?: string;
   qrDataUrl?: string;
@@ -51,7 +80,15 @@ export interface Deal extends Offer {
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */
-export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId">;
+export interface PublicNegotiation {
+  benchmark: number;
+  currentOffer: number;
+  rounds: number;
+  maxRounds: number;
+  messages: NegotiationMessage[];
+  approvalPrice?: number;
+}
+export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation"> & { negotiation?: PublicNegotiation };
 
 export interface TickerEvent {
   id: string;
@@ -94,6 +131,11 @@ export type ActivityType =
   | "product_identified"
   | "sellers_compared"
   | "offer_computed"
+  | "offer_received"
+  | "agent_move"
+  | "approval_requested"
+  | "approval_decided"
+  | "deal_agreed"
   | "deal_created"
   | "payment_link_created"
   | "payment_received"

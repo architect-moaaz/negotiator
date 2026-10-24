@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       const deal = await runNegotiation(input, { channel: "whatsapp", waFrom: from, userId: user?.id });
       await sendWhatsApp(
         from,
-        `⚡ ${deal.product.title}\n${inr(deal.originalPrice)} → *${inr(deal.dealPrice)}* + ${deal.perk}\nYou save ${inr(deal.saved)}. Lock it in 180s:\n${process.env.NEXT_PUBLIC_APP_URL}/deal/${deal.id}`,
+        `⚡ ${deal.product.title}\nBest price anywhere ${inr(deal.negotiation?.terms.benchmark ?? deal.originalPrice)}. My opening offer: *${inr(deal.dealPrice)}*\nThink you can do better? Haggle with me:\n${process.env.NEXT_PUBLIC_APP_URL}/deal/${deal.id}`,
       );
     } catch (err) {
       console.error("WhatsApp negotiation failed", err);

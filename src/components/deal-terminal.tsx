@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { PublicDeal } from "@/lib/types";
+import { HaggleRoom } from "./haggle-room";
 
 function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
@@ -28,7 +29,7 @@ export function DealTerminal({ id }: { id: string }) {
   }, [id]);
 
   const pending = deal?.status === "pending";
-  const now = useNow(!!deal && deal.status !== "paid");
+  const now = useNow(pending);
   const remaining = deal ? Math.max(0, deal.expiresAt - now) : 0;
   const expired = deal?.status === "expired" || (pending && remaining === 0);
 
@@ -37,12 +38,15 @@ export function DealTerminal({ id }: { id: string }) {
     return () => clearTimeout(t);
   }, [load]);
 
-  // Poll for payment while live and for a short grace window after the clock hits zero.
+  // Poll for the deal desk's decision, and for payment while the invoice is live (plus a short grace window).
+  const status = deal?.status;
+  const expiresAt = deal?.expiresAt ?? 0;
   useEffect(() => {
-    if (!deal || deal.status === "paid" || Date.now() > deal.expiresAt + 30_000) return;
-    const t = setInterval(load, 3000);
+    const live = status === "awaiting_approval" || (status === "pending" && Date.now() < expiresAt + 30_000);
+    if (!live) return;
+    const t = setInterval(load, status === "awaiting_approval" ? 2000 : 3000);
     return () => clearInterval(t);
-  }, [deal, load]);
+  }, [status, expiresAt, load]);
 
   async function simulatePay() {
     setPaying(true);
@@ -67,6 +71,7 @@ export function DealTerminal({ id }: { id: string }) {
     );
   }
   if (!deal) return <p className="text-center text-muted">Loading your deal…</p>;
+  if (deal.status === "negotiating" || deal.status === "awaiting_approval") return <HaggleRoom deal={deal} onUpdate={setDeal} />;
 
   const total = deal.expiresAt - deal.createdAt;
   const secs = Math.ceil(remaining / 1000);
@@ -99,7 +104,7 @@ export function DealTerminal({ id }: { id: string }) {
 
         <h1 className="mt-10 max-w-xl text-2xl font-semibold leading-snug sm:text-3xl">{deal.product.title}</h1>
         <p className="mt-2 text-muted">
-          Best base price at {deal.bestSeller} · {deal.perk}
+          {deal.negotiation ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}` : `Best price at ${deal.bestSeller}`} · {deal.perk}
         </p>
 
         {paid && (
@@ -116,12 +121,14 @@ export function DealTerminal({ id }: { id: string }) {
           </div>
         )}
 
-        {deal.haggle && (
+        {deal.negotiation && (
           <details className="mt-10 max-w-xl text-muted">
-            <summary className="cursor-pointer text-fg">How the agent got this price</summary>
-            <div className="mt-3 space-y-1 font-receipt text-sm">
-              {deal.haggle.split("\n").map((l, i) => (
-                <p key={i}>&gt; {l}</p>
+            <summary className="cursor-pointer text-fg">How you got this price</summary>
+            <div className="mt-3 space-y-2 text-sm">
+              {deal.negotiation.messages.map((m, i) => (
+                <p key={i} className="whitespace-pre-line">
+                  <span className="text-fg">{m.from === "shopper" ? "You" : m.from === "desk" ? "Deal desk" : "Seller agent"}:</span> {m.text}
+                </p>
               ))}
             </div>
           </details>

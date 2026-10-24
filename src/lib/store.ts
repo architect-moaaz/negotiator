@@ -25,7 +25,8 @@ const mem = {
 };
 
 function withExpiry(deal: Deal | null | undefined) {
-  if (deal && deal.status === "pending" && Date.now() > deal.expiresAt) deal.status = "expired";
+  const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval";
+  if (deal && live && Date.now() > deal.expiresAt) deal.status = "expired";
   return deal ?? undefined;
 }
 

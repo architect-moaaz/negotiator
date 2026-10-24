@@ -31,7 +31,7 @@ export default async function Home() {
             Paste anything you were going to buy today.
           </h1>
           <p className="mt-6 max-w-xl text-lg text-muted sm:text-xl">
-            Our AI checks every seller, negotiates a cut, and hands you a UPI deal that holds for exactly 180 seconds.
+            Our AI checks every seller, then haggles with you live, paying the discount from its own commission. Agree on a price and it holds for exactly 180 seconds.
           </p>
         </section>
 

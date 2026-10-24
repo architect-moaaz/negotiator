@@ -1,16 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
+import { isAdmin } from "@/lib/admin";
 import { toPublic } from "@/lib/negotiate";
 import { store } from "@/lib/store";
 
-function authorized(request: Request) {
-  const token = process.env.ADMIN_TOKEN;
-  const given = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  return !!token && given.length === token.length && timingSafeEqual(Buffer.from(given), Buffer.from(token));
-}
-
 /** Proof-of-life data for the admin page: signups, agent/payment activity and deals. */
 export async function GET(request: Request) {
-  if (!authorized(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!isAdmin(request)) return Response.json({ error: "unauthorized" }, { status: 401 });
   const [users, activity, deals, stats] = await Promise.all([
     store.listUsers(),
     store.listLog(5000),
@@ -22,7 +16,7 @@ export async function GET(request: Request) {
       stats,
       users,
       activity,
-      deals: deals.map((d) => ({ ...toPublic(d), userId: d.userId, pinelabsOrderId: d.pinelabsOrderId })),
+      deals: deals.map((d) => ({ ...toPublic(d), userId: d.userId, pinelabsOrderId: d.pinelabsOrderId, terms: d.negotiation?.terms })),
     },
     { headers: { "Cache-Control": "no-store" } },
   );
