@@ -77,11 +77,26 @@ export function SellerConsole() {
     setData(null);
   }
 
+  const header = (
+    <header className="mx-auto mb-10 flex w-full max-w-4xl items-center justify-between">
+      <Link href="/" className="text-xl font-bold tracking-tight">
+        GhostCart
+      </Link>
+      {data && (
+        <button onClick={logout} className="text-muted hover:text-fg">
+          Log out
+        </button>
+      )}
+    </header>
+  );
+
   if (!data) {
     if (!checked) return <p className="mt-24 text-center text-muted">Loading…</p>;
     return (
-      <div className="mx-auto mt-16 flex w-full max-w-sm flex-col gap-4">
-        <h1 className="text-2xl font-semibold">Seller dashboard</h1>
+      <>
+      {header}
+      <div className="mx-auto mt-14 flex w-full max-w-sm flex-col gap-4">
+        <h1 className="text-2xl font-semibold">Seller login</h1>
         {useKey ? (
           <form
             className="flex flex-col gap-3"
@@ -120,6 +135,7 @@ export function SellerConsole() {
           </Link>
         </p>
       </div>
+      </>
     );
   }
 
@@ -128,12 +144,8 @@ export function SellerConsole() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-3xl font-semibold">{data.seller.storeName}</h1>
-        <button onClick={logout} className="rounded-xl border border-line px-4 py-2.5 hover:border-alarm">
-          Log out
-        </button>
-      </div>
+      {header}
+      <h1 className="text-3xl font-semibold">{data.seller.storeName}</h1>
       <p className="mt-1 text-muted">
         Agent gives up to {(data.seller.budgetPct * data.seller.autoApproveShare * 100).toFixed(1)}% off on its own and asks you up to{" "}
         {(data.seller.budgetPct * 100).toFixed(0)}% · matches {data.seller.aliases.join(", ")}

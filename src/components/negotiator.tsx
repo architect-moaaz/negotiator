@@ -197,7 +197,19 @@ export function Negotiator() {
           if (url.trim()) negotiate({ url: url.trim() });
         }}
       >
-        {user && <p className="text-muted">Hi {user.name.split(" ")[0]}, what are you buying today?</p>}
+        {user && (
+          <p className="text-muted">
+            Hi {user.name.split(" ")[0]}, what are you buying today?{" "}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fetch("/api/me", { method: "DELETE" }).then(() => setUser(null))}
+              className="text-sm underline underline-offset-4 hover:text-fg disabled:opacity-50"
+            >
+              Log out
+            </button>
+          </p>
+        )}
         <label htmlFor="product-url" className="text-muted">
           Product link from Amazon, Flipkart, Myntra, Croma, Swiggy or anywhere else
         </label>
@@ -218,6 +230,12 @@ export function Negotiator() {
         {askDetails && (
           <div className="mt-2 grid grid-cols-1 gap-3 rounded-2xl border border-line p-4 sm:grid-cols-2">
             <p className="font-semibold sm:col-span-2">Last step: where can we reach you about this deal?</p>
+            <p className="-mt-2 text-sm text-muted sm:col-span-2">
+              Been here before?{" "}
+              <Link href="/login" className="text-fg underline underline-offset-4">
+                Log in with a code
+              </Link>
+            </p>
             <div className="flex flex-col gap-2">
               <label htmlFor="signup-name" className="text-muted">
                 Your name

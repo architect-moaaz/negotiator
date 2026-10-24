@@ -38,7 +38,7 @@ export interface Offer {
   bestSeller: string;
 }
 
-/** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid | expired */
+/** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid (locked; checkout opens) | expired */
 export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "expired";
 
 /** Private limits for the seller agent. Never sent to the browser. */
@@ -95,6 +95,52 @@ export interface ApprovalCall {
 }
 export type Channel = "web" | "whatsapp";
 
+export interface DeliveryAddress {
+  name: string;
+  phone: string; // E.164
+  line1: string;
+  line2?: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+export type FulfilmentStage = "placed" | "confirmed" | "shipped" | "out_for_delivery" | "delivered";
+
+export interface TrackingEvent {
+  stage: FulfilmentStage;
+  at: number;
+  note?: string;
+}
+
+/**
+ * After the lock fee is paid the shopper has 30 minutes to give a delivery address and pay the balance
+ * (deal price minus the lock fee). awaiting → ordered | lapsed.
+ */
+export interface Checkout {
+  status: "awaiting" | "ordered" | "lapsed";
+  openedAt: number;
+  dueAt: number;
+  amount: number; // INR balance still to pay
+  address?: DeliveryAddress;
+  addressAt?: number;
+  pinelabsOrderId?: string;
+  upiIntent?: string;
+  qrDataUrl?: string;
+  paidAt?: number;
+  orderRef?: string; // GhostCart order number shown to the shopper
+  deliveryBy?: number; // estimated delivery date
+  tracking?: TrackingEvent[]; // oldest first; the last entry is the current stage
+  courier?: string;
+  awb?: string; // courier tracking number
+}
+
+/** Checkout as exposed to browsers: the address is reduced to a "delivering to" summary. */
+export type PublicCheckout = Omit<Checkout, "address" | "pinelabsOrderId"> & {
+  deliverTo?: { name: string; area: string };
+};
+
 export interface Deal extends Offer {
   id: string;
   product: Product;
@@ -113,6 +159,7 @@ export interface Deal extends Offer {
   channel: Channel;
   waFrom?: string;
   userId?: string;
+  checkout?: Checkout;
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */
@@ -128,7 +175,10 @@ export interface PublicNegotiation {
   callStatus?: ApprovalCall["status"];
   reviewedByAgent?: boolean;
 }
-export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation"> & { negotiation?: PublicNegotiation };
+export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation" | "checkout"> & {
+  negotiation?: PublicNegotiation;
+  checkout?: PublicCheckout;
+};
 
 export interface TickerEvent {
   id: string;
@@ -208,6 +258,11 @@ export type ActivityType =
   | "deal_created"
   | "payment_link_created"
   | "payment_received"
+  | "checkout_opened"
+  | "address_received"
+  | "order_placed"
+  | "checkout_lapsed"
+  | "order_status"
   | "negotiation_failed";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */

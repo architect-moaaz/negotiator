@@ -72,7 +72,7 @@ export function MockPayment({ orderId }: { orderId: string }) {
           </div>
         )}
         {order.status === "PROCESSED" && (
-          <p className="text-center font-sans text-base font-semibold">Paid {inr(amount)}. Head back to GhostCart, your deal is locked.</p>
+          <p className="text-center font-sans text-base font-semibold">Paid {inr(amount)}. Head back to GhostCart to see your deal.</p>
         )}
         {order.status === "FAILED" && (
           <div className="flex flex-col gap-3 text-center font-sans">

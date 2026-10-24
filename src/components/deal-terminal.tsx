@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { PublicDeal } from "@/lib/types";
+import { CheckoutPanel } from "./checkout-panel";
 import { HaggleRoom } from "./haggle-room";
 import { SocialProof } from "./social-proof";
 import { shortTitle } from "@/lib/format";
@@ -31,7 +32,8 @@ export function DealTerminal({ id }: { id: string }) {
   }, [id]);
 
   const pending = deal?.status === "pending";
-  const now = useNow(pending);
+  const checkingOut = deal?.status === "paid" && deal.checkout?.status === "awaiting";
+  const now = useNow(pending || checkingOut);
   const remaining = deal ? Math.max(0, deal.expiresAt - now) : 0;
   const expired = deal?.status === "expired" || (pending && remaining === 0);
 
@@ -40,15 +42,28 @@ export function DealTerminal({ id }: { id: string }) {
     return () => clearTimeout(t);
   }, [load]);
 
-  // Poll for the deal desk's decision, and for payment while the invoice is live (plus a short grace window).
+  // Poll for the deal desk's decision, for payment while an invoice is live (plus a short grace window),
+  // and slowly for delivery updates once the order is placed.
   const status = deal?.status;
   const expiresAt = deal?.expiresAt ?? 0;
+  const checkout = deal?.checkout?.status;
+  const checkoutDue = deal?.checkout?.dueAt ?? 0;
+  const delivered = deal?.checkout?.tracking?.at(-1)?.stage === "delivered";
   useEffect(() => {
-    const live = status === "awaiting_approval" || (status === "pending" && Date.now() < expiresAt + 30_000);
-    if (!live) return;
-    const t = setInterval(load, status === "awaiting_approval" ? 2000 : 3000);
+    const every =
+      status === "awaiting_approval"
+        ? 2000
+        : status === "pending" && Date.now() < expiresAt + 30_000
+          ? 3000
+          : checkout === "awaiting" && Date.now() < checkoutDue + 30_000
+            ? 3000
+            : checkout === "ordered" && !delivered
+              ? 8000
+              : 0;
+    if (!every) return;
+    const t = setInterval(load, every);
     return () => clearInterval(t);
-  }, [status, expiresAt, load]);
+  }, [status, expiresAt, checkout, checkoutDue, delivered, load]);
 
   async function simulatePay() {
     setPaying(true);
@@ -74,6 +89,7 @@ export function DealTerminal({ id }: { id: string }) {
   }
   if (!deal) return <p className="text-center text-muted">Loading your deal…</p>;
   if (deal.status === "negotiating" || deal.status === "awaiting_approval") return <HaggleRoom deal={deal} onUpdate={setDeal} />;
+  if (deal.status === "paid" && deal.checkout) return <CheckoutPanel deal={deal} now={now} onUpdate={setDeal} />;
 
   const total = deal.expiresAt - deal.createdAt;
   const secs = Math.ceil(remaining / 1000);

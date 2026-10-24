@@ -1,4 +1,6 @@
+import { placeOrder } from "@/lib/checkout";
 import { markPaid } from "@/lib/negotiate";
+import { BALANCE_REF_SUFFIX } from "@/lib/payments";
 import { verifyWebhook } from "@/lib/pinelabs";
 import { store } from "@/lib/store";
 
@@ -23,8 +25,10 @@ export async function POST(request: Request) {
   const event = JSON.parse(raw) as PinelabsEvent;
   const ref = event.data?.merchant_order_reference;
   if (event.event_type === "ORDER_PROCESSED" && ref) {
-    const deal = await store.getDeal(ref);
-    if (deal) await markPaid(deal, "pinelabs-webhook");
+    const balance = ref.endsWith(BALANCE_REF_SUFFIX);
+    const deal = await store.getDeal(balance ? ref.slice(0, -BALANCE_REF_SUFFIX.length) : ref);
+    if (deal && balance) await placeOrder(deal, "pinelabs-webhook").catch((err) => console.error("Order from webhook failed", err));
+    else if (deal) await markPaid(deal, "pinelabs-webhook");
   }
   return Response.json({ ok: true });
 }
