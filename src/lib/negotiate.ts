@@ -1,9 +1,9 @@
 import { computeOffer, extractProductFromImage, streamHaggle } from "./agent";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
 import { inr } from "./format";
-import { findAlternatives, scrapeProduct } from "./scrape";
+import { findAlternatives, queryFromUrl, scrapeProduct } from "./scrape";
 import { store } from "./store";
-import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Product, PublicDeal } from "./types";
+import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Product, PublicDeal, SellerQuote } from "./types";
 import { sendWhatsApp } from "./whatsapp";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
@@ -31,9 +31,13 @@ export async function runNegotiation(
 
   await log("negotiation_started", input.kind === "url" ? `Submitted ${input.url}` : "Submitted a screenshot", "user");
 
+  // For URLs whose slug names the product, look up other sellers while the page is still being scraped.
+  let earlyQuotes: Promise<SellerQuote[]> | undefined;
   if (input.kind === "url") {
     emit({ type: "step", text: "Scraping the product page" });
     await log("agent_step", `Scraping ${input.url}`);
+    const slugQuery = queryFromUrl(input.url);
+    if (slugQuery) earlyQuotes = findAlternatives(slugQuery, input.url);
     product = await scrapeProduct(input.url);
     searchQuery = [product.brand, product.title].filter(Boolean).join(" ");
   } else {
@@ -45,7 +49,7 @@ export async function runNegotiation(
   await log("product_identified", `${product.title} at ${product.seller} for ${inr(product.price)}${product.inStock ? "" : " (out of stock)"}`);
 
   emit({ type: "step", text: "Checking prices across other sellers" });
-  const quotes = await findAlternatives(searchQuery, product.sourceUrl);
+  const quotes = await (earlyQuotes ?? findAlternatives(searchQuery, product.sourceUrl));
   emit({ type: "quotes", quotes });
   await log(
     "sellers_compared",

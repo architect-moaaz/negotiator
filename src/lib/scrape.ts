@@ -62,7 +62,7 @@ export async function scrapeProduct(url: string): Promise<Product> {
     const doc = await firecrawl.scrape(url, {
       formats: ["product", "markdown"],
       onlyMainContent: true,
-      location: { country: "IN" },
+      location: { country: "IN", languages: ["en-IN", "en"] },
       timeout: 25000,
     });
     const product = fromProfile(doc.product, url);
@@ -81,8 +81,9 @@ export async function findAlternatives(query: string, excludeUrl?: string): Prom
       country: "IN",
       limit: 5,
       includeDomains: IN_RETAILERS.filter((d) => d !== excludeHost),
-      timeout: 15000,
-      scrapeOptions: { formats: ["product"], onlyMainContent: true, timeout: 12000 },
+      location: "India",
+      timeout: 25000,
+      scrapeOptions: { formats: ["product"], onlyMainContent: true, timeout: 12000, location: { country: "IN", languages: ["en-IN", "en"] } },
     });
     return (result.web ?? [])
       .map((r) => {
@@ -96,5 +97,22 @@ export async function findAlternatives(query: string, excludeUrl?: string): Prom
   } catch (err) {
     console.warn("findAlternatives failed", err);
     return [];
+  }
+}
+
+/** Product name from a retailer URL slug (e.g. amazon.in/Sony-WH-1000XM5-Wireless/dp/…), so search can start before the scrape finishes. */
+export function queryFromUrl(url: string) {
+  try {
+    const slug = new URL(url).pathname
+      .split("/")
+      .filter((seg) => seg.includes("-"))
+      .sort((a, b) => b.length - a.length)[0];
+    const words = (slug ?? "")
+      .split("-")
+      .filter((w) => w && !/^\d{5,}$/.test(w) && !/^(buy|online|p|dp|itm\w+)$/i.test(w))
+      .slice(0, 8);
+    return words.length >= 3 ? decodeURIComponent(words.join(" ")) : null;
+  } catch {
+    return null;
   }
 }
