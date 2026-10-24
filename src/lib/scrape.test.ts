@@ -83,3 +83,12 @@ describe("shortTitle", () => {
     expect(shortTitle("Minimalist Barrier Repair Face Moisturizer with Ceramides")).toBe("Minimalist Barrier Repair Face Moisturizer");
   });
 });
+
+describe("isBlockedPage", () => {
+  it("spots store block pages", async () => {
+    const { isBlockedPage } = await import("./scrape");
+    expect(isBlockedPage({ metadata: { statusCode: 503 }, product: { title: "503 - Service Unavailable Error" } })).toBe(true);
+    expect(isBlockedPage({ metadata: { statusCode: 200, title: "Amazon.in: Robot Check" } })).toBe(true);
+    expect(isBlockedPage({ metadata: { statusCode: 200 }, product: { title: "Wakefit Gravita Ergonomic Office Chair" } })).toBe(false);
+  });
+});

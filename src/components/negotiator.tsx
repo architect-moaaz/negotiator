@@ -318,6 +318,18 @@ export function Negotiator() {
         {phase === "error" && (
           <p role="alert" className="mt-2 text-alarm">
             {error}
+            {/screenshot/i.test(error) && !needsLogin && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="font-semibold text-fg underline underline-offset-4"
+                >
+                  Upload a screenshot instead
+                </button>
+              </>
+            )}
             {needsLogin && (
               <>
                 {" "}

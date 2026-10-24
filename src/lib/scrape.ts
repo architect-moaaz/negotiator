@@ -69,6 +69,13 @@ const DEMO_PRODUCT: Product = {
   inStock: true,
 };
 
+/** Stores like Amazon answer automated reads with an error page (503 "Service Unavailable", robot check). */
+export function isBlockedPage(doc: { metadata?: { statusCode?: number; title?: string }; product?: { title?: string } }) {
+  const status = doc.metadata?.statusCode ?? 200;
+  const title = `${doc.product?.title ?? ""} ${doc.metadata?.title ?? ""}`;
+  return status >= 400 || /\b503\b|service unavailable|robot check|captcha|access denied/i.test(title);
+}
+
 export async function scrapeProduct(url: string): Promise<Product> {
   if (url === DEMO_URL) return DEMO_PRODUCT;
   if (firecrawl) {
@@ -78,6 +85,8 @@ export async function scrapeProduct(url: string): Promise<Product> {
       location: { country: "IN", languages: ["en-IN", "en"] },
       timeout: 25000,
     });
+    // Don't try to get around it: tell the shopper and steer them to a screenshot.
+    if (isBlockedPage(doc)) throw new Error(`Store blocked automated reading (HTTP ${doc.metadata?.statusCode ?? "?"})`);
     const soldBy = extractListingSeller(doc.markdown ?? "", url);
     const product = fromProfile(doc.product, url) ?? (await extractProductFromText(doc.markdown ?? "", url));
     return { ...product, soldBy };
