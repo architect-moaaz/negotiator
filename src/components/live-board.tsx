@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { inr, timeAgo } from "@/lib/format";
 import { useTicker } from "./use-ticker";
 
-const GOAL = 20;
-
 export function LiveBoard() {
   const data = useTicker(3000);
   const [now, setNow] = useState(0);
@@ -21,7 +19,6 @@ export function LiveBoard() {
 
   const stats = data?.stats ?? { users: 0, deals: 0, paid: 0, saved: 0 };
   const events = data?.events ?? [];
-  const progress = Math.min(1, stats.users / GOAL);
 
   return (
     <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-12 lg:grid-cols-[22rem_minmax(0,1fr)]">
@@ -30,11 +27,7 @@ export function LiveBoard() {
           <p className="text-muted">Shoppers today</p>
           <p className="font-receipt text-[clamp(5rem,14vw,9rem)] font-semibold leading-none tabular-nums">
             {stats.users}
-            <span className="text-muted/40">/{GOAL}</span>
           </p>
-          <div className="mt-4 h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={stats.users} aria-valuemax={GOAL} aria-label="Progress to 20 shoppers">
-            <div className="h-full bg-saffron transition-[width] duration-700" style={{ width: `${progress * 100}%` }} />
-          </div>
         </div>
         <dl className="grid grid-cols-2 gap-6">
           <div>
