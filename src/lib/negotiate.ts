@@ -2,9 +2,10 @@ import { extractProductFromImage, streamHaggle } from "./agent";
 import { chooseMove, computeTerms, MAX_ROUNDS } from "./haggle";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
 import { inr } from "./format";
+import { matchListingSeller } from "./sellers";
 import { findAlternatives, queryFromUrl, sameProductQuotes, scrapeProduct } from "./scrape";
 import { store } from "./store";
-import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Offer, Product, PublicDeal, SellerQuote } from "./types";
+import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Offer, Product, PublicDeal, Seller, SellerQuote } from "./types";
 import { sendWhatsApp } from "./whatsapp";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
@@ -24,6 +25,8 @@ export function toPublic(deal: Deal): PublicDeal {
   return {
     ...(pub as Omit<PublicDeal, "negotiation">),
     negotiation: n && {
+      fundedBy: n.terms.fundedBy ?? "ghostcart",
+      sellerName: n.terms.sellerName,
       benchmark: n.terms.benchmark,
       currentOffer: n.currentOffer,
       rounds: n.rounds,
@@ -64,6 +67,21 @@ export async function runNegotiation(
   emit({ type: "product", product });
   await log("product_identified", `${product.title} at ${product.seller} for ${inr(product.price)}${product.inStock ? "" : " (out of stock)"}`);
 
+  // Who actually sells this listing, and are they on GhostCart?
+  let seller: Seller | undefined;
+  if (product.soldBy) {
+    emit({ type: "step", text: `Identifying the seller: ${product.soldBy.name}` });
+    seller = await matchListingSeller(product.soldBy);
+    emit({ type: "seller", soldBy: product.soldBy, onGhostCart: !!seller, sellerName: seller?.storeName });
+    const { name, marketplace, marketplaceSellerId, rating } = product.soldBy;
+    await log(
+      "seller_identified",
+      `Sold by ${name} on ${marketplace}${marketplaceSellerId ? ` (id ${marketplaceSellerId})` : ""}${rating ? `, rated ${rating}` : ""}: ${
+        seller ? `on GhostCart as ${seller.storeName}, negotiating against their margin` : "not on GhostCart yet, demand recorded; GhostCart commission funds the discount"
+      }`,
+    );
+  }
+
   emit({ type: "step", text: "Checking prices across other sellers" });
   const quotes = sameProductQuotes(product, await (earlyQuotes ?? findAlternatives(searchQuery, product.sourceUrl)));
   emit({ type: "quotes", quotes });
@@ -72,7 +90,7 @@ export async function runNegotiation(
     quotes.length ? quotes.map((q) => `${q.seller} ${inr(q.price)}${q.inStock ? "" : " (oos)"}`).join(", ") : "No other sellers found",
   );
 
-  const { terms, bestSeller, originalPrice } = computeTerms(product, quotes);
+  const { terms, bestSeller, originalPrice } = computeTerms(product, quotes, seller);
   const opening: Offer = {
     originalPrice,
     dealPrice: terms.opening,
@@ -82,12 +100,14 @@ export async function runNegotiation(
   };
   await log(
     "offer_computed",
-    `Best price ${bestSeller} ${inr(terms.benchmark)}; ${terms.category} commission ~${(terms.commissionRate * 100).toFixed(1)}% → budget ${inr(terms.budget)}, auto-approve to ${inr(terms.autoLimit)}, floor ${inr(terms.floor)}; opening ${inr(terms.opening)}`,
+    `Best price ${bestSeller} ${inr(terms.benchmark)}; ${
+      seller ? `${seller.storeName} funds up to ${(seller.budgetPct * 100).toFixed(0)}%` : `${terms.category} commission ~${(terms.commissionRate * 100).toFixed(1)}%`
+    } → budget ${inr(terms.budget)}, auto-approve to ${inr(terms.autoLimit)}, floor ${inr(terms.floor)}; opening ${inr(terms.opening)}`,
   );
 
-  emit({ type: "step", text: "Seller agent is making an opening offer" });
+  emit({ type: "step", text: seller ? `${seller.storeName}'s agent is making an opening offer` : "Seller agent is making an opening offer" });
   let haggle = "";
-  for await (const chunk of streamHaggle(product, quotes, opening)) {
+  for await (const chunk of streamHaggle(product, quotes, opening, seller?.storeName)) {
     haggle += chunk;
     emit({ type: "haggle", text: chunk });
   }
@@ -209,7 +229,7 @@ export async function acceptOffer(deal: Deal) {
 }
 
 /** Human deal desk approves or rejects a price below the agent's auto-approve limit. */
-export async function decideApproval(deal: Deal, decision: "approved" | "rejected", decidedBy: string) {
+export async function decideApproval(deal: Deal, decision: "approved" | "rejected", decidedBy: string, role: "desk" | "seller" = "desk") {
   const n = deal.negotiation;
   if (!n?.approval || deal.status !== "awaiting_approval") throw new HaggleError("Nothing waiting for approval.");
   const { price } = n.approval;
@@ -217,17 +237,18 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
   await logFor(deal)(
     "approval_decided",
     `${decidedBy} ${decision} ${inr(price)} (requested ${Math.round((Date.now() - n.approval.requestedAt) / 1000)}s ago)`,
-    "human",
+    role === "seller" ? "seller" : "human",
   );
+  const who = role === "seller" ? (n.terms.sellerName ?? "The seller") : "Deal desk";
 
   if (decision === "approved") {
-    n.messages.push({ from: "desk", text: `Deal desk approved ${inr(price)}. It's yours.`, price, at: Date.now() });
+    n.messages.push({ from: role, text: `${who} approved ${inr(price)}. It's yours.`, price, at: Date.now() });
     await issueInvoice(deal, price, `approved by ${decidedBy}`);
   } else {
     const final = n.terms.autoLimit;
     n.messages.push({
-      from: "desk",
-      text: `Deal desk couldn't do ${inr(price)}. Final offer: ${inr(final)}, take it or leave it.`,
+      from: role,
+      text: `${who} couldn't do ${inr(price)}. Final offer: ${inr(final)}, take it or leave it.`,
       price: final,
       at: Date.now(),
     });

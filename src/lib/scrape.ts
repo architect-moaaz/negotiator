@@ -1,6 +1,6 @@
 import Firecrawl, { type ProductProfile } from "@mendable/firecrawl-js";
 import { extractProductFromText } from "./agent";
-import type { Product, SellerQuote } from "./types";
+import type { ListingSeller, Product, SellerQuote } from "./types";
 
 const firecrawl = process.env.FIRECRAWL_API_KEY ? new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY }) : null;
 
@@ -66,11 +66,27 @@ export async function scrapeProduct(url: string): Promise<Product> {
       location: { country: "IN", languages: ["en-IN", "en"] },
       timeout: 25000,
     });
-    const product = fromProfile(doc.product, url);
-    if (product) return product;
-    return extractProductFromText(doc.markdown ?? "", url);
+    const soldBy = extractListingSeller(doc.markdown ?? "", url);
+    const product = fromProfile(doc.product, url) ?? (await extractProductFromText(doc.markdown ?? "", url));
+    return { ...product, soldBy };
   }
-  return extractProductFromText(await fetchPageText(url), url);
+  const text = await fetchPageText(url);
+  return { ...(await extractProductFromText(text, url)), soldBy: extractListingSeller(text, url) };
+}
+
+/** Read the merchant behind a listing ("Sold by …" on Amazon, "Seller: …" on Flipkart) from page markdown. */
+export function extractListingSeller(markdown: string, url: string): ListingSeller | undefined {
+  const marketplace = sellerName(url);
+  const amazon = markdown.match(/Sold by\s*\n*\s*\[([^\]\n]{2,80})\]\(([^)\s]*)/i);
+  if (amazon) {
+    const id = amazon[2].match(/[?&]seller=([A-Z0-9]+)/)?.[1];
+    if (!/^amazon(\.in)?$/i.test(amazon[1].trim()) || id) return { name: amazon[1].trim(), marketplace, marketplaceSellerId: id };
+  }
+  const flipkart = markdown.match(/Seller:\s*([^\n\]]{2,80})\n(?:[\s\S]{0,160}?\n(\d(?:\.\d)?)\n)?/);
+  if (flipkart) return { name: flipkart[1].trim(), marketplace, rating: flipkart[2] ? Number(flipkart[2]) : undefined };
+  const generic = markdown.match(/(?:Sold by|Seller)\s*[:\-]?\s*\n*\s*\[?([A-Za-z0-9][^\]\n(]{1,79})/);
+  if (generic && !/^(account|central|hub|support|become)/i.test(generic[1].trim())) return { name: generic[1].trim(), marketplace };
+  return undefined;
 }
 
 /** Look up the same product on other Indian retailers. Never throws; an empty list still lets the haggle run. */

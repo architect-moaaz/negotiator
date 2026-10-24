@@ -2,8 +2,17 @@ export type DealInput =
   | { kind: "url"; url: string }
   | { kind: "screenshot"; imageBase64: string; mediaType: string };
 
+/** The marketplace merchant actually selling the listing ("Sold by …"). */
+export interface ListingSeller {
+  name: string;
+  marketplace: string; // Amazon, Flipkart, …
+  marketplaceSellerId?: string;
+  rating?: number;
+}
+
 export interface Product {
   title: string;
+  soldBy?: ListingSeller;
   brand?: string;
   imageUrl?: string;
   sourceUrl?: string;
@@ -34,6 +43,9 @@ export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid
 
 /** Private limits for the seller agent. Never sent to the browser. */
 export interface NegotiationTerms {
+  fundedBy: "ghostcart" | "seller";
+  sellerId?: string; // set when the listing's seller is on GhostCart
+  sellerName?: string;
   category: string;
   commissionRate: number;
   benchmark: number; // cheapest in-stock price we found
@@ -44,7 +56,7 @@ export interface NegotiationTerms {
 }
 
 export interface NegotiationMessage {
-  from: "agent" | "shopper" | "desk";
+  from: "agent" | "shopper" | "desk" | "seller";
   text: string;
   price?: number;
   at: number;
@@ -81,6 +93,8 @@ export interface Deal extends Offer {
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */
 export interface PublicNegotiation {
+  fundedBy: "ghostcart" | "seller";
+  sellerName?: string;
   benchmark: number;
   currentOffer: number;
   rounds: number;
@@ -108,6 +122,7 @@ export interface Stats {
 export type NegotiationEvent =
   | { type: "step"; text: string }
   | { type: "product"; product: Product }
+  | { type: "seller"; soldBy: ListingSeller; onGhostCart: boolean; sellerName?: string }
   | { type: "quotes"; quotes: SellerQuote[] }
   | { type: "offer"; offer: Offer }
   | { type: "haggle"; text: string }
@@ -136,6 +151,8 @@ export type ActivityType =
   | "approval_requested"
   | "approval_decided"
   | "deal_agreed"
+  | "seller_identified"
+  | "seller_signup"
   | "deal_created"
   | "payment_link_created"
   | "payment_received"
@@ -145,8 +162,28 @@ export type ActivityType =
 export interface Activity {
   at: number;
   type: ActivityType;
-  actor: "user" | "agent" | "system" | "human";
+  actor: "user" | "agent" | "system" | "human" | "seller";
   userId?: string;
   dealId?: string;
   detail: string;
+}
+
+/** A merchant who opted in to GhostCart and negotiates from their own margin. */
+export interface Seller {
+  id: string;
+  storeName: string;
+  aliases: string[]; // store names as shown on marketplaces ("Clicktech Retail Private Ltd")
+  contactName: string;
+  phone: string;
+  budgetPct: number; // max discount the seller funds, as a share of price (0.01-0.3)
+  autoApproveShare: number; // share of that budget the agent may give without asking (0.1-1)
+  createdAt: number;
+}
+
+export interface SellerDemand {
+  key: string;
+  name: string;
+  marketplace: string;
+  count: number;
+  registered: boolean;
 }

@@ -52,11 +52,13 @@ export async function extractProductFromImage(imageBase64: string, mediaType: st
   return { product: product as Product, searchQuery };
 }
 
-function fallbackHaggle(product: Product, quotes: SellerQuote[], offer: Offer) {
+function fallbackHaggle(product: Product, quotes: SellerQuote[], offer: Offer, sellerName?: string) {
   const lines = [
     `Locked onto ${product.title} at ${product.seller} for ${inr(product.price)}.`,
     ...quotes.map((q) => `${q.seller} is quoting ${inr(q.price)}${q.inStock ? "" : " (out of stock)"}.`),
-    `Best price anywhere is ${offer.bestSeller}. I'll cut into our own commission for you.`,
+    sellerName
+      ? `Good news: the seller, ${sellerName}, is on GhostCart. I'm negotiating with their margin directly.`
+      : `Best price anywhere is ${offer.bestSeller}. I'll cut into our own commission for you.`,
     `Opening offer: ${inr(offer.dealPrice)}. Counter me.`,
   ];
   return (async function* () {
@@ -68,18 +70,19 @@ function fallbackHaggle(product: Product, quotes: SellerQuote[], offer: Offer) {
 }
 
 /** Stream the seller agent's opening: market comparison and opening offer, built only from the supplied numbers. */
-export function streamHaggle(product: Product, quotes: SellerQuote[], offer: Offer): AsyncIterable<string> {
-  if (!process.env.ANTHROPIC_API_KEY) return fallbackHaggle(product, quotes, offer);
+export function streamHaggle(product: Product, quotes: SellerQuote[], offer: Offer, sellerName?: string): AsyncIterable<string> {
+  if (!process.env.ANTHROPIC_API_KEY) return fallbackHaggle(product, quotes, offer, sellerName);
   const facts = JSON.stringify({
     product: { title: product.title, seller: product.seller, price: product.price, mrp: product.mrp },
     otherSellers: quotes,
     openingOffer: { price: offer.dealPrice, bestPriceAnywhere: offer.bestSeller },
+    discountFundedBy: sellerName ? `${sellerName} (the listing's seller, who is on GhostCart)` : "GhostCart's own commission",
   });
   const result = streamText({
     model,
     instructions: `You are GhostCart, an AI deal agent haggling live on a shopper's behalf in India.
 Write 4-6 short lines (max ~14 words each), one per line, no bullets or markdown.
-Narrate: spotting the item, comparing the other sellers' prices, then making your opening offer, which GhostCart funds from its own commission.
+Narrate: spotting the item, comparing the other sellers' prices, then making your opening offer, funded as stated in discountFundedBy. If the listing's seller is on GhostCart, say you're negotiating with them directly.
 Use ONLY the numbers in the facts, formatted as ₹1,234. Never invent prices, sellers or discounts.
 If there are no other sellers, say you checked and the source is already the best price.
 End with the opening offer and invite the shopper to counter. Confident, fast, a bit cheeky. You are the seller side: you want to win the deal but protect margin.`,

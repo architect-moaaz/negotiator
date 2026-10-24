@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis";
-import type { Activity, Deal, Stats, TickerEvent, User } from "./types";
+import type { Activity, Deal, Seller, SellerDemand, Stats, TickerEvent, User } from "./types";
 
 // Deals and logs are kept for the whole event so they can be exported as proof.
 const DEAL_TTL_S = 7 * 24 * 60 * 60;
@@ -21,6 +21,11 @@ const mem = {
   ticker: [] as TickerEvent[],
   log: [] as Activity[],
   paid: new Set<string>(),
+  sellers: new Map<string, Seller>(),
+  sellerIds: [] as string[],
+  sellerAliases: new Map<string, string>(),
+  sellerTokens: new Map<string, string>(),
+  demand: new Map<string, { name: string; marketplace: string; count: number }>(),
   stats: { users: 0, deals: 0, paid: 0, saved: 0 } as Stats,
 };
 
@@ -139,6 +144,69 @@ export const store = {
       paid: Number(s.paid ?? 0),
       saved: Number(s.saved ?? 0),
     };
+  },
+
+  async saveSeller(seller: Seller, tokenHash: string) {
+    if (redis) {
+      await redis.set(`seller:${seller.id}`, seller);
+      await redis.lpush("sellers", seller.id);
+      await redis.set(`sellerToken:${tokenHash}`, seller.id);
+      for (const alias of seller.aliases) await redis.set(`sellerAlias:${alias}`, seller.id);
+    } else {
+      mem.sellers.set(seller.id, seller);
+      mem.sellerIds.unshift(seller.id);
+      mem.sellerTokens.set(tokenHash, seller.id);
+      for (const alias of seller.aliases) mem.sellerAliases.set(alias, seller.id);
+    }
+  },
+
+  async getSeller(id: string) {
+    return (redis ? await redis.get<Seller>(`seller:${id}`) : mem.sellers.get(id)) ?? undefined;
+  },
+
+  async sellerIdForAlias(alias: string) {
+    return (redis ? await redis.get<string>(`sellerAlias:${alias}`) : mem.sellerAliases.get(alias)) ?? undefined;
+  },
+
+  async sellerIdForToken(tokenHash: string) {
+    return (redis ? await redis.get<string>(`sellerToken:${tokenHash}`) : mem.sellerTokens.get(tokenHash)) ?? undefined;
+  },
+
+  async listSellers(): Promise<Seller[]> {
+    const ids = redis ? await redis.lrange<string>("sellers", 0, -1) : mem.sellerIds;
+    if (!ids.length) return [];
+    const sellers = redis ? await redis.mget<(Seller | null)[]>(...ids.map((id) => `seller:${id}`)) : ids.map((id) => mem.sellers.get(id));
+    return sellers.filter((x): x is Seller => !!x);
+  },
+
+  /** Count shoppers who wanted to buy from a marketplace seller (registered or not). */
+  async recordDemand(key: string, name: string, marketplace: string) {
+    if (redis) {
+      await redis.zincrby("sellerDemand", 1, key);
+      await redis.hset("sellerDemandNames", { [key]: JSON.stringify({ name, marketplace }) });
+    } else {
+      const prev = mem.demand.get(key);
+      mem.demand.set(key, { name, marketplace, count: (prev?.count ?? 0) + 1 });
+    }
+  },
+
+  async topDemand(limit = 25): Promise<Omit<SellerDemand, "registered">[]> {
+    if (!redis) {
+      return [...mem.demand.entries()]
+        .map(([key, v]) => ({ key, ...v }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit);
+    }
+    const raw = await redis.zrange<(string | number)[]>("sellerDemand", 0, limit - 1, { rev: true, withScores: true });
+    const names = (await redis.hgetall<Record<string, string | { name: string; marketplace: string }>>("sellerDemandNames")) ?? {};
+    const out: Omit<SellerDemand, "registered">[] = [];
+    for (let i = 0; i < raw.length; i += 2) {
+      const key = String(raw[i]);
+      const meta = names[key];
+      const parsed = typeof meta === "string" ? (JSON.parse(meta) as { name: string; marketplace: string }) : meta;
+      out.push({ key, name: parsed?.name ?? key, marketplace: parsed?.marketplace ?? "", count: Number(raw[i + 1]) });
+    }
+    return out;
   },
 
   /** Atomically claim a deal for payment so markPaid runs once even with concurrent pollers. */

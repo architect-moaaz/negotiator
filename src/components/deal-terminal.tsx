@@ -127,7 +127,9 @@ export function DealTerminal({ id }: { id: string }) {
             <div className="mt-3 space-y-2 text-sm">
               {deal.negotiation.messages.map((m, i) => (
                 <p key={i} className="whitespace-pre-line">
-                  <span className="text-fg">{m.from === "shopper" ? "You" : m.from === "desk" ? "Deal desk" : "Seller agent"}:</span> {m.text}
+                  <span className="text-fg">
+                    {m.from === "shopper" ? "You" : m.from === "desk" ? "Deal desk" : m.from === "seller" ? (deal.negotiation?.sellerName ?? "Seller") : "Agent"}:
+                  </span> {m.text}
                 </p>
               ))}
             </div>

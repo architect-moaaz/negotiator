@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
-import type { Activity, NegotiationTerms, PublicDeal, Stats, User } from "@/lib/types";
+import type { Activity, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
 
 type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms };
 interface AdminData {
@@ -10,8 +10,10 @@ interface AdminData {
   users: User[];
   activity: Activity[];
   deals: AdminDeal[];
+  sellers: Seller[];
+  demand: SellerDemand[];
 }
-type Tab = "approvals" | "users" | "activity" | "deals";
+type Tab = "approvals" | "users" | "activity" | "deals" | "sellers";
 
 const TOKEN_KEY = "gc_admin_token";
 const ist = (at: number) =>
@@ -129,6 +131,7 @@ export function AdminConsole() {
     ["users", "Signups", data.users.length],
     ["activity", "Agent & payment log", data.activity.length],
     ["deals", "Deals", data.deals.length],
+    ["sellers", "Sellers", data.sellers.length],
   ];
 
   return (
@@ -140,7 +143,7 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        {tab !== "approvals" && (
+        {tab !== "approvals" && tab !== "sellers" && (
           <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
             Download CSV
           </button>
@@ -182,6 +185,7 @@ export function AdminConsole() {
             return (
               <article key={d.id} className="rounded-2xl border border-saffron/60 p-5">
                 <p className="text-lg font-semibold">{d.product.title}</p>
+                {t?.fundedBy === "seller" && <p className="text-sm text-saffron">Seller-funded: {t.sellerName} can approve this from their dashboard too</p>}
                 <p className="mt-1 text-muted">
                   {d.userId ? usersById.get(d.userId)?.name : "Shopper"} wants it for <span className="text-fg">{inr(price)}</span>
                   {t && (
@@ -211,6 +215,41 @@ export function AdminConsole() {
               </article>
             );
           })}
+        </div>
+      )}
+
+      {tab === "sellers" && (
+        <div className="mt-6 grid gap-10 lg:grid-cols-2">
+          <section>
+            <h2 className="text-lg font-semibold">Sellers shoppers want</h2>
+            <p className="mt-1 text-sm text-muted">From &ldquo;Sold by&rdquo; on every pasted listing. Reach out to the top ones.</p>
+            {data.demand.length === 0 && <p className="py-6 text-muted">No listings with a seller yet.</p>}
+            <ol className="mt-3 divide-y divide-line">
+              {data.demand.map((d) => (
+                <li key={d.key} className="flex items-baseline justify-between gap-4 py-3">
+                  <span>
+                    {d.name} <span className="text-muted">· {d.marketplace}</span>
+                    {d.registered && <span className="text-paid"> · on GhostCart</span>}
+                  </span>
+                  <span className="tabular-nums text-muted">{d.count} shoppers</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold">Registered sellers</h2>
+            {data.sellers.length === 0 && <p className="py-6 text-muted">No sellers yet. Share /sell with merchants.</p>}
+            <ul className="mt-3 divide-y divide-line">
+              {data.sellers.map((s) => (
+                <li key={s.id} className="py-3">
+                  <p>{s.storeName}</p>
+                  <p className="text-sm text-muted">
+                    up to {(s.budgetPct * 100).toFixed(0)}% off · auto {(s.autoApproveShare * 100).toFixed(0)}% · {s.contactName} {s.phone} · matches {s.aliases.join(", ")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       )}
 
@@ -251,7 +290,7 @@ export function AdminConsole() {
               ))}
           </tbody>
         </table>
-        {tab !== "approvals" && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
+        {tab !== "approvals" && tab !== "sellers" && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
       </div>
     </div>
   );

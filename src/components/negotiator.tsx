@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
-import type { NegotiationEvent, Offer, Product, SellerQuote } from "@/lib/types";
+import type { ListingSeller, NegotiationEvent, Offer, Product, SellerQuote } from "@/lib/types";
 
 type Phase = "idle" | "running" | "done" | "error";
 
@@ -28,6 +28,7 @@ export function Negotiator() {
   const [product, setProduct] = useState<Product | null>(null);
   const [quotes, setQuotes] = useState<SellerQuote[] | null>(null);
   const [offer, setOffer] = useState<Offer | null>(null);
+  const [listingSeller, setListingSeller] = useState<{ soldBy: ListingSeller; onGhostCart: boolean } | null>(null);
   const [haggle, setHaggle] = useState("");
   const [error, setError] = useState("");
   // undefined = still checking, null = needs to sign up
@@ -67,6 +68,7 @@ export function Negotiator() {
     setProduct(null);
     setQuotes(null);
     setOffer(null);
+    setListingSeller(null);
     setHaggle("");
     setError("");
 
@@ -98,6 +100,9 @@ export function Negotiator() {
               break;
             case "product":
               setProduct(event.product);
+              break;
+            case "seller":
+              setListingSeller({ soldBy: event.soldBy, onGhostCart: event.onGhostCart });
               break;
             case "quotes":
               setQuotes(event.quotes);
@@ -260,6 +265,13 @@ export function Negotiator() {
                   <span>{product.seller}</span>
                   <span>{inr(product.price)}</span>
                 </div>
+                {listingSeller && (
+                  <p className="print-line text-paper-muted">
+                    Sold by {listingSeller.soldBy.name}
+                    {listingSeller.soldBy.rating ? ` ★${listingSeller.soldBy.rating}` : ""}
+                    {listingSeller.onGhostCart ? " · on GhostCart, negotiating with them" : " · not on GhostCart yet"}
+                  </p>
+                )}
               </div>
             </>
           )}

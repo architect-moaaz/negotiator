@@ -42,3 +42,27 @@ describe("sameProductQuotes", () => {
     ]);
   });
 });
+
+describe("extractListingSeller", () => {
+  it("reads Amazon's Sold by block with the merchant id", async () => {
+    const { extractListingSeller } = await import("./scrape");
+    const md =
+      "Ships from\n\nAmazon\n\nSold by\n\n[Clicktech Retail Private Ltd](https://www.amazon.in/gp/help/seller/at-a-glance.html/ref=dp_merchant_link?ie=UTF8&seller=AJ6SIZC8YQDZX&asin=B09XS7JWHH)";
+    expect(extractListingSeller(md, "https://www.amazon.in/dp/B09XS7JWHH")).toEqual({
+      name: "Clicktech Retail Private Ltd",
+      marketplace: "Amazon",
+      marketplaceSellerId: "AJ6SIZC8YQDZX",
+    });
+  });
+
+  it("reads Flipkart's Seller line with rating", async () => {
+    const { extractListingSeller } = await import("./scrape");
+    const md = "Delivery by\n\nTuesday, 27 Oct\n\nSeller: SVPeripherals\n\n[See other sellers](https://www.flipkart.com/sellers?pid=X)\n\n4.5\n\n•\n\n3 years with Flipkart";
+    expect(extractListingSeller(md, "https://www.flipkart.com/x/p/itm1")).toEqual({ name: "SVPeripherals", marketplace: "Flipkart", rating: 4.5 });
+  });
+
+  it("ignores pages without a seller", async () => {
+    const { extractListingSeller } = await import("./scrape");
+    expect(extractListingSeller("[Become a Seller](https://seller.flipkart.com)", "https://www.flipkart.com/x")).toBeUndefined();
+  });
+});

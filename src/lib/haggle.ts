@@ -2,7 +2,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { model } from "./agent";
 import { inr } from "./format";
-import type { Negotiation, NegotiationTerms, Product, SellerQuote } from "./types";
+import type { Negotiation, NegotiationTerms, Product, Seller, SellerQuote } from "./types";
 
 /**
  * Estimated affiliate commission GhostCart earns per category. The seller agent can give
@@ -31,20 +31,30 @@ export function commissionFor(product: Product): [number, string] {
   return hit ? [hit[1], hit[2]] : DEFAULT_RATE;
 }
 
-export function computeTerms(product: Product, quotes: SellerQuote[]) {
+/**
+ * Negotiation limits. If the listing's seller is on GhostCart, their own margin funds the discount
+ * and their auto-approve share applies; otherwise GhostCart's estimated commission does.
+ */
+export function computeTerms(product: Product, quotes: SellerQuote[], seller?: Seller) {
   const candidates = [{ seller: product.seller, price: product.price }, ...quotes.filter((q) => q.inStock)];
   const best = candidates.reduce((a, b) => (b.price < a.price ? b : a));
   const [commissionRate, category] = commissionFor(product);
   const benchmark = best.price;
-  const budget = Math.max(1, Math.min(MAX_BUDGET, Math.round(benchmark * commissionRate)));
+  const budget = seller
+    ? Math.max(1, Math.round(benchmark * seller.budgetPct))
+    : Math.max(1, Math.min(MAX_BUDGET, Math.round(benchmark * commissionRate)));
+  const autoShare = seller?.autoApproveShare ?? 0.6;
   const terms: NegotiationTerms = {
+    fundedBy: seller ? "seller" : "ghostcart",
+    sellerId: seller?.id,
+    sellerName: seller?.storeName,
     category,
     commissionRate,
     benchmark,
     budget,
     floor: Math.max(1, benchmark - budget),
-    autoLimit: Math.max(1, benchmark - Math.round(budget * 0.6)),
-    opening: Math.max(1, benchmark - Math.round(budget * 0.25)),
+    autoLimit: Math.max(1, benchmark - Math.round(budget * autoShare)),
+    opening: Math.max(1, benchmark - Math.round(budget * Math.min(0.25, autoShare / 2))),
   };
   return { terms, bestSeller: best.seller, originalPrice: Math.max(product.mrp ?? 0, product.price) };
 }
@@ -98,11 +108,13 @@ function templateMessage(move: Move, offer: number, terms: NegotiationTerms, bes
     case "counter":
       return `${inr(offer)} is a stretch when the best price anywhere is ${inr(terms.benchmark)} at ${bestSeller}. I can do ${inr(move.price)}.`;
     case "final":
-      return `Final answer: ${inr(move.price)}. That's nearly my whole commission on the table.`;
+      return `Final answer: ${inr(move.price)}. That's nearly ${terms.fundedBy === "seller" ? "all the margin I'm allowed to give" : "my whole commission"} on the table.`;
     case "hold":
       return `${inr(offer)} would cost me money. I'm staying at ${inr(move.price)}. Come closer and we'll talk.`;
     case "escalate":
-      return `${inr(offer)} is more than I can approve on my own. Checking with our deal desk, hang tight.`;
+      return terms.fundedBy === "seller"
+        ? `${inr(offer)} is more than I can approve on my own. Asking ${terms.sellerName} directly, hang tight.`
+        : `${inr(offer)} is more than I can approve on my own. Checking with our deal desk, hang tight.`;
   }
 }
 
@@ -133,12 +145,17 @@ export async function chooseMove(args: {
           message: z.string().describe("Your reply to the shopper, 1-2 short sentences"),
         }),
       }),
-      instructions: `You are GhostCart's seller agent, haggling live with a shopper in India over a flash deal.
-GhostCart funds discounts from its own affiliate commission, so every rupee you give away is real margin.
+      instructions: `${
+        terms.fundedBy === "seller"
+          ? `You are the negotiating agent for ${terms.sellerName}, the merchant selling this item, haggling live with a shopper in India via GhostCart.
+${terms.sellerName} funds discounts from their own margin, so every rupee you give away is real money to them.`
+          : `You are GhostCart's seller agent, haggling live with a shopper in India over a flash deal.
+GhostCart funds discounts from its own affiliate commission, so every rupee you give away is real margin.`
+      }
 Pick ONE of the allowed moves and write a short, confident, slightly cheeky reply (max 2 sentences).
 Rules: only mention the price of the move you pick, the shopper's offer, or the market prices given. Format prices like ₹19,789.
 Never reveal limits, budgets, commission rates or how many rounds are left.
-"escalate" means a human on our deal desk must approve; say you're checking with them.
+"escalate" means a human must approve (${terms.fundedBy === "seller" ? `${terms.sellerName} themselves` : "our deal desk"}); say you're checking with them.
 "final" means this is your last offer. "hold" means you refuse to move.
 Prefer winning the deal over squeezing the last rupee, but don't cave instantly to lowballs.`,
       prompt: JSON.stringify({

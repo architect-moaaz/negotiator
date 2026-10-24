@@ -21,9 +21,14 @@ export default async function Home() {
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-8 sm:px-8">
         <header className="flex items-center justify-between">
           <span className="text-xl font-bold tracking-tight">GhostCart</span>
-          <Link href="/dashboard" className="text-muted hover:text-fg">
-            Live deals
-          </Link>
+          <nav className="flex gap-5">
+            <Link href="/sell" className="text-muted hover:text-fg">
+              For sellers
+            </Link>
+            <Link href="/dashboard" className="text-muted hover:text-fg">
+              Live deals
+            </Link>
+          </nav>
         </header>
 
         <section className="mt-14 sm:mt-24">

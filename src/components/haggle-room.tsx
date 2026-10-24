@@ -38,7 +38,15 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
       <section>
-        <p className="text-muted">{waiting ? "Deal desk is reviewing your offer" : "The seller agent's offer"}</p>
+        <p className="text-muted">
+          {waiting
+            ? n.fundedBy === "seller"
+              ? `${n.sellerName} is reviewing your offer`
+              : "Deal desk is reviewing your offer"
+            : n.fundedBy === "seller"
+              ? `${n.sellerName}'s offer`
+              : "The seller agent's offer"}
+        </p>
         <p className="font-receipt text-[clamp(3.5rem,13vw,7.5rem)] font-semibold leading-none tabular-nums tracking-tight">
           {inr(waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer)}
         </p>
@@ -46,6 +54,13 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
         <p className="mt-1 text-muted">
           Best price anywhere: {inr(n.benchmark)} at {deal.bestSeller}
         </p>
+        {deal.product.soldBy && (
+          <p className="mt-1 text-muted">
+            Sold by {deal.product.soldBy.name} on {deal.product.soldBy.marketplace}
+            {deal.product.soldBy.rating ? ` · ★${deal.product.soldBy.rating}` : ""}
+            {n.fundedBy === "seller" ? <span className="text-paid"> · negotiating with the seller directly</span> : null}
+          </p>
+        )}
 
         <ol className="mt-8 max-w-xl space-y-3" aria-live="polite">
           {n.messages.map((m, i) => (
@@ -54,13 +69,21 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
                 className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-3 ${
                   m.from === "shopper"
                     ? "rounded-br-sm bg-saffron text-paper-ink"
-                    : m.from === "desk"
+                    : m.from === "desk" || m.from === "seller"
                       ? "rounded-bl-sm border border-paid/50 bg-paid/10"
                       : "rounded-bl-sm bg-panel"
                 }`}
               >
                 {m.from !== "shopper" && (
-                  <p className="mb-1 text-xs text-muted">{m.from === "desk" ? "Deal desk (human)" : "Seller agent"}</p>
+                  <p className="mb-1 text-xs text-muted">
+                    {m.from === "desk"
+                      ? "Deal desk (human)"
+                      : m.from === "seller"
+                        ? `${n.sellerName ?? "Seller"} (human)`
+                        : n.fundedBy === "seller"
+                          ? `${n.sellerName}'s agent`
+                          : "Seller agent"}
+                  </p>
                 )}
                 {m.text}
               </div>
@@ -69,7 +92,11 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
           {(busy || waiting) && (
             <li className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm bg-panel px-4 py-3 text-muted">
-                {waiting ? "A teammate on our deal desk is deciding…" : "Seller agent is thinking…"}
+                {waiting
+                  ? n.fundedBy === "seller"
+                    ? `Waiting for ${n.sellerName} to approve…`
+                    : "A teammate on our deal desk is deciding…"
+                  : "Seller agent is thinking…"}
               </div>
             </li>
           )}
@@ -152,7 +179,7 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
         </p>
         <div className="receipt-rule my-4" />
         <p className="text-center text-paper-muted">
-          GhostCart pays the difference from its own commission. Once you agree, you get 180 seconds to lock the price with a{" "}
+          {n.fundedBy === "seller" ? `${n.sellerName} funds this discount from their own margin.` : "GhostCart pays the difference from its own commission."} Once you agree, you get 180 seconds to lock the price with a{" "}
           {inr(deal.lockFee)} UPI payment.
         </p>
       </section>
