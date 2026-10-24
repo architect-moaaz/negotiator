@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { inr } from "@/lib/format";
+import { DEMO_URL, inr } from "@/lib/format";
 import type { ListingSeller, NegotiationEvent, Offer, Product, SellerQuote } from "@/lib/types";
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -227,6 +227,11 @@ export function Negotiator() {
           />
           {!askDetails && submitButton}
         </div>
+        {!url && !busy && (
+          <button type="button" onClick={() => setUrl(DEMO_URL)} className="self-start text-sm text-muted underline underline-offset-4 hover:text-fg">
+            No link handy? Try a demo item
+          </button>
+        )}
         {askDetails && (
           <div className="mt-2 grid grid-cols-1 gap-3 rounded-2xl border border-line p-4 sm:grid-cols-2">
             <p className="font-semibold sm:col-span-2">Last step: where can we reach you about this deal?</p>

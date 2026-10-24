@@ -71,6 +71,8 @@ export async function runNegotiation(
     await log("agent_step", "Reading screenshot with vision model");
     ({ product, searchQuery } = await extractProductFromImage(input.imageBase64, input.mediaType));
   }
+  if (!product.title || !(product.price > 0))
+    throw new HaggleError("Couldn't find a product with a price there. Try a single product's page, or a screenshot of it.");
   emit({ type: "product", product });
   await log("product_identified", `${product.title} at ${product.seller} for ${inr(product.price)}${product.inStock ? "" : " (out of stock)"}`);
 
@@ -182,6 +184,15 @@ async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
 
 export class HaggleError extends Error {}
 
+/** Shopper-facing reason a negotiation failed; the raw error still goes to the logs. */
+export function failureMessage(err: unknown) {
+  if (err instanceof HaggleError) return err.message;
+  const text = `${err instanceof Error ? err.name : ""} ${String(err)}`;
+  if (/timeout|timed out|abort/i.test(text)) return "That page took too long to load. Try again, or send a screenshot instead.";
+  if (/\b403\b|blocked|forbidden|captcha|access denied/i.test(text)) return "That store blocked us from reading the page. Send a screenshot of it instead.";
+  return "Couldn't read that item. Try another link or a clearer screenshot.";
+}
+
 /** Shopper makes a counter-offer; the seller agent responds within code-enforced limits. */
 export async function submitOffer(deal: Deal, offer: number) {
   const n = deal.negotiation;
@@ -215,6 +226,7 @@ export async function submitOffer(deal: Deal, offer: number) {
     deal.status = "awaiting_approval";
     deal.expiresAt = Date.now() + APPROVAL_WINDOW_MS;
     n.approval = { price: move.price, requestedAt: Date.now() };
+    n.recommendation = undefined; // a new escalation needs a fresh review
     await log(
       "approval_requested",
       `Needs human approval: ${inr(move.price)} is below the agent's auto-approve limit ${inr(n.terms.autoLimit)} (floor ${inr(n.terms.floor)})`,

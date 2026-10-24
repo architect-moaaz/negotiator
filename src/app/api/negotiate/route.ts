@@ -1,4 +1,4 @@
-import { runNegotiation } from "@/lib/negotiate";
+import { failureMessage, runNegotiation } from "@/lib/negotiate";
 import { requestCity } from "@/lib/request";
 import { store } from "@/lib/store";
 import { currentUser } from "@/lib/users";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       } catch (err) {
         console.error("negotiation failed", err);
         await store.log({ type: "negotiation_failed", actor: "agent", userId: user.id, detail: String(err).slice(0, 300) });
-        emit({ type: "error", message: "Couldn't read that item. Try another link or a clearer screenshot." });
+        emit({ type: "error", message: failureMessage(err) });
       } finally {
         controller.close();
       }

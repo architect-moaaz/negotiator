@@ -26,7 +26,7 @@ async function login() {
   });
   if (!res.ok) throw new Error(`AgenticOrg login failed: ${res.status}`);
   const cookies = res.headers.getSetCookie().map((c) => c.split(";")[0]);
-  const csrf = cookies.find((c) => c.startsWith("agenticorg_csrf="))?.split("=")[1] ?? "";
+  const csrf = cookies.find((c) => c.startsWith("agenticorg_csrf="))?.replace(/^agenticorg_csrf=/, "") ?? "";
   session = { cookie: cookies.join("; "), csrf: decodeURIComponent(csrf) };
   return session;
 }
