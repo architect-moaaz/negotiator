@@ -313,7 +313,7 @@ export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhoo
     actor: "system",
     userId: deal.userId,
     dealId: deal.id,
-    detail: `${source}: ${inr(deal.lockFee)} deal lock paid${deal.pinelabsOrderId ? ` (Pine Labs order ${deal.pinelabsOrderId})` : ""}; ${deal.product.title} at ${inr(deal.dealPrice)}`,
+    detail: `${source}: ${inr(deal.lockFee)} deal lock paid${deal.pinelabsOrderId ? ` (Pine Labs ${process.env.PINELABS_MODE === "mock" ? "UAT mock " : ""}order ${deal.pinelabsOrderId})` : ""}; ${deal.product.title} at ${inr(deal.dealPrice)}`,
   });
   await store.pushTicker({
     id: deal.id,

@@ -170,7 +170,7 @@ export function DealTerminal({ id }: { id: string }) {
             )}
             {deal.upiIntent && (
               <a href={deal.upiIntent} className="w-full rounded-lg bg-paper-ink py-3 text-center font-sans font-semibold text-paper sm:hidden">
-                Pay {inr(deal.lockFee)} in a UPI app
+                Pay {inr(deal.lockFee)} now
               </a>
             )}
             {deal.simulate && (
@@ -182,7 +182,7 @@ export function DealTerminal({ id }: { id: string }) {
                 {paying ? "Locking…" : "Simulate UPI payment"}
               </button>
             )}
-            {deal.qrDataUrl && <p className="text-center text-paper-muted">Scan with any UPI app · Pine Labs</p>}
+            {deal.qrDataUrl && <p className="text-center text-paper-muted">Scan with your phone camera to pay · Pine Labs</p>}
           </div>
         )}
 

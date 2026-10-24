@@ -26,6 +26,7 @@ const mem = {
   sellerAliases: new Map<string, string>(),
   sellerTokens: new Map<string, string>(),
   demand: new Map<string, { name: string; marketplace: string; count: number }>(),
+  kv: new Map<string, unknown>(),
   stats: { users: 0, deals: 0, paid: 0, saved: 0 } as Stats,
 };
 
@@ -207,6 +208,16 @@ export const store = {
       out.push({ key, name: parsed?.name ?? key, marketplace: parsed?.marketplace ?? "", count: Number(raw[i + 1]) });
     }
     return out;
+  },
+
+  /** Generic JSON key/value (used by the Pine Labs mock gateway). */
+  async kvSet<T>(key: string, value: T, ttlSeconds = DEAL_TTL_S) {
+    if (redis) await redis.set(key, value, { ex: ttlSeconds });
+    else mem.kv.set(key, value);
+  },
+
+  async kvGet<T>(key: string): Promise<T | undefined> {
+    return ((redis ? await redis.get<T>(key) : mem.kv.get(key)) as T | null) ?? undefined;
   },
 
   /** Atomically claim a deal for payment so markPaid runs once even with concurrent pollers. */
