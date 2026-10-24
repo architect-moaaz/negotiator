@@ -1,8 +1,10 @@
+import { after } from "next/server";
+import { agenticorgConfigured, requestDealReview } from "@/lib/agenticorg";
 import { acceptOffer, HaggleError, submitOffer, toPublic } from "@/lib/negotiate";
 import { store } from "@/lib/store";
 import { currentUser } from "@/lib/users";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /** Shopper side of the negotiation: counter-offer or accept the agent's current offer. */
 export async function POST(request: Request) {
@@ -18,6 +20,14 @@ export async function POST(request: Request) {
 
   try {
     const updated = body.accept ? await acceptOffer(deal) : await submitOffer(deal, Number(body.offer));
+    // Escalated: have the AgenticOrg deal-desk agent review it in the background for the human approver.
+    if (updated.status === "awaiting_approval" && agenticorgConfigured) {
+      after(() =>
+        requestDealReview(updated).catch((err) =>
+          store.log({ type: "agent_review_requested", actor: "system", userId: updated.userId, dealId: updated.id, detail: `AgenticOrg review failed: ${String(err).slice(0, 200)}` }),
+        ),
+      );
+    }
     return Response.json(toPublic(updated));
   } catch (err) {
     if (err instanceof HaggleError) return Response.json({ error: err.message }, { status: 409 });

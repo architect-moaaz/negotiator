@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
-import type { Activity, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
+import type { Activity, AgentRecommendation, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
+import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
-type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms };
+type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms; recommendation?: AgentRecommendation };
 interface AdminData {
   stats: Stats;
   users: User[];
@@ -34,6 +35,7 @@ export function AdminConsole() {
   const [tab, setTab] = useState<Tab>("approvals");
   const [deciding, setDeciding] = useState<string | null>(null);
   const [deskName, setDeskName] = useState("");
+  const [reviewNote, setReviewNote] = useState<Record<string, string>>({});
 
   const load = useCallback(async (t: string) => {
     const res = await fetch("/api/admin/logs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
@@ -97,7 +99,21 @@ export function AdminConsole() {
   const usersById = new Map(data.users.map((u) => [u.id, u]));
   const approvals = data.deals.filter((d) => d.status === "awaiting_approval");
 
-  async function decide(id: string, decision: "approved" | "rejected") {
+  async function askAgent(id: string) {
+    setDeciding(id);
+    setReviewNote((r) => ({ ...r, [id]: "Asking the AgenticOrg agent…" }));
+    const res = await fetch("/api/admin/agent-review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setReviewNote((r) => ({ ...r, [id]: res.ok ? (body.recommendation ? "" : `Agent replied without a recommendation: ${String(body.agentReply).slice(0, 200)}`) : body.error }));
+    setDeciding(null);
+    load(token);
+  }
+
+  async function decide(id: string, decision: "approved" | "rejected" | "recommendation") {
     setDeciding(id);
     await fetch("/api/admin/decision", {
       method: "POST",
@@ -196,7 +212,18 @@ export function AdminConsole() {
                     </>
                   )}
                 </p>
-                <div className="mt-4 flex gap-3">
+                {d.recommendation && <RecommendationCard rec={d.recommendation} shopperOffer={price} />}
+                {reviewNote[d.id] && <p className="mt-2 text-sm text-muted">{reviewNote[d.id]}</p>}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {d.recommendation && (
+                    <button
+                      disabled={deciding === d.id}
+                      onClick={() => decide(d.id, "recommendation")}
+                      className="rounded-xl bg-saffron px-5 py-2.5 font-semibold text-paper-ink disabled:opacity-50"
+                    >
+                      {recommendationButtonLabel(d.recommendation, price)}
+                    </button>
+                  )}
                   <button
                     disabled={deciding === d.id}
                     onClick={() => decide(d.id, "approved")}
@@ -211,6 +238,15 @@ export function AdminConsole() {
                   >
                     Reject
                   </button>
+                  {!d.recommendation && (
+                    <button
+                      disabled={deciding === d.id}
+                      onClick={() => askAgent(d.id)}
+                      className="rounded-xl border border-line px-5 py-2.5 hover:border-saffron disabled:opacity-50"
+                    >
+                      Ask AgenticOrg agent
+                    </button>
+                  )}
                 </div>
               </article>
             );

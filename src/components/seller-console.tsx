@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
-import type { NegotiationTerms, PublicDeal } from "@/lib/types";
+import type { AgentRecommendation, NegotiationTerms, PublicDeal } from "@/lib/types";
+import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
 interface SellerData {
   seller: { storeName: string; aliases: string[]; budgetPct: number; autoApproveShare: number };
-  deals: (PublicDeal & { terms?: NegotiationTerms })[];
+  deals: (PublicDeal & { terms?: NegotiationTerms; recommendation?: AgentRecommendation })[];
 }
 
 const TOKEN_KEY = "gc_seller_token";
@@ -51,7 +52,7 @@ export function SellerConsole() {
     return () => clearInterval(t);
   }, [data, token, load]);
 
-  async function decide(id: string, decision: "approved" | "rejected") {
+  async function decide(id: string, decision: "approved" | "rejected" | "recommendation") {
     setDeciding(id);
     await fetch("/api/seller/decision", {
       method: "POST",
@@ -126,7 +127,17 @@ export function SellerConsole() {
                   </>
                 )}
               </p>
-              <div className="mt-4 flex gap-3">
+              {d.recommendation && <RecommendationCard rec={d.recommendation} shopperOffer={price} />}
+              <div className="mt-4 flex flex-wrap gap-3">
+                {d.recommendation && (
+                  <button
+                    disabled={deciding === d.id}
+                    onClick={() => decide(d.id, "recommendation")}
+                    className="rounded-xl bg-saffron px-5 py-2.5 font-semibold text-paper-ink disabled:opacity-50"
+                  >
+                    {recommendationButtonLabel(d.recommendation, price)}
+                  </button>
+                )}
                 <button
                   disabled={deciding === d.id}
                   onClick={() => decide(d.id, "approved")}

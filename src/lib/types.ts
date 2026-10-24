@@ -70,6 +70,17 @@ export interface Negotiation {
   approval?: { price: number; requestedAt: number; decidedAt?: number; decision?: "approved" | "rejected" | "countered"; decidedBy?: string };
   /** Voice call to the approver (seller or deal desk) via Vobiz. */
   call?: ApprovalCall;
+  /** Deal-desk agent's recommendation (AgenticOrg); a human still makes the call. */
+  recommendation?: AgentRecommendation;
+}
+
+export interface AgentRecommendation {
+  decision: "approve" | "reject" | "counter";
+  price?: number; // for counter
+  confidence: number; // 0-1
+  reasoning: string;
+  source: string; // e.g. "agenticorg"
+  at: number;
 }
 
 export interface ApprovalCall {
@@ -115,6 +126,7 @@ export interface PublicNegotiation {
   messages: NegotiationMessage[];
   approvalPrice?: number;
   callStatus?: ApprovalCall["status"];
+  reviewedByAgent?: boolean;
 }
 export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation"> & { negotiation?: PublicNegotiation };
 
@@ -166,6 +178,8 @@ export type ActivityType =
   | "approval_decided"
   | "deal_agreed"
   | "seller_identified"
+  | "agent_review_requested"
+  | "agent_recommendation"
   | "approval_call_placed"
   | "approval_call_turn"
   | "approval_call_ended"

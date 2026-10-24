@@ -95,9 +95,11 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
                 {waiting
                   ? n.callStatus === "calling" || n.callStatus === "in_progress"
                     ? `Our agent is on the phone with ${n.fundedBy === "seller" ? n.sellerName : "the deal desk"} right now…`
-                    : n.fundedBy === "seller"
-                      ? `Waiting for ${n.sellerName} to approve…`
-                      : "A teammate on our deal desk is deciding…"
+                    : n.reviewedByAgent
+                      ? `Our deal-desk agent has reviewed your offer. Waiting for ${n.fundedBy === "seller" ? n.sellerName : "a human on our deal desk"} to sign off…`
+                      : n.fundedBy === "seller"
+                        ? `Waiting for ${n.sellerName} to approve…`
+                        : "A teammate on our deal desk is deciding…"
                   : "Seller agent is thinking…"}
               </div>
             </li>

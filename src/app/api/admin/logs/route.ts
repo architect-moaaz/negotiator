@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       sellers,
       demand: demand.map((d) => ({ ...d, registered: registered.has(d.key) })),
       activity,
-      deals: deals.map((d) => ({ ...toPublic(d), userId: d.userId, pinelabsOrderId: d.pinelabsOrderId, terms: d.negotiation?.terms })),
+      deals: deals.map((d) => ({ ...toPublic(d), userId: d.userId, pinelabsOrderId: d.pinelabsOrderId, terms: d.negotiation?.terms, recommendation: d.negotiation?.recommendation })),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

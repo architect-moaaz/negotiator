@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   return Response.json(
     {
       seller: { storeName: seller.storeName, aliases: seller.aliases, budgetPct: seller.budgetPct, autoApproveShare: seller.autoApproveShare },
-      deals: deals.map((d) => ({ ...toPublic(d), terms: d.negotiation?.terms })),
+      deals: deals.map((d) => ({ ...toPublic(d), terms: d.negotiation?.terms, recommendation: d.negotiation?.recommendation })),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

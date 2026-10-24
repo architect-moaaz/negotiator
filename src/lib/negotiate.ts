@@ -36,6 +36,7 @@ export function toPublic(deal: Deal): PublicDeal {
       messages: n.messages,
       approvalPrice: deal.status === "awaiting_approval" ? n.approval?.price : undefined,
       callStatus: deal.status === "awaiting_approval" ? n.call?.status : undefined,
+      reviewedByAgent: deal.status === "awaiting_approval" ? !!n.recommendation : undefined,
     },
   };
 }
