@@ -57,6 +57,11 @@ export async function recordRecommendation(
     source: rec.source ?? "agenticorg",
     at: Date.now(),
   };
+  // The agent replies minutes later; don't overwrite a human's decision made in the meantime.
+  // ponytail: read-then-write, not atomic; use a Redis WATCH/version check if this ever races in practice.
+  const latest = await store.getDeal(deal.id);
+  if (latest?.status !== "awaiting_approval" || latest.negotiation?.approval?.requestedAt !== n.approval.requestedAt)
+    throw new HaggleError(`Deal ${deal.id} was already decided; recommendation not recorded.`);
   await store.saveDeal(deal);
   await store.log({
     type: "agent_recommendation",
