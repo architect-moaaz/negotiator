@@ -257,7 +257,9 @@ export default function PitchPage() {
           body: JSON.stringify({ question, history, stats }),
         });
         if (!res.ok) throw new Error(await res.text());
-        answer = (await res.json()).answer || "Great question. I'll hand that one over to my team.";
+        answer =
+          (await res.json()).answer ||
+          "Great question. I'll hand that one over to my team.";
       } catch {
         answer = "Great question. I'll hand that one over to my team.";
       }
@@ -462,6 +464,28 @@ export default function PitchPage() {
                   </label>
                 ))}
               </div>
+              <button
+                onClick={async () => {
+                  const res = await fetch("/api/ticker", {
+                    cache: "no-store",
+                  }).catch(() => null);
+                  const data = res?.ok
+                    ? ((await res.json()) as {
+                        stats: { users: number; paid: number; saved: number };
+                      })
+                    : null;
+                  if (!data) return;
+                  const { users, paid, saved } = data.stats;
+                  updateStats({
+                    shoppers: users ? String(users) : "",
+                    payments: paid ? String(paid) : "",
+                    saved: saved ? saved.toLocaleString("en-IN") : "",
+                  });
+                }}
+                className="self-start rounded-full border border-white/10 px-5 py-2 text-sm text-[#B9BDB4] hover:border-[#C6F432]"
+              >
+                Use live numbers from the app
+              </button>
             </div>
           ) : (
             <p className="font-display max-w-5xl text-3xl font-semibold leading-snug tracking-tight sm:text-5xl">

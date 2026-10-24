@@ -6,8 +6,10 @@ import { listenOnce, Tilt } from "./stage";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const { title, store, listPrice, openingOffer, floor } = HAGGLE_PRODUCT;
-const OPENING = `These ${title} list at ${listPrice.toLocaleString("en-IN")} rupees on ${store}. For you, ${openingOffer.toLocaleString("en-IN")}. Go on, make me an offer.`;
+const { title, store, listPrice, commission, openingOffer, autoLimit, floor } =
+  HAGGLE_PRODUCT;
+const inr = (n: number) => n.toLocaleString("en-IN");
+const OPENING = `These ${title} are ${inr(listPrice)} rupees on ${store}. For you, special price, ${inr(openingOffer)}. Go on, insult me with an offer.`;
 const CONFETTI = Array.from({ length: 36 }, (_, i) => i);
 
 /** Live, interactive haggle: a judge bargains with the agent by voice or text; the server enforces the floor. */
@@ -27,6 +29,8 @@ export function LiveHaggle({
   const [interim, setInterim] = useState("");
   const [listening, setListening] = useState(false);
   const [draft, setDraft] = useState("");
+  /** Price waiting for the human on stage to approve (the agent can't go this low alone). */
+  const [approval, setApproval] = useState<number | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +47,7 @@ export function LiveHaggle({
   }, [messages, interim]);
 
   const send = async (text: string) => {
-    if (!text.trim() || busy || deal) return;
+    if (!text.trim() || busy || deal || approval) return;
     stopSpeech();
     const next = [...messages, { role: "user" as const, content: text }];
     setMessages(next);
@@ -58,10 +62,12 @@ export function LiveHaggle({
         reply: string;
         offer: number;
         deal: boolean;
+        escalate?: number;
       };
       setMessages([...next, { role: "assistant", content: turn.reply }]);
       setOffer(turn.offer);
       setDeal(turn.deal);
+      if (turn.escalate) setApproval(turn.escalate);
       setBusy(false);
       await speak(turn.reply);
     } catch {
@@ -74,6 +80,22 @@ export function LiveHaggle({
         },
       ]);
     }
+  };
+
+  // The presenter plays the human deal desk: approve or reject the price the agent escalated.
+  const decide = async (approved: boolean) => {
+    if (!approval) return;
+    const price = approval;
+    setApproval(null);
+    const reply = approved
+      ? `My human said yes! ${inr(price)} rupees, done. Please don't tell my manager I was sweating.`
+      : `My human said no. Cruel. But ${inr(offer)} is still on the table, and that's a great deal.`;
+    setMessages((m) => [...m, { role: "assistant", content: reply }]);
+    if (approved) {
+      setOffer(price);
+      setDeal(true);
+    }
+    await speak(reply);
   };
 
   const mic = () => {
@@ -94,7 +116,7 @@ export function LiveHaggle({
   };
 
   const saved = listPrice - offer;
-  const span = listPrice - (floor - 300);
+  const span = listPrice - (floor - 100);
   const markerPct = ((listPrice - offer) / span) * 100;
 
   return (
@@ -152,7 +174,7 @@ export function LiveHaggle({
             </div>
             <p className="mt-3 text-right text-sm text-[#FF8A3D]">
               {deal
-                ? `Floor was ₹${floor.toLocaleString("en-IN")}. The agent never crossed it.`
+                ? `Floor was ₹${inr(floor)}, where the ₹${inr(commission)} commission runs out. The agent never went below it.`
                 : "Secret floor: hidden"}
             </p>
             {deal && (
@@ -164,6 +186,39 @@ export function LiveHaggle({
             )}
           </div>
         </Tilt>
+        {approval && (
+          <div
+            role="alertdialog"
+            aria-label="Deal desk approval"
+            className="animate-pop-in rounded-[2rem] border-2 border-[#FF8A3D] bg-[#FF8A3D]/10 p-6 backdrop-blur-xl"
+          >
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#FF8A3D]">
+              Human approval needed
+            </p>
+            <p className="mt-2 text-2xl">
+              Judge offers <b>₹{inr(approval)}</b>. The agent can only go to ₹
+              {inr(autoLimit)} alone.
+            </p>
+            <p className="mt-1 text-[#B9BDB4]">
+              Discount ₹{inr(listPrice - approval)} of the ₹{inr(commission)}{" "}
+              commission · still above the floor
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => decide(true)}
+                className="rounded-full bg-[#C6F432] px-6 py-3 font-semibold text-[#07090D] hover:scale-105"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => decide(false)}
+                className="rounded-full border border-white/20 px-6 py-3 font-semibold hover:border-[#FF8A3D]"
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="relative flex min-h-[28rem] flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] backdrop-blur-xl">

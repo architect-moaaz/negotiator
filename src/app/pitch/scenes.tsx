@@ -2,7 +2,13 @@
 
 import QRCode from "qrcode";
 import { useEffect, useState, type ReactNode } from "react";
-import { BRAND, type PitchStats } from "@/lib/pitch";
+import {
+  BRAND,
+  EXAMPLE_DEAL,
+  HAGGLE_PRODUCT,
+  PITCH_URL,
+  type PitchStats,
+} from "@/lib/pitch";
 import { Tilt } from "./stage";
 
 /** Animated visuals for the voice pitch: one scene per script segment, revealed line by line as the agent speaks. */
@@ -10,6 +16,7 @@ import { Tilt } from "./stage";
 type SceneProps = { line: number; stats: PitchStats };
 
 const LIME = "#C6F432";
+const inr = (n: number) => n.toLocaleString("en-IN");
 const ACCENT =
   "animate-shimmer bg-[linear-gradient(90deg,#C6F432,#00D1B2,#C6F432)] bg-[length:200%_auto] bg-clip-text text-transparent";
 
@@ -113,7 +120,7 @@ function Ghost({ className = "" }: { className?: string }) {
   );
 }
 
-/* 1 ── Cold open, full screen: a giant price that gets slashed */
+/* 1 ── Cold open, full screen: a giant price that gets haggled down */
 function Cover({ line }: SceneProps) {
   return (
     <div className="relative flex w-full max-w-6xl flex-col items-center gap-6 text-center">
@@ -130,7 +137,7 @@ function Cover({ line }: SceneProps) {
                 : ""
             }`}
           >
-            ₹5,499
+            ₹{inr(HAGGLE_PRODUCT.listPrice)}
           </p>
           <Reveal
             on={line >= 2}
@@ -138,7 +145,7 @@ function Cover({ line }: SceneProps) {
             className="absolute -bottom-10 -right-8 rotate-[-6deg]"
           >
             <p className="rounded-3xl bg-[#C6F432] px-8 py-4 font-display text-[clamp(2.5rem,5vw,4.5rem)] font-bold text-[#07090D] shadow-[0_0_80px_#C6F43299]">
-              ₹5,049
+              ₹{inr(EXAMPLE_DEAL.pays)}
             </p>
           </Reveal>
         </div>
@@ -152,23 +159,35 @@ function Cover({ line }: SceneProps) {
           Paid full price this week? 🙋
         </p>
       </Reveal>
+      <Reveal
+        on={line >= 2}
+        from="scale-75"
+        className="absolute bottom-[8%] left-[2%]"
+      >
+        <p className="rotate-3 rounded-2xl bg-white/10 px-5 py-3 text-lg font-semibold shadow-xl ring-1 ring-white/20">
+          + free coriander 🌿
+        </p>
+      </Reveal>
       <Ghost className="animate-float absolute -right-2 top-0 hidden w-24 md:block" />
     </div>
   );
 }
 
-/* 2 ── Problem: same item, four prices, locked offers */
+/* 2 ── Problem: eight stores, eight prices, and a buy button that won't bargain */
 const STORES = [
-  { name: "Amazon", price: "₹5,499", tilt: "-rotate-3" },
-  { name: "Flipkart", price: "₹5,349", tilt: "rotate-2" },
-  { name: "Croma", price: "₹5,590", tilt: "-rotate-1" },
-  { name: "Reliance Digital", price: "₹5,450", tilt: "rotate-3" },
+  { name: "Amazon", price: 5499, best: true },
+  { name: "Flipkart", price: 5649 },
+  { name: "Myntra", price: 5599 },
+  { name: "Ajio", price: 5799 },
+  { name: "Tata CLiQ", price: 5699 },
+  { name: "Nykaa", price: 5749 },
+  { name: "Croma", price: 0 },
+  { name: "Reliance Digital", price: 0 },
 ];
-const OFFERS = [
-  "HDFC card −10%",
-  "ICICI −₹500",
-  "Coupon SAVE5",
-  "SBI no-cost EMI",
+const STICKERS = [
+  { text: "Price: fixed", tilt: "-rotate-3" },
+  { text: "Bargaining: disabled", tilt: "rotate-2" },
+  { text: "Buy now: judging you 👀", tilt: "-rotate-1" },
 ];
 
 function Problem({ line }: SceneProps) {
@@ -177,52 +196,47 @@ function Problem({ line }: SceneProps) {
       <div className="flex flex-col gap-4 text-left">
         <Eyebrow>The problem</Eyebrow>
         <Headline>
-          One product. <span className={ACCENT}>Four prices.</span>
+          Eight stores. <span className={ACCENT}>Nobody to bargain with.</span>
         </Headline>
       </div>
-      <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {STORES.map((s, i) => (
           <div
             key={s.name}
             className="animate-pop-in"
-            style={{ animationDelay: `${i * 180}ms` }}
+            style={{ animationDelay: `${i * 110}ms` }}
           >
             <Tilt className="rounded-2xl" max={14}>
               <div
-                className={`${s.tilt} rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-left shadow-2xl backdrop-blur-xl`}
+                className={`rounded-2xl border p-4 text-left shadow-2xl backdrop-blur-xl ${
+                  s.best
+                    ? "border-[#C6F432]/60 bg-[#C6F432]/10"
+                    : "border-white/10 bg-white/[0.05]"
+                }`}
               >
-                <div className="mb-4 flex gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#FF8A3D]" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#2A313B]" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#2A313B]" />
-                </div>
                 <p className="text-sm text-[#8A9087]">{s.name}</p>
-                <p className="font-display text-3xl font-bold sm:text-4xl">
-                  {s.price}
+                <p
+                  className={`font-display text-2xl font-bold sm:text-3xl ${s.price ? "" : "text-[#8A9087]"}`}
+                >
+                  {s.price ? `₹${inr(s.price)}` : "Not stocked"}
                 </p>
               </div>
             </Tilt>
           </div>
         ))}
       </div>
-      <div className="flex flex-wrap gap-3">
-        {OFFERS.map((o, i) => (
+      <div className="flex flex-wrap gap-4">
+        {STICKERS.map((st, i) => (
           <Reveal
-            key={o}
+            key={st.text}
             on={line >= 1}
             from="scale-75 translate-y-4"
-            delay={i * 120}
+            delay={i * 160}
           >
-            <p className="flex items-center gap-2 rounded-full border border-dashed border-[#8A9087] px-4 py-2 text-base text-[#B9BDB4]">
-              <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
-                <path
-                  d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  fill="none"
-                />
-              </svg>
-              {o}
+            <p
+              className={`${st.tilt} rounded-xl border-2 border-dashed border-[#FF8A3D] px-4 py-2 font-display text-xl font-bold text-[#FF8A3D]`}
+            >
+              {st.text}
             </p>
           </Reveal>
         ))}
@@ -231,71 +245,77 @@ function Problem({ line }: SceneProps) {
   );
 }
 
-/* 3 ── Insight: a fan of cards + the flow in four words */
-const CARDS = [
-  { bank: "HDFC", tint: "linear-gradient(135deg,#2B5CB0,#0F2347)" },
-  { bank: "ICICI", tint: "linear-gradient(135deg,#C2522D,#4A190C)" },
-  { bank: "SBI", tint: "linear-gradient(135deg,#2A8FBF,#0E3447)" },
-  { bank: "Axis", tint: "linear-gradient(135deg,#B03374,#420E28)" },
-];
-const FLOW = ["Paste", "Hunt", "Haggle", "Pay"];
-
-function Insight({ line }: SceneProps) {
+/* 3 ── How it works: four little screens from the real app */
+function HowItWorks({ line }: SceneProps) {
+  const card =
+    "flex h-full flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-5 text-left shadow-2xl backdrop-blur-xl";
   return (
-    <div className="grid w-full max-w-6xl items-center gap-14 md:grid-cols-2">
-      <div className="relative mx-auto h-72 w-80 sm:h-80 sm:w-96">
-        {CARDS.map((c, i) => (
-          <div
-            key={c.bank}
-            className="absolute left-1/2 top-1/2 h-44 w-72 origin-bottom rounded-2xl p-5 text-left shadow-[0_20px_50px_#00000090] ring-1 ring-white/20"
-            style={{
-              background: c.tint,
-              transform: `translate(-50%, -50%) rotate(${(i - 1.5) * 14}deg) translateY(${-Math.abs(i - 1.5) * 6}px)`,
-            }}
-          >
-            <p className="font-display text-xl font-bold text-[#F4F1EA]">
-              {c.bank}
+    <div className="flex w-full max-w-6xl flex-col gap-10">
+      <div className="flex flex-col gap-4 text-left">
+        <Eyebrow>How it works</Eyebrow>
+        <Headline>
+          Paste. Compare. <span className={ACCENT}>Haggle. Lock.</span>
+        </Headline>
+      </div>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4">
+        <Reveal on from="translate-y-8" delay={200}>
+          <div className={card}>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C6F432]">
+              1 · Paste
             </p>
-            <div className="mt-6 h-8 w-11 rounded-md bg-[#E8C547]/80" />
-            <p className="mt-4 font-mono text-sm tracking-widest text-[#F4F1EA]/70">
-              •••• •••• •••• {4021 + i * 1111}
+            <p className="self-end rounded-2xl rounded-br-sm bg-[#25D366] px-4 py-2 text-[#07090D]">
+              amazon.in/dp/B0…
+            </p>
+            <p className="self-end rounded-2xl rounded-br-sm bg-white/10 px-4 py-2 text-sm">
+              📸 cart screenshot
+            </p>
+            <p className="mt-auto text-sm text-[#8A9087]">Web or WhatsApp</p>
+          </div>
+        </Reveal>
+        <Reveal on from="translate-y-8" delay={600}>
+          <div className={card}>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C6F432]">
+              2 · Compare
+            </p>
+            {STORES.slice(0, 4).map((st) => (
+              <p key={st.name} className="flex justify-between text-sm">
+                <span className="text-[#B9BDB4]">{st.name}</span>
+                <span className={st.best ? "font-bold text-[#C6F432]" : ""}>
+                  ₹{inr(st.price)}
+                </span>
+              </p>
+            ))}
+            <p className="mt-auto text-sm text-[#8A9087]">
+              8 stores, checked live
             </p>
           </div>
-        ))}
-        <Reveal
-          on
-          className="absolute -right-4 -top-4"
-          from="scale-50"
-          delay={600}
-        >
-          <p className="rounded-full bg-[#C6F432] px-5 py-3 font-display text-xl font-bold text-[#0E1116] shadow-[0_0_40px_#C6F43280]">
-            −10% unlocked
-          </p>
         </Reveal>
-      </div>
-      <div className="flex flex-col gap-8 text-left">
-        <Eyebrow>The insight</Eyebrow>
-        <Headline>
-          We have the cards.
-          <br />
-          <span className={ACCENT}>You get the discount.</span>
-        </Headline>
-        <div className="flex flex-wrap items-center gap-2">
-          {FLOW.map((step, i) => (
-            <Reveal
-              key={step}
-              on={line >= 1}
-              from="translate-y-4"
-              delay={i * 250}
-              className="flex items-center gap-2"
-            >
-              <p className="rounded-full bg-white/10 px-4 py-2 font-display text-xl font-semibold ring-1 ring-white/10">
-                {step}
-              </p>
-              {i < FLOW.length - 1 && <span className="text-[#C6F432]">→</span>}
-            </Reveal>
-          ))}
-        </div>
+        <Reveal on={line >= 1} from="translate-y-8">
+          <div className={card}>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#C6F432]">
+              3 · Haggle
+            </p>
+            <p className="self-end rounded-2xl rounded-br-sm bg-[#C6F432] px-4 py-2 text-[#07090D]">
+              5,000?
+            </p>
+            <p className="self-start rounded-2xl rounded-bl-sm bg-white/10 px-4 py-2 text-sm">
+              5,000? My calculator fainted. 5,299, final-final.
+            </p>
+            <p className="mt-auto text-sm text-[#8A9087]">Up to 4 rounds</p>
+          </div>
+        </Reveal>
+        <Reveal on={line >= 1} from="translate-y-8" delay={400}>
+          <div className="flex h-full flex-col gap-2 rounded-2xl bg-[#F1EEE4] p-5 text-left text-[#1C1A26] shadow-2xl">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#6F6A7D]">
+              4 · Lock
+            </p>
+            <p className="font-display text-3xl font-bold">₹9 UPI</p>
+            <p className="text-sm">Pine Labs · price held 3:00</p>
+            <p className="mt-auto text-sm text-[#6F6A7D]">
+              Then 30 min to check out · tracked to your door
+            </p>
+          </div>
+        </Reveal>
       </div>
     </div>
   );
@@ -316,166 +336,153 @@ function YourTurn() {
         Your <span className={ACCENT}>turn.</span>
       </h2>
       <p className="text-2xl text-[#B9BDB4]">
-        Haggle with the agent. It won’t go below its floor.
+        Haggle with the agent. Go low enough and a human has to approve.
       </p>
     </div>
   );
 }
 
-/* 5 ── Money, full-screen numbers */
+/* 5 ── Money: the commission, split between the shopper and us */
 function Money({ line }: SceneProps) {
-  const bars = [
-    { label: "Listed", value: 5499, color: "bg-[#4A5058]" },
-    { label: "Our cost, 10% card offer", value: 4949, color: "bg-[#8A9087]" },
-    { label: "Shopper pays", value: 5049, color: "bg-[#C6F432]" },
-  ];
+  const { listPrice, commission, floor } = HAGGLE_PRODUCT;
+  const { saves, keeps } = EXAMPLE_DEAL;
   return (
-    <div className="flex w-full max-w-6xl flex-col gap-12">
+    <div className="flex w-full max-w-6xl flex-col gap-10">
       <div className="flex flex-col gap-4 text-left">
-        <Eyebrow>The business</Eyebrow>
+        <Eyebrow>The money</Eyebrow>
         <Headline>
-          Who pays? <span className={ACCENT}>The bank.</span>
+          Who pays? <span className={ACCENT}>Not me.</span>
         </Headline>
       </div>
       {line < 1 ? (
-        <div className="flex flex-col gap-5">
-          {bars.map((b, i) => (
+        <div className="flex flex-col gap-4">
+          <div className="relative h-20 overflow-hidden rounded-2xl bg-white/[0.06]">
             <div
-              key={b.label}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:grid-cols-[16rem_1fr_auto]"
-            >
-              <p className="col-span-2 text-left text-lg text-[#B9BDB4] sm:col-span-1">
-                {b.label}
-              </p>
-              <div className="h-12 overflow-hidden rounded-xl bg-white/[0.06]">
-                <div
-                  className={`animate-grow h-full rounded-xl ${b.color}`}
-                  style={{
-                    width: `${(b.value / 5499) * 100}%`,
-                    animationDelay: `${i * 300}ms`,
-                  }}
-                />
-              </div>
-              <p className="w-32 text-right font-display text-3xl font-bold tabular-nums">
-                <CountUp to={b.value} active prefix="₹" />
-              </p>
-            </div>
-          ))}
+              className="animate-grow absolute inset-y-0 left-0 rounded-l-2xl bg-[#4A5058]"
+              style={{
+                width: `${((listPrice - commission) / listPrice) * 100}%`,
+              }}
+            />
+            <div
+              className="animate-grow absolute inset-y-0 right-0 bg-[#C6F432]"
+              style={{
+                width: `${(commission / listPrice) * 100 * 6}%`,
+                animationDelay: "500ms",
+              }}
+            />
+            <p className="absolute inset-y-0 left-6 flex items-center font-display text-3xl font-bold tabular-nums">
+              ₹{inr(listPrice)} sneakers
+            </p>
+            <p className="absolute inset-y-0 right-6 flex items-center font-display text-3xl font-bold text-[#07090D]">
+              <CountUp to={commission} active prefix="₹" /> commission
+            </p>
+          </div>
+          <p className="text-left text-lg text-[#B9BDB4]">
+            Bar not to scale. The commission is about 8%, we just made it bigger
+            so you can see it.
+          </p>
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="animate-pop-in rounded-[2rem] bg-[#C6F432] p-10 text-left text-[#07090D]">
-            <p className="text-xl font-semibold">Shopper saves</p>
+            <p className="text-xl font-semibold">You save</p>
             <p className="font-display text-[clamp(4rem,10vw,9rem)] font-bold leading-none">
-              <CountUp to={450} active prefix="₹" />
+              <CountUp to={saves} active prefix="₹" />
             </p>
           </div>
           <div
             className="animate-pop-in rounded-[2rem] bg-[#FF8A3D] p-10 text-left text-[#07090D]"
             style={{ animationDelay: "250ms" }}
           >
-            <p className="text-xl font-semibold">We keep, every deal</p>
+            <p className="text-xl font-semibold">We keep</p>
             <p className="font-display text-[clamp(4rem,10vw,9rem)] font-bold leading-none">
-              <CountUp to={100} active prefix="₹" />
+              <CountUp to={keeps} active prefix="₹" />
             </p>
           </div>
+          <p className="text-left text-lg text-[#B9BDB4] sm:col-span-2">
+            Floor ₹{inr(floor)}, enforced in code. The AI talks, the code does
+            the maths.
+          </p>
         </div>
       )}
+      <Reveal on={line >= 2} from="translate-y-6">
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.05] px-6 py-4 backdrop-blur-xl">
+          <p className="font-display text-2xl font-bold">Seller on {BRAND}?</p>
+          <p className="text-lg text-[#B9BDB4]">
+            Their margin funds the deal. They set the budget, the agent does the
+            sweet talking.
+          </p>
+        </div>
+      </Reveal>
     </div>
   );
 }
 
-/* 6 ── Why now, what it runs on, how it grows */
-const WHY_NOW = [
-  "UPI made instant payment normal",
-  "Card offers are everywhere",
-  "AI agents can finally act for you",
+/* 6 ── Agent + human: the escalation path, then the competitor line */
+const DESK = [
+  { who: "Your offer", what: "typed or spoken" },
+  { who: "Seller agent", what: "approves small discounts alone" },
+  { who: "AgenticOrg agent", what: "reviews via MCP, recommends" },
+  { who: "A real human", what: "approves on the dashboard or a call" },
+  { who: "Pine Labs UPI", what: "₹9 locks the price" },
 ];
 const VERSUS = [
-  { who: "Comparison apps", does: "show you the deal" },
-  { who: "Shop bots", does: "haggle for the shop" },
-  { who: "Platform agents", does: "pay the listed price" },
-];
-const GROWTH = [
-  { tag: "Now", title: "Concierge" },
-  { tag: "Next", title: "Cardholders lend offers" },
-  { tag: "Later", title: "Agent haggles with sellers" },
+  { who: "Comparison apps", does: "tell you where it’s cheapest" },
+  { who: "Shop bots", does: "haggle for the store" },
 ];
 
-function WhyNow({ line }: SceneProps) {
+function AgentDesk({ line }: SceneProps) {
   return (
-    <div className="grid w-full max-w-6xl items-start gap-12 md:grid-cols-[1fr_1.1fr]">
-      <div className="flex flex-col gap-6 text-left">
-        <Eyebrow>Why now</Eyebrow>
+    <div className="flex w-full max-w-6xl flex-col gap-10">
+      <div className="flex flex-col gap-4 text-left">
+        <Eyebrow>Agent + human</Eyebrow>
         <Headline>
-          The rails <span className={ACCENT}>just arrived.</span>
+          Big discounts <span className={ACCENT}>need a human.</span>
         </Headline>
-        <div className="flex flex-col gap-3">
-          {WHY_NOW.map((w, i) => (
-            <Reveal key={w} on from="-translate-x-4" delay={300 + i * 250}>
-              <p className="flex items-center gap-3 text-xl">
-                <span className="h-2 w-2 rounded-full bg-[#C6F432]" />
-                {w}
-              </p>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal on={line >= 1} from="translate-y-6">
-          <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl">
-            {VERSUS.map((v) => (
-              <p
-                key={v.who}
-                className="flex justify-between gap-4 text-base text-[#8A9087]"
-              >
-                <span>{v.who}</span>
-                <span className="line-through decoration-[#FF8A3D]/70">
-                  {v.does}
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+        {DESK.map((d, i) => (
+          <Reveal
+            key={d.who}
+            on={i < 2 || line >= 1}
+            from="translate-y-6"
+            delay={(i < 2 ? i : i - 2) * 250}
+          >
+            <div
+              className={`relative flex h-full flex-col gap-1 rounded-2xl border p-4 text-left backdrop-blur-xl ${
+                i === 3
+                  ? "border-[#FF8A3D] bg-[#FF8A3D]/10"
+                  : "border-white/10 bg-white/[0.05]"
+              }`}
+            >
+              <p className="font-display text-xl font-bold">{d.who}</p>
+              <p className="text-sm text-[#B9BDB4]">{d.what}</p>
+              {i < DESK.length - 1 && (
+                <span className="absolute -right-3 top-1/2 hidden -translate-y-1/2 text-[#C6F432] md:block">
+                  →
                 </span>
-              </p>
-            ))}
-            <p className="mt-1 flex justify-between gap-4 border-t border-white/10 pt-3 text-lg font-semibold">
-              <span>{BRAND}</span>
-              <span className="text-[#C6F432]">gets the deal for you</span>
-            </p>
-          </div>
-        </Reveal>
-      </div>
-      <div className="flex flex-col gap-6">
-        <Reveal on={line >= 2}>
-          <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/[0.05] p-6 backdrop-blur-xl">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#8A9087]">
-              Building on
-            </p>
-            <div className="flex items-center justify-between rounded-2xl bg-white/10 px-5 py-4">
-              <p className="font-display text-2xl font-bold">AgenticOrg</p>
-              <p className="text-sm text-[#B9BDB4]">Pine Labs · the agent</p>
+              )}
             </div>
-            <div className="flex items-center justify-between rounded-2xl bg-white/10 px-5 py-4">
-              <p className="font-display text-2xl font-bold">UPI rails</p>
-              <p className="text-sm text-[#B9BDB4]">Pine Labs · payments</p>
-            </div>
-          </div>
-        </Reveal>
-        <Reveal on={line >= 3}>
-          <div className="grid grid-cols-3 gap-3">
-            {GROWTH.map((g, i) => (
-              <div
-                key={g.tag}
-                className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-left backdrop-blur-xl"
-              >
-                <p
-                  className={`text-xs font-bold uppercase tracking-[0.3em] ${i === 0 ? "text-[#C6F432]" : "text-[#8A9087]"}`}
-                >
-                  {g.tag}
-                </p>
-                <p className="font-display text-lg font-bold leading-tight">
-                  {g.title}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Reveal>
+          </Reveal>
+        ))}
       </div>
+      <Reveal on={line >= 2} from="translate-y-6">
+        <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.05] p-5 backdrop-blur-xl md:max-w-2xl">
+          {VERSUS.map((v) => (
+            <p
+              key={v.who}
+              className="flex justify-between gap-4 text-lg text-[#8A9087]"
+            >
+              <span>{v.who}</span>
+              <span>{v.does}</span>
+            </p>
+          ))}
+          <p className="mt-1 flex justify-between gap-4 border-t border-white/10 pt-3 text-xl font-semibold">
+            <span>{BRAND}</span>
+            <span className="text-[#C6F432]">haggles for you · 8 stores</span>
+          </p>
+        </div>
+      </Reveal>
     </div>
   );
 }
@@ -484,7 +491,7 @@ function WhyNow({ line }: SceneProps) {
 function Close({ line, stats }: SceneProps) {
   const [qr, setQr] = useState("");
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const url = PITCH_URL;
     QRCode.toDataURL(url, {
       margin: 1,
       width: 480,
@@ -540,13 +547,16 @@ function Close({ line, stats }: SceneProps) {
           <p className="font-display text-xl font-bold text-[#0E1116]">
             Scan · paste · haggle
           </p>
+          <p className="-mt-3 text-sm text-[#0E1116]/70">
+            {PITCH_URL.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+          </p>
         </div>
       </Tilt>
     </div>
   );
 }
 
-const SCENES = [Cover, Problem, Insight, YourTurn, Money, WhyNow, Close];
+const SCENES = [Cover, Problem, HowItWorks, YourTurn, Money, AgentDesk, Close];
 
 export function Scene({
   seg,
