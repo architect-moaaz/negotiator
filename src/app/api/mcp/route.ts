@@ -51,19 +51,20 @@ const handler = createMcpHandler(
         description: `Record your recommendation for an escalated deal. A human (GhostCart deal desk or the seller) reviews it and makes the final call.
 approve = accept the shopper's offer. reject = decline (shopper gets a final offer at the auto-approve limit). counter = propose a price between the shopper's offer and the agent's last offer.
 Weigh margin left above the floor, discount vs the best market price, seller rating, and how hard the shopper haggled.`,
+        // Lenient on purpose: AgenticOrg sometimes sends null for unused fields or numbers as strings.
         inputSchema: z.object({
           deal_id: z.string().min(4).max(40),
           decision: z.enum(["approve", "reject", "counter"]),
-          counter_price: z.number().positive().optional().describe("Required for counter, in rupees"),
-          confidence: z.number().min(0).max(1),
-          reasoning: z.string().min(10).max(1000).describe("One to three sentences a busy human can scan"),
+          counter_price: z.coerce.number().positive().nullish().describe("Required for counter, in rupees; omit or null otherwise"),
+          confidence: z.coerce.number().min(0).max(1),
+          reasoning: z.string().min(10).max(4000).describe("One to three sentences a busy human can scan"),
         }),
       },
       async ({ deal_id, decision, counter_price, confidence, reasoning }) => {
         const deal = await store.getDeal(deal_id);
         if (!deal) return fail(`No negotiation with id ${deal_id}.`);
         try {
-          const rec = await recordRecommendation(deal, { decision, price: counter_price, confidence, reasoning });
+          const rec = await recordRecommendation(deal, { decision, price: counter_price ?? undefined, confidence, reasoning });
           return json({ ok: true, recorded: rec, next: "A human will approve or override this in GhostCart." });
         } catch (err) {
           if (err instanceof HaggleError) return fail(err.message);

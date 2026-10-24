@@ -64,17 +64,13 @@ export async function requestDealReview(deal: Deal) {
     detail: `Asked AgenticOrg deal-desk agent to review ${inr(deal.negotiation!.approval!.price)} offer`,
   });
   const task = reviewTask(deal);
-  let summary: unknown;
-  if (API_KEY) {
-    const res = await post<{ status?: string; output?: unknown }>(`/api/v1/agents/${AGENT_ID}/run`, {
-      action: "process",
-      inputs: { deal_id: deal.id, task },
-      context: { source: "ghostcart" },
-    });
-    summary = typeof res.output === "string" ? res.output : JSON.stringify(res.output ?? res.status ?? "");
-  } else {
-    const res = await post<{ answer?: string; text?: string }>("/api/v1/chat/query", { query: task, agent_id: AGENT_ID });
-    summary = res.answer ?? res.text ?? "";
-  }
+  // Same call the AgenticOrg "Run Agent" button makes. (The chat endpoint routes to the agent
+  // type's default commerce flow instead of following our prompt.)
+  const res = await post<Record<string, unknown>>(`/api/v1/agents/${AGENT_ID}/run`, {
+    action: "run",
+    inputs: { task, deal_id: deal.id },
+  });
+  const out = res.output ?? res.result ?? res.answer ?? res.status ?? "";
+  const summary = typeof out === "string" ? out : JSON.stringify(out);
   return String(summary).slice(0, 2000);
 }
