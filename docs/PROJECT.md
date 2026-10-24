@@ -24,33 +24,40 @@ The agent instantly:
 ## Stack
 | Layer | Choice |
 | --- | --- |
-| Frontend | Next.js (App Router) + Tailwind, dark luxury/fintech dashboard |
-| Agent | Vercel AI SDK + Claude (`GHOSTCART_MODEL`) — URL/screenshot parsing, spec & price extraction |
-| Scraping | Firecrawl (Playwright fallback if needed) |
-| Payments | Razorpay payment links / UPI QR (Pine Labs Plural as alternative) |
-| Messaging | Twilio WhatsApp sandbox webhook |
+| Frontend | Next.js 16 (App Router, cacheComponents) + Tailwind 4: dark ink UI, deal shown as a thermal receipt |
+| Agent | Vercel AI SDK 7 + Claude (`GHOSTCART_MODEL`): product extraction (page text or screenshot) + live haggle narration |
+| Pricing | Deterministic `computeOffer` (cheapest in-stock seller − min(5%, ₹200)); the LLM never sets numbers |
+| Scraping | Firecrawl `product` format + `search` across Indian retailers (plain fetch fallback) |
+| Payments | Pine Labs Online UPI intent (UAT): token **deal-lock fee** (`DEAL_LOCK_FEE_INR`, default ₹9) |
+| Storage | Upstash Redis on Vercel (`KV_REST_API_*`), in-memory fallback locally |
+| Messaging | Twilio WhatsApp sandbox |
 
 ## Flow
 ```
-input (URL | screenshot | wishlist) ─► /api/deal
-   ├─ scrape (Firecrawl) ─► extract product (Claude, structured output)
-   ├─ find alternatives / price comparison
-   ├─ compute offer (discount or bundle) ─► deal { id, expiresAt = now + 180s }
-   └─ create payment link (Razorpay / UPI QR)
-deal page /deal/[id] ─► countdown + QR ─► webhook /api/webhooks/payment ─► ticker event
-dashboard /dashboard ─► live ticker (SSE from /api/ticker)
-WhatsApp ─► /api/webhooks/whatsapp ─► same /api/deal pipeline ─► reply with deal link
+POST /api/negotiate {url | imageBase64}  → NDJSON stream
+   step → product → quotes → haggle deltas → offer → deal
+   (scrape/extract → findAlternatives → computeOffer → streamHaggle → Pine Labs UPI order → Redis)
+/deal/[id]  180s countdown + UPI QR; polls GET /api/deal?id= every 3s
+   → server checks Pine Labs order status (PROCESSED/AUTHORIZED ⇒ markPaid ⇒ ticker + stats)
+/dashboard  polls GET /api/ticker: N/20 locked deals, total saved, live feed
+WhatsApp    /api/webhooks/whatsapp: instant TwiML ack, after() runs the same pipeline, replies with deal link
+Pine Labs   /api/webhooks/pinelabs: signed ORDER_PROCESSED backup to polling
 ```
 
 ## Layout
 ```
-src/app/page.tsx                    landing: paste URL / upload screenshot + WhatsApp QR
-src/app/deal/[id]/page.tsx          countdown payment terminal
-src/app/dashboard/page.tsx          public live ticker
-src/app/api/deal/route.ts           POST: run agent pipeline, create deal
-src/app/api/checkout/route.ts       POST: create/refresh payment link for a deal
-src/app/api/ticker/route.ts         GET: SSE stream of ticker events
-src/app/api/webhooks/whatsapp/      Twilio inbound
-src/app/api/webhooks/payment/       Razorpay payment.captured
-src/lib/                            agent, scrape, payments, whatsapp, store, types
+src/lib/negotiate.ts                pipeline shared by web + WhatsApp, markPaid
+src/lib/agent.ts                    Claude extraction, computeOffer, streamHaggle
+src/lib/scrape.ts                   Firecrawl scrape + alternative sellers
+src/lib/pinelabs.ts                 token cache, UPI order/intent, status, webhook signature
+src/lib/payments.ts                 deal-lock payment (Pine Labs → static VPA fallback)
+src/lib/store.ts                    Redis / in-memory deals, ticker, stats
+src/app/page.tsx                    landing + live negotiation slip
+src/app/deal/[id]/page.tsx          countdown invoice terminal
+src/app/dashboard/page.tsx          venue screen
 ```
+
+## Notes
+- Pine Labs has no order expiry field; the 180s window is enforced by the app, and status is still checked for 30s after expiry so last-second payments count.
+- Pine Labs configures webhook URLs via support, so polling is the primary payment signal.
+- `DEMO_SIMULATE=1` shows a "Simulate UPI payment" button (also shown automatically when no QR could be generated).

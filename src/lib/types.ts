@@ -1,13 +1,12 @@
 export type DealInput =
   | { kind: "url"; url: string }
-  | { kind: "screenshot"; imageBase64: string; mimeType: string }
-  | { kind: "wishlist"; url: string };
+  | { kind: "screenshot"; imageBase64: string; mediaType: string };
 
 export interface Product {
   title: string;
   brand?: string;
   imageUrl?: string;
-  sourceUrl: string;
+  sourceUrl?: string;
   seller: string;
   price: number; // INR
   mrp?: number;
@@ -21,23 +20,37 @@ export interface SellerQuote {
   inStock: boolean;
 }
 
-export type DealStatus = "pending" | "paid" | "expired";
+export interface Offer {
+  originalPrice: number;
+  dealPrice: number;
+  saved: number;
+  perk: string;
+  bestSeller: string;
+}
 
-export interface Deal {
+export type DealStatus = "pending" | "paid" | "expired";
+export type Channel = "web" | "whatsapp";
+
+export interface Deal extends Offer {
   id: string;
   product: Product;
   alternatives: SellerQuote[];
-  originalPrice: number;
-  dealPrice: number;
-  perk?: string; // e.g. "free shipping", bundled add-on
-  paymentUrl?: string;
-  upiQrDataUrl?: string;
+  haggle: string;
+  lockFee: number; // INR charged via UPI to lock the deal
+  upiIntent?: string;
+  qrDataUrl?: string;
+  pinelabsOrderId?: string;
+  simulate: boolean;
   createdAt: number;
   expiresAt: number;
   status: DealStatus;
   city?: string;
-  channel: "web" | "whatsapp";
+  channel: Channel;
+  waFrom?: string;
 }
+
+/** Deal as exposed to browsers: no internal ids or phone numbers. */
+export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom">;
 
 export interface TickerEvent {
   id: string;
@@ -46,3 +59,18 @@ export interface TickerEvent {
   saved: number;
   at: number;
 }
+
+export interface Stats {
+  deals: number;
+  paid: number;
+  saved: number;
+}
+
+export type NegotiationEvent =
+  | { type: "step"; text: string }
+  | { type: "product"; product: Product }
+  | { type: "quotes"; quotes: SellerQuote[] }
+  | { type: "offer"; offer: Offer }
+  | { type: "haggle"; text: string }
+  | { type: "deal"; deal: PublicDeal }
+  | { type: "error"; message: string };

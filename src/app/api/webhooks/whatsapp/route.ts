@@ -1,29 +1,48 @@
-import { sendWhatsApp } from "@/lib/whatsapp";
+import { after } from "next/server";
+import { inr, runNegotiation } from "@/lib/negotiate";
+import type { DealInput } from "@/lib/types";
+import { fetchTwilioMedia, sendWhatsApp, validateTwilioRequest } from "@/lib/whatsapp";
 
-/** Twilio inbound WhatsApp webhook (form-encoded). */
+export const maxDuration = 60;
+
+const twiml = (message?: string) =>
+  new Response(`<Response>${message ? `<Message>${message}</Message>` : ""}</Response>`, {
+    headers: { "Content-Type": "text/xml" },
+  });
+
+/** Twilio inbound WhatsApp: ack instantly, negotiate in the background, then reply with the deal link. */
 export async function POST(request: Request) {
   const form = await request.formData();
-  const from = String(form.get("From") ?? "");
-  const body = String(form.get("Body") ?? "");
-  const url = body.match(/https?:\/\/\S+/)?.[0];
-
-  if (!url) {
-    await sendWhatsApp(from, "Send me any product link and I'll find you a 3-minute flash UPI deal ⚡");
-  } else {
-    const res = await fetch(new URL("/api/deal", request.url), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, channel: "whatsapp" }),
-    });
-    const deal = await res.json();
-    await sendWhatsApp(
-      from,
-      res.ok
-        ? `⚡ ${deal.product.title}\n₹${deal.originalPrice} → ₹${deal.dealPrice} + ${deal.perk}\nPay within 180s: ${process.env.NEXT_PUBLIC_APP_URL}/deal/${deal.id}`
-        : "Couldn't read that link — try another one?",
-    );
+  const params = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
+  const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/whatsapp`;
+  if (!validateTwilioRequest(request.headers.get("x-twilio-signature"), publicUrl, params)) {
+    return new Response("invalid signature", { status: 403 });
   }
 
-  // TODO: verify X-Twilio-Signature
-  return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
+  const from = params.From;
+  const url = params.Body?.match(/https?:\/\/\S+/)?.[0];
+  const mediaUrl = params.NumMedia && Number(params.NumMedia) > 0 ? params.MediaUrl0 : undefined;
+  const mediaType = params.MediaContentType0;
+
+  if (!url && !(mediaUrl && mediaType?.startsWith("image/"))) {
+    return twiml("Send me any product link or a cart screenshot and I'll negotiate a 3-minute flash UPI deal ⚡");
+  }
+
+  after(async () => {
+    try {
+      const input: DealInput = url
+        ? { kind: "url", url }
+        : { kind: "screenshot", imageBase64: await fetchTwilioMedia(mediaUrl!), mediaType: mediaType! };
+      const deal = await runNegotiation(input, { channel: "whatsapp", waFrom: from });
+      await sendWhatsApp(
+        from,
+        `⚡ ${deal.product.title}\n${inr(deal.originalPrice)} → *${inr(deal.dealPrice)}* + ${deal.perk}\nYou save ${inr(deal.saved)}. Lock it in 180s:\n${process.env.NEXT_PUBLIC_APP_URL}/deal/${deal.id}`,
+      );
+    } catch (err) {
+      console.error("WhatsApp negotiation failed", err);
+      await sendWhatsApp(from, "Couldn't read that one 😅 Try another link or a clearer screenshot.");
+    }
+  });
+
+  return twiml("⚡ Negotiating your deal… give me a few seconds.");
 }

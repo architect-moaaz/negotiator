@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* GhostCart: dark ink room, the deal itself is a printed receipt. */
+@theme {
+  --color-ink: #15131f;
+  --color-panel: #1f1c2c;
+  --color-line: #332f46;
+  --color-fg: #edeaf5;
+  --color-muted: #9b96b0;
+  --color-saffron: #f4b740;
+  --color-alarm: #ff5a5f;
+  --color-paid: #4fd1a5;
+  --color-paper: #f1eee4;
+  --color-paper-ink: #1c1a26;
+  --color-paper-muted: #6f6a7d;
+  --font-sans: var(--font-bricolage);
+  --font-receipt: var(--font-plex-mono);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-ink);
+  color: var(--color-fg);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-saffron);
+  outline-offset: 3px;
+}
+
+/* Torn thermal-paper edges on top and bottom. */
+.receipt {
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+  font-family: var(--font-receipt), ui-monospace, monospace;
+  --tear: radial-gradient(circle at 6px 0, transparent 5px, #000 5.5px);
+  mask:
+    var(--tear) top / 12px 51% repeat-x,
+    radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) bottom / 12px 51% repeat-x;
+}
+
+.receipt-rule {
+  border-top: 1.5px dashed color-mix(in srgb, var(--color-paper-ink) 35%, transparent);
+}
+
+@keyframes print-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.print-line {
+  animation: print-in 260ms steps(6, end) both;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee {
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .print-line,
+  .marquee {
+    animation: none;
+  }
 }
