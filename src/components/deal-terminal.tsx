@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { PublicDeal } from "@/lib/types";
 import { HaggleRoom } from "./haggle-room";
+import { SocialProof } from "./social-proof";
+import { shortTitle } from "@/lib/format";
 
 function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
@@ -102,15 +104,33 @@ export function DealTerminal({ id }: { id: string }) {
           </div>
         )}
 
+        {pending && !expired && deal.saved > 0 && (
+          <p className={`mt-4 max-w-lg text-lg ${urgent ? "text-alarm" : ""}`}>
+            Lock it now or lose your <span className="text-saffron">{inr(deal.saved)}</span> saving. Takes 10 seconds by UPI.
+          </p>
+        )}
         <h1 className="mt-10 max-w-xl text-2xl font-semibold leading-snug sm:text-3xl">{deal.product.title}</h1>
         <p className="mt-2 text-muted">
           {deal.negotiation ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}` : `Best price at ${deal.bestSeller}`} · {deal.perk}
         </p>
 
         {paid && (
-          <p className="mt-8 max-w-lg text-lg">
-            You saved <span className="text-saffron">{inr(deal.saved)}</span>. Your deal is on the live board.
-          </p>
+          <div className="mt-8 max-w-lg">
+            <p className="text-lg">
+              You saved <span className="text-saffron">{inr(deal.saved)}</span>. Your deal is on the live board.
+            </p>
+            <p className="mt-6 text-muted">Know someone buying something today? Pass it on. They get the same AI haggler on their side.</p>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(
+                `I just haggled ${inr(deal.saved)} off ${shortTitle(deal.product.title, 4)} with an AI on GhostCart. Paste anything you're buying: ${typeof window !== "undefined" ? window.location.origin : ""}`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block rounded-xl bg-saffron px-6 py-3 font-semibold text-paper-ink"
+            >
+              Share on WhatsApp
+            </a>
+          </div>
         )}
         {expired && !paid && (
           <div className="mt-8">
@@ -183,6 +203,9 @@ export function DealTerminal({ id }: { id: string }) {
               </button>
             )}
             {deal.qrDataUrl && <p className="text-center text-paper-muted">Scan with your phone camera to pay · Pine Labs</p>}
+            <div className="font-sans text-center [&_p]:text-paper-muted">
+              <SocialProof variant="compact" />
+            </div>
           </div>
         )}
 

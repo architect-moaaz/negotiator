@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
 import type { PublicDeal } from "@/lib/types";
+import { SocialProof } from "./social-proof";
 
 /** Live negotiation between the shopper and GhostCart's seller agent. */
 export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d: PublicDeal) => void }) {
@@ -12,6 +13,16 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const threadEnd = useRef<HTMLDivElement>(null);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const t = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, []);
 
   const seenMessages = useRef(n.messages.length);
   useEffect(() => {
@@ -36,6 +47,10 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
 
   const offerValue = Number(offer.replace(/[^\d]/g, ""));
   const lastShopperPrice = [...n.messages].reverse().find((m) => m.from === "shopper")?.price;
+  const offMarket = n.benchmark - n.currentOffer;
+  const gap = lastShopperPrice !== undefined ? n.currentOffer - lastShopperPrice : 0;
+  const secsLeft = now ? Math.max(0, Math.round((deal.expiresAt - now) / 1000)) : null;
+  const windowLeft = secsLeft === null ? null : `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, "0")}`;
 
   return (
     <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
@@ -56,6 +71,18 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
         <p className="mt-1 text-muted">
           Best price anywhere: {inr(n.benchmark)} at {deal.bestSeller}
         </p>
+        {!waiting && offMarket > 0 && (
+          <p className="mt-3 max-w-xl">
+            You&apos;ve already got <span className="text-saffron">{inr(offMarket)} off</span> the best market price
+            {gap > 0 ? (
+              <>
+                , and you&apos;re just <span className="text-fg">{inr(gap)}</span> away from a deal.
+              </>
+            ) : (
+              "."
+            )}
+          </p>
+        )}
         {deal.product.soldBy && (
           <p className="mt-1 text-muted">
             Sold by {deal.product.soldBy.name} on {deal.product.soldBy.marketplace}
@@ -111,6 +138,11 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
 
         {!waiting && (
           <div className="mt-8 max-w-xl">
+            {windowLeft && secsLeft! < 15 * 60 && (
+              <p className="mb-3 text-sm text-muted">
+                This offer stays open for <span className="font-receipt text-fg tabular-nums">{windowLeft}</span>. Prices can move after that.
+              </p>
+            )}
             <button
               onClick={() => send({ accept: true })}
               disabled={busy}
@@ -153,6 +185,9 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
                 {error}
               </p>
             )}
+            <div className="mt-4">
+              <SocialProof variant="compact" />
+            </div>
           </div>
         )}
       </section>
@@ -175,6 +210,7 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
           <span>Best price anywhere</span>
           <span>{inr(n.benchmark)}</span>
         </div>
+        <p className="mt-1 text-paper-muted">Found on {deal.alternatives.length + 1} of the 8 stores we checked, live when you pasted the link.</p>
         <div className="receipt-rule my-4" />
         <div className="flex items-baseline justify-between">
           <span>{waiting ? "Your offer" : "On the table"}</span>

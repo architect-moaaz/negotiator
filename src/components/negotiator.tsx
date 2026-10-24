@@ -37,6 +37,8 @@ export function Negotiator() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
+  // Ask for the link first; contact details only once they've committed to checking an item.
+  const [wantsDetails, setWantsDetails] = useState(false);
 
   useEffect(() => {
     fetch("/api/me", { cache: "no-store" })
@@ -147,6 +149,16 @@ export function Negotiator() {
   }
 
   const busy = phase === "running" || phase === "done";
+  const askDetails = user === null && (url.trim().length > 0 || wantsDetails);
+  const submitButton = (
+    <button
+      type="submit"
+      disabled={busy || !url.trim()}
+      className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink transition-transform active:scale-[0.98] disabled:opacity-50"
+    >
+      {busy ? "Negotiating…" : user === null && !askDetails ? "Check prices free" : "Find my deal"}
+    </button>
+  );
 
   // On phones the slip renders below the form; scroll it into view when the first step prints.
   const hasSteps = steps.length > 0;
@@ -164,8 +176,27 @@ export function Negotiator() {
           if (url.trim()) negotiate({ url: url.trim() });
         }}
       >
-        {user === null && (
-          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {user && <p className="text-muted">Hi {user.name.split(" ")[0]}, what are you buying today?</p>}
+        <label htmlFor="product-url" className="text-muted">
+          Product link from Amazon, Flipkart, Myntra, Croma, Swiggy or anywhere else
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            id="product-url"
+            type="url"
+            inputMode="url"
+            required
+            placeholder="https://www.amazon.in/…"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={busy}
+            className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-4 py-4 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
+          />
+          {!askDetails && submitButton}
+        </div>
+        {askDetails && (
+          <div className="mt-2 grid grid-cols-1 gap-3 rounded-2xl border border-line p-4 sm:grid-cols-2">
+            <p className="font-semibold sm:col-span-2">Last step: where can we reach you about this deal?</p>
             <div className="flex flex-col gap-2">
               <label htmlFor="signup-name" className="text-muted">
                 Your name
@@ -211,30 +242,7 @@ export function Negotiator() {
             </label>
           </div>
         )}
-        {user && <p className="text-muted">Hi {user.name.split(" ")[0]}, what are you buying today?</p>}
-        <label htmlFor="product-url" className="text-muted">
-          Product link from Amazon, Flipkart, Myntra, Croma, Swiggy or anywhere else
-        </label>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            id="product-url"
-            type="url"
-            inputMode="url"
-            required
-            placeholder="https://www.amazon.in/…"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={busy}
-            className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-4 py-4 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
-          />
-          <button
-            type="submit"
-            disabled={busy || !url.trim()}
-            className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink transition-transform active:scale-[0.98] disabled:opacity-50"
-          >
-            {busy ? "Negotiating…" : "Find my deal"}
-          </button>
-        </div>
+        {askDetails && submitButton}
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
@@ -247,13 +255,22 @@ export function Negotiator() {
           <button
             type="button"
             disabled={busy}
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              if (user === null && (!name.trim() || !phone.trim() || !consent)) {
+                setWantsDetails(true);
+                setPhase("error");
+                setError("First, tell us where to reach you about this deal, then upload your screenshot.");
+                return;
+              }
+              fileRef.current?.click();
+            }}
             className="text-fg underline decoration-line decoration-2 underline-offset-4 hover:decoration-saffron disabled:opacity-50"
           >
             upload a cart screenshot
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />
         </div>
+        {phase === "idle" && <p className="text-sm text-muted">Free · about 30 seconds · no payment until you agree on a price</p>}
         {phase === "error" && (
           <p role="alert" className="mt-2 text-alarm">
             {error}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SellerSignup } from "@/components/seller-signup";
+import { SocialProof } from "@/components/social-proof";
 
 export const metadata = { title: "GhostCart · Sell with GhostCart" };
 
@@ -21,6 +22,9 @@ export default function SellPage() {
         When a shopper pastes one of your Amazon or Flipkart listings into GhostCart, an agent haggles for you within the discount you set. Anything
         bigger comes to you to approve.
       </p>
+      <div className="mt-5">
+        <SocialProof variant="seller" />
+      </div>
       <SellerSignup />
     </main>
   );
