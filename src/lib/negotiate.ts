@@ -1,4 +1,5 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
+import { openCheckout, toPublicCheckout } from "./checkout";
 import { chooseMove, computeTerms, MAX_ROUNDS } from "./haggle";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
 import { inr, shortTitle } from "./format";
@@ -23,9 +24,11 @@ export function toPublic(deal: Deal): PublicDeal {
   delete pub.waFrom;
   delete pub.userId;
   delete pub.negotiation;
+  delete pub.checkout;
   const n = deal.negotiation;
   return {
-    ...(pub as Omit<PublicDeal, "negotiation">),
+    ...(pub as Omit<PublicDeal, "negotiation" | "checkout">),
+    checkout: toPublicCheckout(deal.checkout),
     negotiation: n && {
       fundedBy: n.terms.fundedBy ?? "ghostcart",
       sellerName: n.terms.sellerName,
@@ -311,6 +314,7 @@ export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhoo
   if (!(await store.claimPaid(deal.id))) return { ...deal, status: "paid" as const };
 
   deal.status = "paid";
+  await openCheckout(deal);
   await store.saveDeal(deal);
   await store.incrStats({ paid: 1, saved: deal.saved });
   await store.log({

@@ -2,10 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
-import type { Activity, AgentRecommendation, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
+import { FULFILMENT_STAGES } from "@/lib/fulfilment";
+import type { Activity, AgentRecommendation, DeliveryAddress, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
-type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms; recommendation?: AgentRecommendation };
+type AdminDeal = PublicDeal & {
+  userId?: string;
+  pinelabsOrderId?: string;
+  terms?: NegotiationTerms;
+  recommendation?: AgentRecommendation;
+  address?: DeliveryAddress;
+};
+
+/** The order's current delivery stage and the one it moves to next. */
+function orderStage(d: AdminDeal) {
+  const i = FULFILMENT_STAGES.findIndex((s) => s.stage === d.checkout?.tracking?.at(-1)?.stage);
+  return { current: FULFILMENT_STAGES[i], next: i >= 0 ? FULFILMENT_STAGES[i + 1] : undefined };
+}
 interface AdminData {
   stats: Stats;
   users: User[];
@@ -123,6 +136,25 @@ export function AdminConsole() {
     setDeciding(null);
     load(token);
   }
+  async function advance(d: AdminDeal) {
+    const { next } = orderStage(d);
+    if (!next) return;
+    let courier: string | undefined, awb: string | undefined;
+    if (next.stage === "shipped") {
+      courier = window.prompt("Courier (e.g. Delhivery)") ?? undefined;
+      awb = window.prompt("AWB / tracking number") ?? undefined;
+    }
+    setDeciding(d.id);
+    const res = await fetch("/api/admin/fulfil", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: d.id, courier, awb, by: deskName.trim() || "Deal desk" }),
+    });
+    if (!res.ok) window.alert((await res.json().catch(() => ({}))).error ?? "Couldn't update the order.");
+    setDeciding(null);
+    load(token);
+  }
+
   const exportTab = () => {
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
     if (tab === "users")
@@ -137,8 +169,26 @@ export function AdminConsole() {
       ]);
     if (tab === "deals")
       downloadCsv(`ghostcart-deals-${stamp}.csv`, [
-        ["created_at_ist", "deal_id", "user", "product", "seller", "original_price", "deal_price", "saved", "lock_fee", "status", "pinelabs_order_id", "channel", "city"],
-        ...data.deals.map((d) => [ist(d.createdAt), d.id, d.userId ? usersById.get(d.userId)?.name ?? d.userId : "", d.product.title, d.product.seller, d.originalPrice, d.dealPrice, d.saved, d.lockFee, d.status, d.pinelabsOrderId, d.channel, d.city]),
+        ["created_at_ist", "deal_id", "user", "product", "seller", "original_price", "deal_price", "saved", "lock_fee", "status", "pinelabs_order_id", "channel", "city", "checkout", "order_ref", "order_stage", "ship_to"],
+        ...data.deals.map((d) => [
+          ist(d.createdAt),
+          d.id,
+          d.userId ? usersById.get(d.userId)?.name ?? d.userId : "",
+          d.product.title,
+          d.product.seller,
+          d.originalPrice,
+          d.dealPrice,
+          d.saved,
+          d.lockFee,
+          d.status,
+          d.pinelabsOrderId,
+          d.channel,
+          d.city,
+          d.checkout?.status,
+          d.checkout?.orderRef,
+          orderStage(d).current?.label,
+          d.address && `${d.address.name}, ${d.address.line1}, ${d.address.city} ${d.address.pincode}`,
+        ]),
       ]);
   };
 
@@ -324,7 +374,26 @@ export function AdminConsole() {
                   <td className="whitespace-nowrap py-3 pr-4 tabular-nums">
                     {inr(d.dealPrice)} <s className="text-muted">{inr(d.originalPrice)}</s>
                   </td>
-                  <td className={`py-3 ${d.status === "paid" ? "text-paid" : "text-muted"}`}>{d.status}</td>
+                  <td className={`py-3 pr-4 ${d.status === "paid" ? "text-paid" : "text-muted"}`}>
+                    {d.checkout?.status === "ordered" ? orderStage(d).current?.label : d.checkout ? `checkout ${d.checkout.status}` : d.status}
+                    {d.address && (
+                      <span className="block text-xs text-muted">
+                        {d.address.name} · {d.address.phone} · {d.address.line1}
+                        {d.address.line2 ? `, ${d.address.line2}` : ""}, {d.address.city} {d.address.pincode}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3">
+                    {orderStage(d).next && (
+                      <button
+                        onClick={() => advance(d)}
+                        disabled={deciding === d.id}
+                        className="whitespace-nowrap rounded-lg border border-line px-3 py-1.5 hover:border-saffron disabled:opacity-50"
+                      >
+                        Mark {orderStage(d).next!.label.toLowerCase()}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
           </tbody>

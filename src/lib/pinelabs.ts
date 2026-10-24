@@ -54,7 +54,7 @@ interface PaymentResponse {
 }
 
 /** Create a UPI-only order and an INTENT payment on it; returns the upi:// link to render as a QR. */
-export async function createUpiOrder({ reference, amountInr, note }: { reference: string; amountInr: number; note: string }) {
+export async function createUpiOrder({ reference, amountInr, note, returnTo = `/deal/${reference}` }: { reference: string; amountInr: number; note: string; returnTo?: string }) {
   const amount = { value: Math.round(amountInr * 100), currency: "INR" };
   const order = await call<OrderResponse>("/api/pay/v1/orders", {
     method: "POST",
@@ -63,7 +63,7 @@ export async function createUpiOrder({ reference, amountInr, note }: { reference
       order_amount: amount,
       allowed_payment_methods: ["UPI"],
       notes: note.slice(0, 100),
-      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/deal/${reference}`,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}${returnTo}`,
     },
   });
   const orderId = order.data.order_id;
