@@ -1,6 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText, Output, streamText } from "ai";
 import { z } from "zod";
+import { inr } from "./format";
 import type { Offer, Product, SellerQuote } from "./types";
 
 export const model = anthropic(process.env.GHOSTCART_MODEL ?? "claude-sonnet-5-5");
@@ -72,10 +73,10 @@ export function computeOffer(product: Product, quotes: SellerQuote[]): Offer {
 
 function fallbackHaggle(product: Product, quotes: SellerQuote[], offer: Offer) {
   const lines = [
-    `Locked onto ${product.title} at ${product.seller} for ₹${product.price}.`,
-    ...quotes.map((q) => `${q.seller} is quoting ₹${q.price}${q.inStock ? "" : " (out of stock)"}.`),
+    `Locked onto ${product.title} at ${product.seller} for ${inr(product.price)}.`,
+    ...quotes.map((q) => `${q.seller} is quoting ${inr(q.price)}${q.inStock ? "" : " (out of stock)"}.`),
     `Best base price is ${offer.bestSeller}. Pushing for a sub-commission cut…`,
-    `Done: ₹${offer.dealPrice} + ${offer.perk.toLowerCase()}. You save ₹${offer.saved}. Clock starts now.`,
+    `Done: ${inr(offer.dealPrice)} + ${offer.perk.toLowerCase()}. You save ${inr(offer.saved)}. Clock starts now.`,
   ];
   return (async function* () {
     for (const line of lines) {
