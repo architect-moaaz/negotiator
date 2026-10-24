@@ -36,7 +36,27 @@ export async function createSeller(input: {
   return { seller, token };
 }
 
+export const SELLER_SESSION_COOKIE = "gc_sid";
+const SELLER_SESSION_TTL_S = 7 * 24 * 60 * 60;
+
+/** Start a seller session (after phone login or signup); returns the cookie value. */
+export async function createSellerSession(sellerId: string) {
+  const sid = randomBytes(24).toString("base64url");
+  await store.kvSet(`sellerSession:${hashToken(sid)}`, sellerId, SELLER_SESSION_TTL_S);
+  return { sid, maxAge: SELLER_SESSION_TTL_S };
+}
+
+export async function endSellerSession(sid: string | undefined) {
+  if (sid) await store.kvDel(`sellerSession:${hashToken(sid)}`);
+}
+
+/** Seller from a session cookie (phone login) or a Bearer seller key. */
 export async function sellerFromRequest(request: Request) {
+  const cookie = request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${SELLER_SESSION_COOKIE}=([^;]+)`))?.[1];
+  if (cookie) {
+    const id = await store.kvGet<string>(`sellerSession:${hashToken(decodeURIComponent(cookie))}`);
+    if (id) return store.getSeller(id);
+  }
   const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
   if (!token) return undefined;
   const id = await store.sellerIdForToken(hashToken(token));

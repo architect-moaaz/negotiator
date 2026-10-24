@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { store } from "./store";
-import type { Channel, User } from "./types";
+import type { Channel, Demographics, User } from "./types";
 
 export const SESSION_COOKIE = "gc_uid";
 
@@ -20,7 +20,7 @@ export async function currentUser() {
   return id ? store.getUser(id) : undefined;
 }
 
-export async function signUp(input: { name: string; phone: string; email?: string; channel: Channel; city?: string; consent: boolean }) {
+export async function signUp(input: { name: string; phone: string; email?: string; channel: Channel; city?: string; consent: boolean; demographics?: Demographics }) {
   const { user, created } = await store.upsertUser({
     id: crypto.randomUUID(),
     name: input.name.trim().slice(0, 80),
@@ -28,6 +28,7 @@ export async function signUp(input: { name: string; phone: string; email?: strin
     email: input.email?.trim().slice(0, 120) || undefined,
     channel: input.channel,
     city: input.city,
+    demographics: input.demographics,
     createdAt: Date.now(),
     consentAt: input.consent ? Date.now() : undefined,
   });

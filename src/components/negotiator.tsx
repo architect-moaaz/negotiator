@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { inr } from "@/lib/format";
@@ -17,6 +18,14 @@ async function readImage(file: File): Promise<{ imageBase64: string; mediaType: 
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
   return { imageBase64: dataUrl.split(",")[1], mediaType: "image/jpeg" };
+}
+
+function firstTouch(): { referrer?: string; source?: string } {
+  try {
+    return JSON.parse(sessionStorage.getItem("gc_src") ?? "{}");
+  } catch {
+    return {};
+  }
 }
 
 export function Negotiator() {
@@ -39,6 +48,17 @@ export function Negotiator() {
   const [consent, setConsent] = useState(false);
   // Ask for the link first; contact details only once they've committed to checking an item.
   const [wantsDetails, setWantsDetails] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(false);
+
+  // First touch: remember where this visitor came from (referrer, ?ref= or utm_source) for analytics.
+  useEffect(() => {
+    try {
+      if (!sessionStorage.getItem("gc_src")) {
+        const q = new URLSearchParams(location.search);
+        sessionStorage.setItem("gc_src", JSON.stringify({ referrer: document.referrer || undefined, source: q.get("ref") || q.get("utm_source") || undefined }));
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     fetch("/api/me", { cache: "no-store" })
@@ -53,10 +73,11 @@ export function Negotiator() {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, consent }),
+      body: JSON.stringify({ name, phone, consent, ...firstTouch() }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      setNeedsLogin(!!data.needsLogin);
       setPhase("error");
       setError(data.error || "Couldn't sign you up. Try again.");
       return false;
@@ -274,6 +295,14 @@ export function Negotiator() {
         {phase === "error" && (
           <p role="alert" className="mt-2 text-alarm">
             {error}
+            {needsLogin && (
+              <>
+                {" "}
+                <Link href="/login" className="text-fg underline underline-offset-4">
+                  Log in with a code
+                </Link>
+              </>
+            )}
           </p>
         )}
       </form>

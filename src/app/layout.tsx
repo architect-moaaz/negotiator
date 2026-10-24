@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, IBM_Plex_Mono } from "next/font/google";
+import { Suspense } from "react";
+import { VisitTracker } from "@/components/visit-tracker";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
@@ -15,7 +17,12 @@ export const viewport: Viewport = { themeColor: "#15131f" };
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${bricolage.variable} ${plexMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+        <Suspense fallback={null}>
+          <VisitTracker />
+        </Suspense>
+      </body>
     </html>
   );
 }

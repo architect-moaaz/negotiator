@@ -35,7 +35,7 @@ export function SellerSignup() {
       <section className="mt-10 rounded-2xl border border-paid/60 p-6">
         <h2 className="text-2xl font-semibold">{done.storeName} is live on GhostCart</h2>
         <p className="mt-3 text-muted">
-          Save this seller key. It&apos;s the only way into your dashboard, and it won&apos;t be shown again.
+          You&apos;re logged in. Next time, log in with your phone number. Keep this backup key somewhere safe; it won&apos;t be shown again.
         </p>
         <p className="mt-4 select-all break-all rounded-lg bg-panel px-4 py-3 font-receipt">{done.token}</p>
         <Link href="/seller" className="mt-6 inline-block rounded-xl bg-saffron px-6 py-3 font-semibold text-paper-ink">

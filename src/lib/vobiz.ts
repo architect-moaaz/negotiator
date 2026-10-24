@@ -24,7 +24,7 @@ export function verifyDealSignature(dealId: string | null, sig: string | null) {
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
-export function voiceUrl(path: "answer" | "turn" | "hangup", dealId: string) {
+export function voiceUrl(path: "answer" | "turn" | "hangup" | "otp", dealId: string) {
   return `${process.env.NEXT_PUBLIC_APP_URL}/api/voice/${path}?d=${encodeURIComponent(dealId)}&k=${signDeal(dealId)}`;
 }
 
@@ -48,6 +48,24 @@ export async function placeCall({ to, dealId }: { to: string; dealId: string }) 
   const text = await res.text();
   if (!res.ok) throw new Error(`Vobiz call failed ${res.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text) as { request_uuid?: string; message?: string };
+}
+
+/** Call a phone and read out a login code (answer URL looks the code up by call id). */
+export async function placeOtpCall({ to, callId }: { to: string; callId: string }) {
+  const res = await fetch(`${API}/Account/${AUTH_ID}/Call/`, {
+    method: "POST",
+    headers: { "X-Auth-ID": AUTH_ID!, "X-Auth-Token": AUTH_TOKEN!, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: FROM!.replace(/^\+/, ""),
+      to,
+      answer_url: voiceUrl("otp", callId),
+      answer_method: "POST",
+      caller_name: "GhostCart",
+      time_limit: 60,
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Vobiz OTP call failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

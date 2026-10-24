@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { Activity, AgentRecommendation, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
+import { AnalyticsPanel } from "./analytics-panel";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
 type AdminDeal = PublicDeal & { userId?: string; pinelabsOrderId?: string; terms?: NegotiationTerms; recommendation?: AgentRecommendation };
@@ -14,7 +15,7 @@ interface AdminData {
   sellers: Seller[];
   demand: SellerDemand[];
 }
-type Tab = "approvals" | "users" | "activity" | "deals" | "sellers";
+type Tab = "analytics" | "approvals" | "users" | "activity" | "deals" | "sellers";
 
 const TOKEN_KEY = "gc_admin_token";
 const ist = (at: number) =>
@@ -142,7 +143,8 @@ export function AdminConsole() {
       ]);
   };
 
-  const tabs: [Tab, string, number][] = [
+  const tabs: [Tab, string, number | null][] = [
+    ["analytics", "Analytics", null],
     ["approvals", "Approvals", approvals.length],
     ["users", "Signups", data.users.length],
     ["activity", "Agent & payment log", data.activity.length],
@@ -159,26 +161,28 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        {tab !== "approvals" && tab !== "sellers" && (
+        {!["approvals", "sellers", "analytics"].includes(tab) && (
           <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
             Download CSV
           </button>
         )}
       </header>
 
-      <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
+      <div role="tablist" className="mt-8 flex gap-6 overflow-x-auto border-b border-line">
         {tabs.map(([key, label, count]) => (
           <button
             key={key}
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 pb-3 ${tab === key ? "border-saffron text-fg" : "border-transparent text-muted hover:text-fg"}`}
+            className={`-mb-px shrink-0 border-b-2 pb-3 ${tab === key ? "border-saffron text-fg" : "border-transparent text-muted hover:text-fg"}`}
           >
-            {label} <span className="text-muted tabular-nums">{count}</span>
+            {label} {count !== null && <span className="text-muted tabular-nums">{count}</span>}
           </button>
         ))}
       </div>
+
+      {tab === "analytics" && <AnalyticsPanel token={token} />}
 
       {tab === "approvals" && (
         <div className="mt-6 space-y-4">
@@ -329,7 +333,7 @@ export function AdminConsole() {
               ))}
           </tbody>
         </table>
-        {tab !== "approvals" && tab !== "sellers" && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
+        {!["approvals", "sellers", "analytics"].includes(tab) && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
       </div>
     </div>
   );

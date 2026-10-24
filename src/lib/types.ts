@@ -155,6 +155,20 @@ export type NegotiationEvent =
   | { type: "deal"; deal: PublicDeal }
   | { type: "error"; message: string };
 
+/** What we can learn about a visitor without asking: from IP geo, user agent and the landing URL. */
+export interface Demographics {
+  city?: string;
+  region?: string;
+  country?: string;
+  device?: "mobile" | "tablet" | "desktop";
+  os?: string;
+  browser?: string;
+  language?: string;
+  referrer?: string; // hostname
+  source?: string; // ?ref= / utm_source
+  hourIst?: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -162,6 +176,8 @@ export interface User {
   email?: string;
   channel: Channel;
   city?: string;
+  demographics?: Demographics;
+  lastLoginAt?: number;
   createdAt: number;
   /** When the shopper agreed to be contacted about their deals (calls, messages). */
   consentAt?: number;
@@ -180,6 +196,9 @@ export type ActivityType =
   | "approval_decided"
   | "deal_agreed"
   | "seller_identified"
+  | "login_code_sent"
+  | "login"
+  | "logout"
   | "agent_review_requested"
   | "agent_recommendation"
   | "approval_call_placed"
@@ -219,4 +238,11 @@ export interface SellerDemand {
   marketplace: string;
   count: number;
   registered: boolean;
+}
+
+/** Anonymous page view (first per path per browser session) for funnel analytics. */
+export interface Visit extends Demographics {
+  vid: string;
+  path: string;
+  at: number;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { AgentRecommendation, NegotiationTerms, PublicDeal } from "@/lib/types";
+import { PhoneLogin } from "./phone-login";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
 interface SellerData {
@@ -18,19 +19,24 @@ export function SellerConsole() {
   const [data, setData] = useState<SellerData | null>(null);
   const [error, setError] = useState("");
   const [deciding, setDeciding] = useState<string | null>(null);
+  const [useKey, setUseKey] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   const load = useCallback(async (t: string) => {
-    const res = await fetch("/api/seller/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+    const res = await fetch("/api/seller/me", { headers: t ? { Authorization: `Bearer ${t}` } : {}, cache: "no-store" });
+    setChecked(true);
     if (!res.ok) {
       setData(null);
-      setError(res.status === 401 ? "That seller key isn't valid." : "Couldn't load your dashboard.");
+      if (t) setError(res.status === 401 ? "That seller key isn't valid." : "Couldn't load your dashboard.");
       return;
     }
     setError("");
     setData(await res.json());
-    try {
-      sessionStorage.setItem(TOKEN_KEY, t);
-    } catch {}
+    if (t) {
+      try {
+        sessionStorage.setItem(TOKEN_KEY, t);
+      } catch {}
+    }
   }, []);
 
   useEffect(() => {
@@ -38,10 +44,9 @@ export function SellerConsole() {
     try {
       saved = sessionStorage.getItem(TOKEN_KEY) ?? "";
     } catch {}
-    if (!saved) return;
     const t = setTimeout(() => {
       setToken(saved);
-      load(saved);
+      load(saved); // empty key: the session cookie from phone login or signup is used
     }, 0);
     return () => clearTimeout(t);
   }, [load]);
@@ -56,46 +61,65 @@ export function SellerConsole() {
     setDeciding(id);
     await fetch("/api/seller/decision", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ id, decision }),
     });
     setDeciding(null);
     load(token);
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "seller" }) });
+    try {
+      sessionStorage.removeItem(TOKEN_KEY);
+    } catch {}
+    setToken("");
+    setData(null);
+  }
+
   if (!data) {
+    if (!checked) return <p className="mt-24 text-center text-muted">Loading…</p>;
     return (
-      <form
-        className="mx-auto mt-24 flex w-full max-w-sm flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          load(token);
-        }}
-      >
+      <div className="mx-auto mt-16 flex w-full max-w-sm flex-col gap-4">
         <h1 className="text-2xl font-semibold">Seller dashboard</h1>
-        <label htmlFor="seller-key" className="text-muted">
-          Seller key
-        </label>
-        <input
-          id="seller-key"
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className="rounded-xl border border-line bg-panel px-4 py-3 focus:border-saffron focus:outline-none"
-        />
-        <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Open dashboard</button>
-        {error && (
-          <p role="alert" className="text-alarm">
-            {error}
-          </p>
+        {useKey ? (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              load(token);
+            }}
+          >
+            <label htmlFor="seller-key" className="text-muted">
+              Seller key
+            </label>
+            <input
+              id="seller-key"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              className="rounded-xl border border-line bg-panel px-4 py-3 focus:border-saffron focus:outline-none"
+            />
+            <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Open dashboard</button>
+            {error && (
+              <p role="alert" className="text-alarm">
+                {error}
+              </p>
+            )}
+          </form>
+        ) : (
+          <PhoneLogin role="seller" onDone={() => load("")} />
         )}
+        <button type="button" onClick={() => setUseKey(!useKey)} className="text-left text-muted underline underline-offset-4">
+          {useKey ? "Log in with your phone instead" : "Use your seller key instead"}
+        </button>
         <p className="text-muted">
           Not on GhostCart yet?{" "}
           <Link href="/sell" className="text-fg underline underline-offset-4">
             Register your store
           </Link>
         </p>
-      </form>
+      </div>
     );
   }
 
@@ -104,7 +128,12 @@ export function SellerConsole() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <h1 className="text-3xl font-semibold">{data.seller.storeName}</h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h1 className="text-3xl font-semibold">{data.seller.storeName}</h1>
+        <button onClick={logout} className="rounded-xl border border-line px-4 py-2.5 hover:border-alarm">
+          Log out
+        </button>
+      </div>
       <p className="mt-1 text-muted">
         Agent gives up to {(data.seller.budgetPct * data.seller.autoApproveShare * 100).toFixed(1)}% off on its own and asks you up to{" "}
         {(data.seller.budgetPct * 100).toFixed(0)}% · matches {data.seller.aliases.join(", ")}

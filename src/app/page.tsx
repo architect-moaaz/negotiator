@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import Image from "next/image";
 import Link from "next/link";
+import { AccountLink } from "@/components/account-link";
 import { Negotiator } from "@/components/negotiator";
 import { SocialProof } from "@/components/social-proof";
 import { Ticker } from "@/components/ticker";
@@ -29,11 +30,12 @@ export default async function Home() {
             <Link href="/dashboard" className="text-muted hover:text-fg">
               Live deals
             </Link>
+            <AccountLink />
           </nav>
         </header>
 
         <section className="mt-14 sm:mt-20">
-          <p className="text-saffron">Made for the builders at AI Builders Day, Bengaluru</p>
+          <p className="text-saffron">Never pay the listed price again</p>
           <h1 className="mt-4 max-w-3xl text-[clamp(2.4rem,6.5vw,5rem)] font-bold leading-[0.95] tracking-[-0.03em]">
             Paste anything you were going to buy today.
           </h1>

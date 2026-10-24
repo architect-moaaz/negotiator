@@ -1,5 +1,5 @@
 import { Redis } from "@upstash/redis";
-import type { Activity, Deal, Seller, SellerDemand, Stats, TickerEvent, User } from "./types";
+import type { Activity, Deal, Seller, SellerDemand, Stats, TickerEvent, User, Visit } from "./types";
 
 // Deals and logs are kept for the whole event so they can be exported as proof.
 const DEAL_TTL_S = 7 * 24 * 60 * 60;
@@ -12,23 +12,29 @@ const redis =
     : null;
 
 // In-memory fallback for local dev without Redis. Not shared across serverless instances.
-const mem = {
-  deals: new Map<string, Deal>(),
-  dealIds: [] as string[],
-  users: new Map<string, User>(),
-  phones: new Map<string, string>(),
-  userIds: [] as string[],
-  ticker: [] as TickerEvent[],
-  log: [] as Activity[],
-  paid: new Set<string>(),
-  sellers: new Map<string, Seller>(),
-  sellerIds: [] as string[],
-  sellerAliases: new Map<string, string>(),
-  sellerTokens: new Map<string, string>(),
-  demand: new Map<string, { name: string; marketplace: string; count: number }>(),
-  kv: new Map<string, unknown>(),
-  stats: { users: 0, deals: 0, paid: 0, saved: 0 } as Stats,
-};
+// Pinned on globalThis so every route module in the dev server sees the same data.
+function createMem() {
+  return {
+    deals: new Map<string, Deal>(),
+    dealIds: [] as string[],
+    users: new Map<string, User>(),
+    phones: new Map<string, string>(),
+    userIds: [] as string[],
+    ticker: [] as TickerEvent[],
+    log: [] as Activity[],
+    paid: new Set<string>(),
+    sellers: new Map<string, Seller>(),
+    sellerIds: [] as string[],
+    sellerAliases: new Map<string, string>(),
+    sellerTokens: new Map<string, string>(),
+    demand: new Map<string, { name: string; marketplace: string; count: number }>(),
+    kv: new Map<string, unknown>(),
+    visits: [] as Visit[],
+    stats: { users: 0, deals: 0, paid: 0, saved: 0 } as Stats,
+  };
+}
+const g = globalThis as typeof globalThis & { __ghostcartMem?: ReturnType<typeof createMem> };
+const mem = (g.__ghostcartMem ??= createMem());
 
 function withExpiry(deal: Deal | null | undefined) {
   const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval";
@@ -152,11 +158,13 @@ export const store = {
       await redis.set(`seller:${seller.id}`, seller);
       await redis.lpush("sellers", seller.id);
       await redis.set(`sellerToken:${tokenHash}`, seller.id);
+      await redis.set(`sellerPhone:${seller.phone}`, seller.id);
       for (const alias of seller.aliases) await redis.set(`sellerAlias:${alias}`, seller.id);
     } else {
       mem.sellers.set(seller.id, seller);
       mem.sellerIds.unshift(seller.id);
       mem.sellerTokens.set(tokenHash, seller.id);
+      mem.kv.set(`sellerPhone:${seller.phone}`, seller.id);
       for (const alias of seller.aliases) mem.sellerAliases.set(alias, seller.id);
     }
   },
@@ -214,6 +222,48 @@ export const store = {
   async kvSet<T>(key: string, value: T, ttlSeconds = DEAL_TTL_S) {
     if (redis) await redis.set(key, value, { ex: ttlSeconds });
     else mem.kv.set(key, value);
+  },
+
+  async pushVisit(visit: Visit) {
+    if (redis) {
+      await redis.lpush("visits", visit);
+      await redis.ltrim("visits", 0, LOG_MAX - 1);
+    } else {
+      mem.visits.unshift(visit);
+      mem.visits.length = Math.min(mem.visits.length, LOG_MAX);
+    }
+  },
+
+  async listVisits(limit = LOG_MAX): Promise<Visit[]> {
+    if (redis) return redis.lrange<Visit>("visits", 0, limit - 1);
+    return mem.visits.slice(0, limit);
+  },
+
+  async kvDel(key: string) {
+    if (redis) await redis.del(key);
+    else mem.kv.delete(key);
+  },
+
+  /** True the first time per TTL window (rate limits, one-shot actions). */
+  async claimOnce(key: string, ttlSeconds: number) {
+    if (redis) return (await redis.set(key, 1, { nx: true, ex: ttlSeconds })) === "OK";
+    if (mem.kv.has(key)) return false;
+    mem.kv.set(key, 1);
+    setTimeout(() => mem.kv.delete(key), ttlSeconds * 1000).unref?.();
+    return true;
+  },
+
+  async userIdForPhone(phone: string) {
+    return (redis ? await redis.get<string>(`phone:${phone}`) : mem.phones.get(phone)) ?? undefined;
+  },
+
+  async updateUser(user: User) {
+    if (redis) await redis.set(`user:${user.id}`, user);
+    else mem.users.set(user.id, user);
+  },
+
+  async sellerIdForPhone(phone: string) {
+    return (redis ? await redis.get<string>(`sellerPhone:${phone}`) : (mem.kv.get(`sellerPhone:${phone}`) as string | undefined)) ?? undefined;
   },
 
   async kvGet<T>(key: string): Promise<T | undefined> {
