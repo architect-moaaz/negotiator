@@ -75,3 +75,11 @@ describe("demo listing", () => {
     expect(p.sourceUrl).toBe(DEMO_URL);
   });
 });
+
+describe("shortTitle", () => {
+  it("never ends on a dangling connector", async () => {
+    const { shortTitle } = await import("./format");
+    expect(shortTitle("SONY WH-1000XM5 Wireless Noise Cancellation with AI Noise Reduction")).toBe("SONY WH-1000XM5 Wireless Noise Cancellation");
+    expect(shortTitle("Minimalist Barrier Repair Face Moisturizer with Ceramides")).toBe("Minimalist Barrier Repair Face Moisturizer");
+  });
+});

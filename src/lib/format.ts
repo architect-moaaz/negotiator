@@ -15,7 +15,9 @@ export function shortTitle(title: string, words = 6) {
     .split(/\s+/)
     .slice(0, words)
     .join(" ")
-    .trim();
+    .trim()
+    // Don't end on a dangling connector ("…Noise Cancellation with").
+    .replace(/(\s+(with|for|and|of|the|in|on|to|by|&|\+|-|\/))+$/i, "");
 }
 
 /** Stage-demo listing: served from a fixed product so a slow or blocking store can't sink the pitch. */

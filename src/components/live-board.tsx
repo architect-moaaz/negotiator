@@ -28,10 +28,11 @@ export function LiveBoard() {
       <section className="space-y-10">
         <div>
           <p className="text-muted">Shoppers today</p>
-          <p className="font-receipt text-[clamp(5rem,14vw,9rem)] font-semibold leading-none tabular-nums">
+          <p className="font-receipt text-[clamp(3.5rem,9vw,6.5rem)] font-semibold leading-none tabular-nums">
             {stats.users}
             <span className="text-muted/40">/{GOAL}</span>
           </p>
+          {stats.users >= GOAL && <p className="mt-2 text-paid">Goal reached</p>}
           <div className="mt-4 h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={stats.users} aria-valuemax={GOAL} aria-label="Progress to 20 shoppers">
             <div className="h-full bg-saffron transition-[width] duration-700" style={{ width: `${progress * 100}%` }} />
           </div>
