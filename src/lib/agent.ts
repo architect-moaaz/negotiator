@@ -1,7 +1,7 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { generateText, Output, streamText } from "ai";
 import { z } from "zod";
-import { inr } from "./format";
+import { inr, shortTitle } from "./format";
 import type { Offer, Product, SellerQuote } from "./types";
 
 export const model = anthropic(process.env.GHOSTCART_MODEL ?? "claude-sonnet-5-5");
@@ -54,7 +54,7 @@ export async function extractProductFromImage(imageBase64: string, mediaType: st
 
 function fallbackHaggle(product: Product, quotes: SellerQuote[], offer: Offer, sellerName?: string) {
   const lines = [
-    `Locked onto ${product.title} at ${product.seller} for ${inr(product.price)}.`,
+    `Locked onto ${shortTitle(product.title)} at ${product.seller} for ${inr(product.price)}.`,
     ...quotes.map((q) => `${q.seller} is quoting ${inr(q.price)}${q.inStock ? "" : " (out of stock)"}.`),
     sellerName
       ? `Good news: the seller, ${sellerName}, is on GhostCart. I'm negotiating with their margin directly.`

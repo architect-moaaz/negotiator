@@ -127,8 +127,8 @@ export function AdminConsole() {
     const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
     if (tab === "users")
       downloadCsv(`ghostcart-signups-${stamp}.csv`, [
-        ["signed_up_at_ist", "signed_up_at_iso", "user_id", "name", "phone", "email", "channel", "city"],
-        ...data.users.map((u) => [ist(u.createdAt), new Date(u.createdAt).toISOString(), u.id, u.name, u.phone, u.email, u.channel, u.city]),
+        ["signed_up_at_ist", "signed_up_at_iso", "user_id", "name", "phone", "email", "channel", "city", "contact_consent_at_ist"],
+        ...data.users.map((u) => [ist(u.createdAt), new Date(u.createdAt).toISOString(), u.id, u.name, u.phone, u.email, u.channel, u.city, u.consentAt ? ist(u.consentAt) : ""]),
       ]);
     if (tab === "activity")
       downloadCsv(`ghostcart-activity-${stamp}.csv`, [
@@ -255,7 +255,7 @@ export function AdminConsole() {
       )}
 
       {tab === "sellers" && (
-        <div className="mt-6 grid gap-10 lg:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-2">
           <section>
             <h2 className="text-lg font-semibold">Sellers shoppers want</h2>
             <p className="mt-1 text-sm text-muted">From &ldquo;Sold by&rdquo; on every pasted listing. Reach out to the top ones.</p>
@@ -267,7 +267,9 @@ export function AdminConsole() {
                     {d.name} <span className="text-muted">· {d.marketplace}</span>
                     {d.registered && <span className="text-paid"> · on GhostCart</span>}
                   </span>
-                  <span className="tabular-nums text-muted">{d.count} shoppers</span>
+                  <span className="tabular-nums text-muted">
+                    {d.count} {d.count === 1 ? "shopper" : "shoppers"}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -299,6 +301,7 @@ export function AdminConsole() {
                   <td className="py-3 pr-4">{u.name}</td>
                   <td className="py-3 pr-4 tabular-nums">{u.phone}</td>
                   <td className="py-3 pr-4 text-muted">{u.channel}</td>
+                  <td className="py-3 pr-4 text-muted">{u.consentAt ? "consented" : "no consent"}</td>
                   <td className="py-3 text-muted">{u.city}</td>
                 </tr>
               ))}

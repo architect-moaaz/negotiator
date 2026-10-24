@@ -160,7 +160,7 @@ export function SellerConsole() {
 
       <h2 className="mt-12 text-xl font-semibold">Your negotiations</h2>
       {closed.length === 0 ? (
-        <p className="mt-3 text-muted">No shoppers have haggled on your listings yet.</p>
+        <p className="mt-3 text-muted">{waiting.length ? "No finished negotiations yet." : "No shoppers have haggled on your listings yet."}</p>
       ) : (
         <ul className="mt-4 divide-y divide-line">
           {closed.map((d) => (

@@ -13,6 +13,8 @@ export async function POST(request: Request) {
   const order = id ? await mockGetOrder(id) : undefined;
   if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
   if (order.status === "PROCESSED") return Response.json(order);
+  // Like a real UPI retry: a declined attempt can be tried again while the deal is open.
+  if (action === "retry" && order.status === "FAILED") return Response.json(await mockSetStatus(order.order_id, "PENDING"));
   if (order.status !== "PENDING") return Response.json({ error: `Order is ${order.status}` }, { status: 409 });
   return Response.json(await mockSetStatus(order.order_id, action === "decline" ? "FAILED" : "PROCESSED"));
 }

@@ -79,3 +79,13 @@ export async function requestDealReview(deal: Deal) {
   const summary = typeof out === "string" ? out : JSON.stringify(out);
   return String(summary).slice(0, 2000);
 }
+
+/** Turn AgenticOrg API failures into something a teammate can act on. */
+export function explainAgenticorgError(err: unknown) {
+  const msg = String(err instanceof Error ? err.message : err);
+  if (msg.includes("connector_not_ready_for_dispatch") || msg.includes("connector_scope_mismatch"))
+    return "AgenticOrg won't run the agent with the API key, because the GhostCart connector belongs to your user account. Set AGENTICORG_EMAIL and AGENTICORG_PASSWORD so runs happen as you.";
+  if (msg.includes("login failed")) return "AgenticOrg rejected the team login. Check AGENTICORG_EMAIL and AGENTICORG_PASSWORD.";
+  if (/timeout|aborted/i.test(msg)) return "AgenticOrg took too long to answer. The agent may still finish; refresh in a minute.";
+  return `AgenticOrg error: ${msg.slice(0, 160)}`;
+}

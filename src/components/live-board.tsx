@@ -24,7 +24,7 @@ export function LiveBoard() {
   const progress = Math.min(1, stats.users / GOAL);
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-12 lg:grid-cols-[22rem_minmax(0,1fr)]">
+    <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-12 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <section className="space-y-10">
         <div>
           <p className="text-muted">Shoppers today</p>

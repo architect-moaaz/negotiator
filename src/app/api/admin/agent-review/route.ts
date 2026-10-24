@@ -1,5 +1,5 @@
 import { isAdmin } from "@/lib/admin";
-import { requestDealReview } from "@/lib/agenticorg";
+import { explainAgenticorgError, requestDealReview } from "@/lib/agenticorg";
 import { toPublic } from "@/lib/negotiate";
 import { store } from "@/lib/store";
 
@@ -16,6 +16,6 @@ export async function POST(request: Request) {
     const fresh = await store.getDeal(deal.id);
     return Response.json({ agentReply, deal: fresh && toPublic(fresh), recommendation: fresh?.negotiation?.recommendation ?? null });
   } catch (err) {
-    return Response.json({ error: String(err instanceof Error ? err.message : err) }, { status: 502 });
+    return Response.json({ error: explainAgenticorgError(err) }, { status: 502 });
   }
 }

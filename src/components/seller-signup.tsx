@@ -63,7 +63,7 @@ export function SellerSignup() {
         </label>
         <textarea id="aliases" rows={2} placeholder="Clicktech Retail Private Ltd, SVPeripherals" value={form.aliases} onChange={set("aliases")} className={field} />
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div className="grid gap-2">
           <label htmlFor="contact" className="text-muted">
             Contact name
@@ -77,7 +77,7 @@ export function SellerSignup() {
           <input id="sphone" type="tel" inputMode="numeric" required value={form.phone} onChange={set("phone")} className={field} />
         </div>
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div className="grid gap-2">
           <label htmlFor="budget" className="text-muted">
             Most you&apos;d discount (% of price)

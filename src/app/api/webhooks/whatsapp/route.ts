@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         ? { kind: "url", url }
         : { kind: "screenshot", imageBase64: await fetchTwilioMedia(mediaUrl!), mediaType: mediaType! };
       const phone = normalizePhone(from.replace(/^whatsapp:/, ""));
-      const user = phone ? await signUp({ name: params.ProfileName || "WhatsApp shopper", phone, channel: "whatsapp" }) : undefined;
+      const user = phone ? await signUp({ name: params.ProfileName || "WhatsApp shopper", phone, channel: "whatsapp", consent: true }) : undefined;
       const deal = await runNegotiation(input, { channel: "whatsapp", waFrom: from, userId: user?.id });
       await sendWhatsApp(
         from,

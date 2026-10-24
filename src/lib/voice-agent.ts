@@ -3,6 +3,9 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { Deal } from "./types";
 import { spokenInr } from "./vobiz";
+import { shortTitle } from "./format";
+
+export { shortTitle };
 
 const fastModel = anthropic(process.env.GHOSTCART_VOICE_MODEL ?? "claude-haiku-5-5");
 
@@ -105,15 +108,4 @@ export function openingLine(deal: Deal) {
   const offer = n.approval!.price;
   const who = n.call?.role === "seller" ? `for ${n.terms.sellerName}` : "for the deal desk";
   return `Hi, GhostCart agent calling ${who}. A shopper offers ${spokenInr(offer)} for ${shortTitle(deal.product.title)}, listed at ${spokenInr(deal.product.price)}. Accept? Say yes, no, or a price. Or press 1 to approve, 2 to reject.`;
-}
-
-/** Product titles are long; read the first few words. */
-export function shortTitle(title: string) {
-  return title
-    .replace(/\(.*?\)|\[.*?\]/g, "")
-    .split(/,|\||–|\s-\s/)[0]
-    .split(/\s+/)
-    .slice(0, 6)
-    .join(" ")
-    .trim();
 }

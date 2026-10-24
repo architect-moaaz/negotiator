@@ -13,8 +13,10 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
   const [error, setError] = useState("");
   const threadEnd = useRef<HTMLDivElement>(null);
 
+  const seenMessages = useRef(n.messages.length);
   useEffect(() => {
-    threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (n.messages.length > seenMessages.current) threadEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    seenMessages.current = n.messages.length;
   }, [n.messages.length]);
 
   async function send(body: { offer?: number; accept?: boolean }) {
@@ -36,7 +38,7 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
   const lastShopperPrice = [...n.messages].reverse().find((m) => m.from === "shopper")?.price;
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
       <section>
         <p className="text-muted">
           {waiting

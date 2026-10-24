@@ -20,7 +20,7 @@ export async function currentUser() {
   return id ? store.getUser(id) : undefined;
 }
 
-export async function signUp(input: { name: string; phone: string; email?: string; channel: Channel; city?: string }) {
+export async function signUp(input: { name: string; phone: string; email?: string; channel: Channel; city?: string; consent: boolean }) {
   const { user, created } = await store.upsertUser({
     id: crypto.randomUUID(),
     name: input.name.trim().slice(0, 80),
@@ -29,13 +29,14 @@ export async function signUp(input: { name: string; phone: string; email?: strin
     channel: input.channel,
     city: input.city,
     createdAt: Date.now(),
+    consentAt: input.consent ? Date.now() : undefined,
   });
   await store.log({
     type: "signup",
     actor: "user",
     userId: user.id,
     detail: created
-      ? `${user.name} signed up via ${input.channel}${input.city ? ` from ${input.city}` : ""}`
+      ? `${user.name} signed up via ${input.channel}${input.city ? ` from ${input.city}` : ""}${input.consent ? "; consented to deal contact" : ""}`
       : `${user.name} signed back in via ${input.channel}`,
   });
   return user;

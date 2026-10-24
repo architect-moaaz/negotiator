@@ -92,8 +92,9 @@ export function candidateMoves(n: Pick<Negotiation, "currentOffer" | "rounds">, 
 
   if (offer >= floor) {
     const escalate: Move = { action: "escalate", price: offer };
-    if (n.currentOffer <= autoLimit) return [escalate]; // nothing left to concede on our own
-    return n.rounds >= 2 ? [escalate, concede(next)] : [concede(next), escalate];
+    // Nothing left to concede, or the shopper has haggled a while: a human decides.
+    if (n.currentOffer <= autoLimit || n.rounds >= 2) return [escalate];
+    return [concede(next), escalate];
   }
 
   // Below the floor: GhostCart would lose money.

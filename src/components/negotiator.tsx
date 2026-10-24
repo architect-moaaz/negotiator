@@ -22,6 +22,7 @@ async function readImage(file: File): Promise<{ imageBase64: string; mediaType: 
 export function Negotiator() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const slipRef = useRef<HTMLElement>(null);
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [steps, setSteps] = useState<string[]>([]);
@@ -35,6 +36,7 @@ export function Negotiator() {
   const [user, setUser] = useState<{ name: string } | null | undefined>(undefined);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [consent, setConsent] = useState(false);
 
   useEffect(() => {
     fetch("/api/me", { cache: "no-store" })
@@ -49,7 +51,7 @@ export function Negotiator() {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone }),
+      body: JSON.stringify({ name, phone, consent }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -131,9 +133,9 @@ export function Negotiator() {
 
   async function onFile(file: File | undefined) {
     if (!file) return;
-    if (user === null && (!name.trim() || !phone.trim())) {
+    if (user === null && (!name.trim() || !phone.trim() || !consent)) {
       setPhase("error");
-      setError("Add your name and mobile number first.");
+      setError(consent ? "Add your name and mobile number first." : "Add your name and mobile number, and tick the box to agree to be contacted.");
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -145,10 +147,16 @@ export function Negotiator() {
   }
 
   const busy = phase === "running" || phase === "done";
+
+  // On phones the slip renders below the form; scroll it into view when the first step prints.
+  const hasSteps = steps.length > 0;
+  useEffect(() => {
+    if (hasSteps) slipRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [hasSteps]);
   const haggleLines = haggle.split("\n").filter((l) => l.trim());
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
       <form
         className="flex flex-col gap-3"
         onSubmit={(e) => {
@@ -157,7 +165,7 @@ export function Negotiator() {
         }}
       >
         {user === null && (
-          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <label htmlFor="signup-name" className="text-muted">
                 Your name
@@ -189,6 +197,18 @@ export function Negotiator() {
                 className="rounded-xl border border-line bg-panel px-4 py-3 text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
               />
             </div>
+            <label htmlFor="signup-consent" className="flex items-start gap-3 text-sm text-muted sm:col-span-2">
+              <input
+                id="signup-consent"
+                type="checkbox"
+                required
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                disabled={busy}
+                className="mt-0.5 size-4 shrink-0 accent-saffron"
+              />
+              <span>GhostCart can contact me on this number about this deal (calls or messages). We don&apos;t send marketing.</span>
+            </label>
           </div>
         )}
         {user && <p className="text-muted">Hi {user.name.split(" ")[0]}, what are you buying today?</p>}
@@ -242,7 +262,7 @@ export function Negotiator() {
       </form>
 
       {phase !== "idle" && phase !== "error" && (
-        <section aria-live="polite" className="receipt px-6 py-8 text-[13px] leading-relaxed shadow-2xl shadow-black/40">
+        <section ref={slipRef} aria-live="polite" className="receipt px-6 py-8 text-[13px] leading-relaxed shadow-2xl shadow-black/40">
           <p className="text-center font-semibold tracking-wide">GHOSTCART NEGOTIATION SLIP</p>
           <p className="text-center text-paper-muted">{new Date().toLocaleString("en-IN")}</p>
           <div className="receipt-rule my-4" />

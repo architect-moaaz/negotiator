@@ -16,7 +16,7 @@ export function MockPayment({ orderId }: { orderId: string }) {
       .catch(() => setError("Couldn't load this payment."));
   }, [orderId]);
 
-  async function act(action: "pay" | "decline") {
+  async function act(action: "pay" | "decline" | "retry") {
     setBusy(true);
     const res = await fetch("/api/mock-pinelabs-pay", {
       method: "POST",
@@ -74,7 +74,14 @@ export function MockPayment({ orderId }: { orderId: string }) {
         {order.status === "PROCESSED" && (
           <p className="text-center font-sans text-base font-semibold">Paid {inr(amount)}. Head back to GhostCart, your deal is locked.</p>
         )}
-        {order.status === "FAILED" && <p className="text-center font-sans">Payment declined. Your deal is still open on GhostCart until the timer runs out.</p>}
+        {order.status === "FAILED" && (
+          <div className="flex flex-col gap-3 text-center font-sans">
+            <p>Payment declined. Your deal stays open on GhostCart until the timer runs out.</p>
+            <button onClick={() => act("retry")} disabled={busy} className="rounded-lg bg-paper-ink py-3 font-semibold text-paper disabled:opacity-50">
+              Try again
+            </button>
+          </div>
+        )}
         {order.status === "CREATED" && <p className="text-center font-sans text-paper-muted">Waiting for the payment request…</p>}
       </section>
       <p className="mt-4 text-center text-xs text-muted">Simulates Pine Labs Online UPI (UAT) for today&apos;s demo.</p>

@@ -163,6 +163,8 @@ export interface User {
   channel: Channel;
   city?: string;
   createdAt: number;
+  /** When the shopper agreed to be contacted about their deals (calls, messages). */
+  consentAt?: number;
 }
 
 export type ActivityType =

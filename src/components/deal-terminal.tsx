@@ -80,7 +80,7 @@ export function DealTerminal({ id }: { id: string }) {
   const paid = deal.status === "paid";
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+    <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
       <section>
         <p className="text-muted">
           {paid ? "Deal locked" : expired ? "Deal expired" : "Your deal holds for"}

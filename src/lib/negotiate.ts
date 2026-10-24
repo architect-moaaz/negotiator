@@ -1,7 +1,7 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
 import { chooseMove, computeTerms, MAX_ROUNDS } from "./haggle";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
-import { inr } from "./format";
+import { inr, shortTitle } from "./format";
 import { matchListingSeller } from "./sellers";
 import { maskPhone, normalizePhone } from "./users";
 import { placeCall, vobizConfigured } from "./vobiz";
@@ -190,7 +190,7 @@ export async function submitOffer(deal: Deal, offer: number) {
   n.messages.push({ from: "shopper", text: `How about ${inr(offer)}?`, price: offer, at: Date.now() });
   await log("offer_received", `Shopper offered ${inr(offer)} (agent at ${inr(n.currentOffer)}, round ${n.rounds + 1})`, "user");
 
-  const { move, message } = await chooseMove({
+  let { move, message } = await chooseMove({
     product: deal.product,
     terms: n.terms,
     bestSeller: deal.bestSeller,
@@ -198,6 +198,11 @@ export async function submitOffer(deal: Deal, offer: number) {
     negotiation: n,
     offer,
   });
+  // A human already turned this down: hold at the final offer instead of paging them again.
+  if (move.action === "escalate" && n.approval?.decision === "rejected") {
+    move = { action: "hold", price: n.currentOffer };
+    message = `${inr(n.currentOffer)} is my final offer. It's already been reviewed, so I can't go lower. Take it before the deal expires.`;
+  }
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });
   await log("agent_move", `${move.action} at ${inr(move.price)}: "${message}"`, "agent");
 
@@ -320,7 +325,7 @@ export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhoo
     city: deal.city,
     saved: deal.saved,
     at: Date.now(),
-    message: `Someone${deal.city ? ` in ${deal.city}` : ""} just grabbed ${deal.product.title} for ${inr(deal.dealPrice)} instead of ${inr(deal.originalPrice)}`,
+    message: `Someone${deal.city ? ` in ${deal.city}` : ""} just grabbed ${shortTitle(deal.product.title)} for ${inr(deal.dealPrice)} instead of ${inr(deal.originalPrice)}`,
   });
   if (deal.waFrom) {
     await sendWhatsApp(deal.waFrom, `✅ Deal locked! ${deal.product.title} at ${inr(deal.dealPrice)} + ${deal.perk}. You saved ${inr(deal.saved)}.`).catch(

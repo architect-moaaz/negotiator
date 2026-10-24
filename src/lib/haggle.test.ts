@@ -46,7 +46,7 @@ describe("candidateMoves", () => {
 
   it("escalates below the auto-approve limit only after some haggling", () => {
     expect(candidateMoves(start, terms, 19100)[0].action).toBe("counter");
-    expect(candidateMoves({ currentOffer: 19500, rounds: 2 }, terms, 19100)[0]).toEqual({ action: "escalate", price: 19100 });
+    expect(candidateMoves({ currentOffer: 19500, rounds: 2 }, terms, 19100)).toEqual([{ action: "escalate", price: 19100 }]);
   });
 
   it("never offers below the auto-approve limit, never accepts below the floor", () => {

@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { agenticorgConfigured, requestDealReview } from "@/lib/agenticorg";
+import { agenticorgConfigured, explainAgenticorgError, requestDealReview } from "@/lib/agenticorg";
 import { acceptOffer, HaggleError, submitOffer, toPublic } from "@/lib/negotiate";
 import { store } from "@/lib/store";
 import { currentUser } from "@/lib/users";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     if (updated.status === "awaiting_approval" && agenticorgConfigured) {
       after(() =>
         requestDealReview(updated).catch((err) =>
-          store.log({ type: "agent_review_requested", actor: "system", userId: updated.userId, dealId: updated.id, detail: `AgenticOrg review failed: ${String(err).slice(0, 200)}` }),
+          store.log({ type: "agent_review_requested", actor: "system", userId: updated.userId, dealId: updated.id, detail: `AgenticOrg review failed: ${explainAgenticorgError(err)}` }),
         ),
       );
     }
