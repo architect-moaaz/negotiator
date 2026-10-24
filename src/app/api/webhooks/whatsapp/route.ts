@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { inr, runNegotiation } from "@/lib/negotiate";
+import { failureMessage, inr, runNegotiation } from "@/lib/negotiate";
 import type { DealInput } from "@/lib/types";
 import { normalizePhone, signUp } from "@/lib/users";
 import { fetchTwilioMedia, sendWhatsApp, validateTwilioRequest } from "@/lib/whatsapp";
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       );
     } catch (err) {
       console.error("WhatsApp negotiation failed", err);
-      await sendWhatsApp(from, "Couldn't read that one 😅 Try another link or a clearer screenshot.");
+      await sendWhatsApp(from, `😅 ${failureMessage(err)}`);
     }
   });
 

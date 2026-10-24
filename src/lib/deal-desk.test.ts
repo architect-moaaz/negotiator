@@ -54,4 +54,11 @@ describe("deal desk", () => {
     expect(done.status).toBe("pending");
     expect(done.dealPrice).toBe(19200);
   });
+
+  it("doesn't overwrite a decision a human made while the agent was thinking", async () => {
+    const deal = await escalatedDeal("rec3");
+    await store.saveDeal({ ...structuredClone(deal), status: "pending" });
+    await expect(recordRecommendation(deal, { decision: "approve", confidence: 0.9, reasoning: "Within budget, approve it." })).rejects.toThrow(/already decided/);
+    expect((await store.getDeal("rec3"))?.status).toBe("pending");
+  });
 });

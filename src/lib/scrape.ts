@@ -1,5 +1,6 @@
 import Firecrawl, { type ProductProfile } from "@mendable/firecrawl-js";
 import { extractProductFromText } from "./agent";
+import { DEMO_URL } from "./format";
 import type { ListingSeller, Product, SellerQuote } from "./types";
 
 const firecrawl = process.env.FIRECRAWL_API_KEY ? new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY }) : null;
@@ -58,7 +59,18 @@ async function fetchPageText(url: string) {
   return `${meta}\n\n${text}`;
 }
 
+const DEMO_PRODUCT: Product = {
+  title: "Sony WH-1000XM5 Wireless Noise Cancelling Headphones",
+  brand: "Sony",
+  sourceUrl: DEMO_URL,
+  seller: "Amazon",
+  price: 19989,
+  mrp: 34990,
+  inStock: true,
+};
+
 export async function scrapeProduct(url: string): Promise<Product> {
+  if (url === DEMO_URL) return DEMO_PRODUCT;
   if (firecrawl) {
     const doc = await firecrawl.scrape(url, {
       formats: ["product", "markdown"],
