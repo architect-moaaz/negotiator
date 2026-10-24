@@ -63,16 +63,39 @@ export function SellerConsole() {
     load(token);
   }
 
+  function logout() {
+    try {
+      sessionStorage.removeItem(TOKEN_KEY);
+    } catch {}
+    setToken("");
+    setData(null);
+  }
+
+  const header = (
+    <header className="mx-auto mb-10 flex w-full max-w-4xl items-center justify-between">
+      <Link href="/" className="text-xl font-bold tracking-tight">
+        GhostCart
+      </Link>
+      {data && (
+        <button onClick={logout} className="text-muted hover:text-fg">
+          Log out
+        </button>
+      )}
+    </header>
+  );
+
   if (!data) {
     return (
+      <>
+      {header}
       <form
-        className="mx-auto mt-24 flex w-full max-w-sm flex-col gap-3"
+        className="mx-auto mt-14 flex w-full max-w-sm flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
           load(token);
         }}
       >
-        <h1 className="text-2xl font-semibold">Seller dashboard</h1>
+        <h1 className="text-2xl font-semibold">Seller login</h1>
         <label htmlFor="seller-key" className="text-muted">
           Seller key
         </label>
@@ -83,7 +106,7 @@ export function SellerConsole() {
           onChange={(e) => setToken(e.target.value)}
           className="rounded-xl border border-line bg-panel px-4 py-3 focus:border-saffron focus:outline-none"
         />
-        <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Open dashboard</button>
+        <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Log in</button>
         {error && (
           <p role="alert" className="text-alarm">
             {error}
@@ -96,6 +119,7 @@ export function SellerConsole() {
           </Link>
         </p>
       </form>
+      </>
     );
   }
 
@@ -104,6 +128,7 @@ export function SellerConsole() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
+      {header}
       <h1 className="text-3xl font-semibold">{data.seller.storeName}</h1>
       <p className="mt-1 text-muted">
         Agent gives up to {(data.seller.budgetPct * data.seller.autoApproveShare * 100).toFixed(1)}% off on its own and asks you up to{" "}
