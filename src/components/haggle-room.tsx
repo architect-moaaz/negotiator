@@ -93,9 +93,11 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
             <li className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm bg-panel px-4 py-3 text-muted">
                 {waiting
-                  ? n.fundedBy === "seller"
-                    ? `Waiting for ${n.sellerName} to approve…`
-                    : "A teammate on our deal desk is deciding…"
+                  ? n.callStatus === "calling" || n.callStatus === "in_progress"
+                    ? `Our agent is on the phone with ${n.fundedBy === "seller" ? n.sellerName : "the deal desk"} right now…`
+                    : n.fundedBy === "seller"
+                      ? `Waiting for ${n.sellerName} to approve…`
+                      : "A teammate on our deal desk is deciding…"
                   : "Seller agent is thinking…"}
               </div>
             </li>

@@ -3,6 +3,8 @@ import { chooseMove, computeTerms, MAX_ROUNDS } from "./haggle";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
 import { inr } from "./format";
 import { matchListingSeller } from "./sellers";
+import { maskPhone, normalizePhone } from "./users";
+import { placeCall, vobizConfigured } from "./vobiz";
 import { findAlternatives, queryFromUrl, sameProductQuotes, scrapeProduct } from "./scrape";
 import { store } from "./store";
 import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Offer, Product, PublicDeal, Seller, SellerQuote } from "./types";
@@ -33,6 +35,7 @@ export function toPublic(deal: Deal): PublicDeal {
       maxRounds: MAX_ROUNDS,
       messages: n.messages,
       approvalPrice: deal.status === "awaiting_approval" ? n.approval?.price : undefined,
+      callStatus: deal.status === "awaiting_approval" ? n.call?.status : undefined,
     },
   };
 }
@@ -208,6 +211,7 @@ export async function submitOffer(deal: Deal, offer: number) {
       `Needs human approval: ${inr(move.price)} is below the agent's auto-approve limit ${inr(n.terms.autoLimit)} (floor ${inr(n.terms.floor)})`,
       "agent",
     );
+    await startApprovalCall(deal);
   } else {
     n.currentOffer = move.price;
     n.rounds += 1;
@@ -229,6 +233,42 @@ export async function acceptOffer(deal: Deal) {
 }
 
 /** Human deal desk approves or rejects a price below the agent's auto-approve limit. */
+/** Phone the approver (the seller, or the deal desk for GhostCart-funded deals) through Vobiz. */
+async function startApprovalCall(deal: Deal) {
+  const n = deal.negotiation!;
+  if (!vobizConfigured) return;
+  const role = n.terms.fundedBy === "seller" ? "seller" : "desk";
+  const phone =
+    role === "seller"
+      ? n.terms.sellerId && (await store.getSeller(n.terms.sellerId))?.phone
+      : process.env.VOBIZ_DESK_PHONE && normalizePhone(process.env.VOBIZ_DESK_PHONE);
+  if (!phone) return;
+
+  n.call = { status: "calling", to: phone, role, turns: 0, transcript: [], startedAt: Date.now() };
+  try {
+    const res = await placeCall({ to: phone, dealId: deal.id });
+    n.call.callUuid = res.request_uuid;
+    await logFor(deal)("approval_call_placed", `Calling ${role === "seller" ? n.terms.sellerName : "deal desk"} via Vobiz (${maskPhone(phone)})`, "agent");
+  } catch (err) {
+    n.call.status = "failed";
+    await logFor(deal)("approval_call_ended", `Vobiz call failed: ${String(err).slice(0, 200)}`, "system");
+  }
+}
+
+/** The approver names their own price on the call; it goes back to the shopper as the new offer. */
+export async function counterFromApprover(deal: Deal, price: number, decidedBy: string, role: "desk" | "seller") {
+  const n = deal.negotiation;
+  if (!n?.approval || deal.status !== "awaiting_approval") throw new HaggleError("Nothing waiting for approval.");
+  Object.assign(n.approval, { decision: "countered", decidedAt: Date.now(), decidedBy });
+  const who = role === "seller" ? (n.terms.sellerName ?? "The seller") : "Deal desk";
+  await logFor(deal)("approval_decided", `${decidedBy} countered ${inr(n.approval.price)} with ${inr(price)}`, role === "seller" ? "seller" : "human");
+  n.messages.push({ from: role, text: `${who} says: ${inr(price)}, and that's a real deal. Take it?`, price, at: Date.now() });
+  Object.assign(n, { currentOffer: price, rounds: MAX_ROUNDS });
+  Object.assign(deal, { status: "negotiating", dealPrice: price, saved: deal.originalPrice - price, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
+  await store.saveDeal(deal);
+  return deal;
+}
+
 export async function decideApproval(deal: Deal, decision: "approved" | "rejected", decidedBy: string, role: "desk" | "seller" = "desk") {
   const n = deal.negotiation;
   if (!n?.approval || deal.status !== "awaiting_approval") throw new HaggleError("Nothing waiting for approval.");

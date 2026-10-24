@@ -67,7 +67,20 @@ export interface Negotiation {
   currentOffer: number;
   rounds: number;
   messages: NegotiationMessage[];
-  approval?: { price: number; requestedAt: number; decidedAt?: number; decision?: "approved" | "rejected"; decidedBy?: string };
+  approval?: { price: number; requestedAt: number; decidedAt?: number; decision?: "approved" | "rejected" | "countered"; decidedBy?: string };
+  /** Voice call to the approver (seller or deal desk) via Vobiz. */
+  call?: ApprovalCall;
+}
+
+export interface ApprovalCall {
+  status: "calling" | "in_progress" | "completed" | "failed";
+  to: string;
+  role: "seller" | "desk";
+  callUuid?: string;
+  turns: number;
+  pendingCounter?: number; // price the approver asked for, awaiting their confirmation
+  transcript: { from: "agent" | "approver"; text: string; at: number }[];
+  startedAt: number;
 }
 export type Channel = "web" | "whatsapp";
 
@@ -101,6 +114,7 @@ export interface PublicNegotiation {
   maxRounds: number;
   messages: NegotiationMessage[];
   approvalPrice?: number;
+  callStatus?: ApprovalCall["status"];
 }
 export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation"> & { negotiation?: PublicNegotiation };
 
@@ -152,6 +166,9 @@ export type ActivityType =
   | "approval_decided"
   | "deal_agreed"
   | "seller_identified"
+  | "approval_call_placed"
+  | "approval_call_turn"
+  | "approval_call_ended"
   | "seller_signup"
   | "deal_created"
   | "payment_link_created"
