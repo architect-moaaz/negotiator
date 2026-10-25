@@ -7,6 +7,7 @@ import type { Activity, AgentRecommendation, DeliveryAddress, NegotiationTerms, 
 import { AnalyticsPanel } from "./analytics-panel";
 import { StaffLogin, staffLogout } from "./staff-login";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
+import { FinancePanel } from "./finance-panel";
 import { ReviewsPanel } from "./reviews-panel";
 
 type AdminDeal = PublicDeal & {
@@ -31,7 +32,7 @@ interface AdminData {
   sellers: Seller[];
   demand: SellerDemand[];
 }
-type Tab = "analytics" | "approvals" | "reviews" | "users" | "activity" | "deals" | "sellers";
+type Tab = "analytics" | "approvals" | "reviews" | "money" | "users" | "activity" | "deals" | "sellers";
 
 const ist = (at: number) =>
   new Date(at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, dateStyle: "medium", timeStyle: "medium" });
@@ -164,6 +165,7 @@ export function AdminConsole() {
     ["analytics", "Analytics", null],
     ["approvals", "Approvals", approvals.length],
     ["reviews", "Seller reviews", null],
+    ...(data.me.role === "owner" ? ([["money", "Money", null]] as [Tab, string, null][]) : []),
     ["users", "Signups", data.users.length],
     ["activity", "Agent & payment log", data.activity.length],
     ["deals", "Deals", data.deals.length],
@@ -191,7 +193,7 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        {!["approvals", "reviews", "sellers", "analytics"].includes(tab) && (
+        {!["approvals", "reviews", "money", "sellers", "analytics"].includes(tab) && (
           <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
             Download CSV
           </button>
@@ -214,6 +216,7 @@ export function AdminConsole() {
 
       {tab === "analytics" && <AnalyticsPanel />}
       {tab === "reviews" && <ReviewsPanel />}
+      {tab === "money" && <FinancePanel />}
 
       {tab === "approvals" && (
         <div className="mt-6 space-y-4">
@@ -371,7 +374,7 @@ export function AdminConsole() {
               ))}
           </tbody>
         </table>
-        {!["approvals", "reviews", "sellers", "analytics"].includes(tab) && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
+        {!["approvals", "reviews", "money", "sellers", "analytics"].includes(tab) && tabs.find(([k]) => k === tab)![2] === 0 && <p className="py-8 text-muted">Nothing here yet.</p>}
       </div>
     </div>
   );

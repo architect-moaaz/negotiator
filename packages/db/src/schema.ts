@@ -278,3 +278,96 @@ export const kycChecks = pgTable(
   },
   (t) => [index("kyc_checks_org_idx").on(t.orgId), index("kyc_checks_hash_idx").on(t.identityHash)],
 );
+
+/* ---------- Wave 1: orders, money held until delivery, the ledger ---------- */
+
+/** A placed order for a GhostCart Shop product. The seller ships it; money is held until delivery. */
+export const orders = pgTable(
+  "orders",
+  {
+    id: text("id").primaryKey(),
+    dealId: text("deal_id").notNull().unique(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    userId: text("user_id").notNull(),
+    productId: text("product_id").references(() => products.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    /** Money in paise: see packages/core money.ts. */
+    total: bigint("total", { mode: "number" }).notNull(),
+    fee: bigint("fee", { mode: "number" }).notNull(),
+    gst: bigint("gst", { mode: "number" }).notNull(),
+    sellerShare: bigint("seller_share", { mode: "number" }).notNull(),
+    lockFee: bigint("lock_fee", { mode: "number" }).notNull(),
+    /** placed → shipped → delivered → completed; or cancelled / refunded; disputed while a dispute is open. */
+    status: text("status").notNull().default("placed"),
+    testPayments: boolean("test_payments").notNull().default(false),
+    /** The seller ships by this time or the order is cancelled and refunded. */
+    shipBy: ts("ship_by").notNull(),
+    shippedAt: ts("shipped_at"),
+    deliveredAt: ts("delivered_at"),
+    /** Delivery address, needed by the seller to ship. */
+    address: jsonb("address").$type<Record<string, string>>().notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("orders_store_idx").on(t.storeId), index("orders_status_idx").on(t.status), index("orders_user_idx").on(t.userId)],
+);
+
+/** The seller's share, settled on hold by the payment aggregator and released after the dispute window. */
+export const holds = pgTable(
+  "holds",
+  {
+    orderId: text("order_id")
+      .primaryKey()
+      .references(() => orders.id),
+    /** held → released | refunded; frozen while a dispute is open. */
+    state: text("state").notNull().default("held"),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    gateway: text("gateway").notNull(),
+    gatewayRef: text("gateway_ref"),
+    /** Set when delivery is confirmed: delivered_at + the tier's hold days. */
+    releaseAt: ts("release_at"),
+    releasedAt: ts("released_at"),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("holds_release_idx").on(t.state, t.releaseAt)],
+);
+
+/** Double-entry ledger: every transaction (txn_id) sums to zero. Paise. Append-only. */
+export const ledgerEntries = pgTable(
+  "ledger_entries",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    txnId: text("txn_id").notNull(),
+    orderId: text("order_id").references(() => orders.id),
+    /** paid | released | refund | adjustment */
+    kind: text("kind").notNull(),
+    account: text("account").notNull(),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    memo: text("memo"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("ledger_txn_idx").on(t.txnId), index("ledger_order_idx").on(t.orderId), index("ledger_account_idx").on(t.account)],
+);
+
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    amount: bigint("amount", { mode: "number" }).notNull(),
+    reason: text("reason").notNull(),
+    /** pending → processed | failed */
+    status: text("status").notNull().default("pending"),
+    gatewayRef: text("gateway_ref"),
+    requestedBy: text("requested_by").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("refunds_order_idx").on(t.orderId)],
+);
