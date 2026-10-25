@@ -1,5 +1,5 @@
 import { schema } from "@ghostcart/db";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { newId } from "./ids";
@@ -156,4 +156,15 @@ export async function importProductsCsv(storeId: string, text: string, source = 
     }
   }
   return { created, errors };
+}
+
+/** One unit sold. Never goes below zero; returns false if it was already out of stock. */
+export async function takeStock(productId: string) {
+  const db = await getDb();
+  const rows = await db
+    .update(products)
+    .set({ stock: sql`${products.stock} - 1`, updatedAt: new Date() })
+    .where(and(eq(products.id, productId), gt(products.stock, 0)))
+    .returning({ id: products.id });
+  return rows.length > 0;
 }

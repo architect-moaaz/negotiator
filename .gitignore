@@ -48,3 +48,6 @@ backfill-export-*.json
 
 # Embedded Postgres data for local development
 .pglite/
+
+# Local-dev uploads (deployments use Vercel Blob)
+apps/web/public/uploads/

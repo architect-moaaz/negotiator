@@ -160,6 +160,15 @@ export function SellerDashboard() {
           <section className="mt-10">
             <h1 className="text-3xl font-bold tracking-tight">{data.store.name}</h1>
             <p className={`mt-2 ${data.store.status === "live" ? "text-paid" : "text-muted"}`}>{STATUS[data.store.status] ?? data.store.status}</p>
+            {data.store.platform === "ghostcart_shop" && (
+              <p className="mt-1">
+                Your shop:{" "}
+                <Link href={`/s/${data.store.slug}`} className="text-saffron underline underline-offset-4">
+                  /s/{data.store.slug}
+                </Link>
+                {data.store.status !== "live" && <span className="text-muted"> (preview)</span>}
+              </p>
+            )}
             <p className="mt-1 text-sm text-muted">
               {plural(data.products.length, "product")} · {plural(data.categories.length, "category", "categories")} · store default up to{" "}
               {data.policies.store.maxDiscountPct ?? 10}% off

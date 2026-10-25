@@ -13,6 +13,20 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [importNote, setImportNote] = useState<{ created: number; errors: string[] } | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function upload(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch(`/api/seller/stores/${data.store.id}/uploads`, { method: "POST", body });
+    const out = await res.json().catch(() => ({}));
+    setUploading(false);
+    if (!res.ok) return setError(out.error || "Couldn't upload that photo.");
+    setForm((f) => ({ ...f, image: out.url }));
+  }
   const categoryName = (id: string | null) => data.categories.find((c) => c.id === id)?.name ?? "";
   const set = (k: keyof typeof empty) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value });
 
@@ -131,10 +145,24 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
               </datalist>
             </label>
           </div>
-          <label className="grid gap-2">
-            <span className="text-muted">Photo link (upload from your phone arrives with the shop page)</span>
-            <input inputMode="url" placeholder="https://…" value={form.image} onChange={set("image")} className={field} />
-          </label>
+          <div className="grid gap-2">
+            <span className="text-muted">Photo</span>
+            <div className="flex items-center gap-4">
+              {form.image && (
+                // eslint-disable-next-line @next/next/no-img-element -- seller's own upload, any host
+                <img src={form.image} alt="" className="size-20 rounded-lg object-cover" />
+              )}
+              <label className={`${secondary} cursor-pointer`}>
+                {uploading ? "Uploading…" : form.image ? "Change photo" : "Take or choose a photo"}
+                <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" disabled={uploading} onChange={(e) => upload(e.target.files?.[0])} />
+              </label>
+              {form.image && (
+                <button type="button" onClick={() => setForm({ ...form, image: "" })} className="text-sm text-muted underline underline-offset-4">
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
           <label className="grid gap-2">
             <span className="text-muted">Description</span>
             <textarea rows={3} value={form.description} onChange={set("description")} className={field} />
@@ -144,7 +172,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
             <button type="button" onClick={() => setEditing(null)} className={secondary}>
               Cancel
             </button>
-            <button disabled={busy} className={primary}>
+            <button disabled={busy || uploading} className={primary}>
               {busy ? "Saving…" : "Save product"}
             </button>
           </div>

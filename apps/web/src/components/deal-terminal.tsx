@@ -115,7 +115,12 @@ export function DealTerminal({ id }: { id: string }) {
         )}
         <h1 className="mt-10 max-w-xl text-2xl font-semibold leading-snug sm:text-3xl">{deal.product.title}</h1>
         <p className="mt-2 text-muted">
-          {deal.negotiation ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}` : `Best price at ${deal.bestSeller}`} · {deal.perk}
+          {deal.shop && deal.negotiation
+            ? `List price ${inr(deal.negotiation.benchmark)} at ${deal.shop.storeName}`
+            : deal.negotiation
+              ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}`
+              : `Best price at ${deal.bestSeller}`}{" "}
+          · {deal.perk}
         </p>
 
         {paid && (
