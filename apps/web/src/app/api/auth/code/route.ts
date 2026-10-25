@@ -1,4 +1,5 @@
 import { OtpError, sendLoginCode, type LoginRole } from "@/lib/otp";
+import { codeLimits, rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/store";
 import { maskPhone, normalizePhone } from "@/lib/users";
 
@@ -8,6 +9,8 @@ export async function POST(request: Request) {
   const role: LoginRole = body.role === "seller" ? "seller" : "buyer";
   const phone = body.phone ? normalizePhone(body.phone) : null;
   if (!phone) return Response.json({ error: "Enter a 10-digit Indian mobile number." }, { status: 400 });
+  const limited = await rateLimit(...codeLimits(request, phone));
+  if (limited) return limited;
 
   const accountId = role === "seller" ? await store.sellerIdForPhone(phone) : await store.userIdForPhone(phone);
   if (!accountId) {

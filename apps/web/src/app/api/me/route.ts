@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
-import { currentUser, publicUser, SESSION_COOKIE } from "@/lib/users";
+import { endSession } from "@/lib/session";
+import { currentUser, publicUser } from "@/lib/users";
 
 export async function GET() {
   const user = await currentUser();
@@ -7,6 +7,6 @@ export async function GET() {
 }
 
 export async function DELETE() {
-  (await cookies()).delete(SESSION_COOKIE);
+  await endSession("buyer");
   return Response.json(null);
 }

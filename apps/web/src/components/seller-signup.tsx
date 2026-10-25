@@ -10,6 +10,9 @@ export function SellerSignup() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ storeName: string; token: string } | null>(null);
+  // After the first submit we call the number; the code proves the seller owns it.
+  const [codeNote, setCodeNote] = useState("");
+  const [code, setCode] = useState("");
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value });
 
   async function submit(e: React.FormEvent) {
@@ -19,11 +22,15 @@ export function SellerSignup() {
     const res = await fetch("/api/sellers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, budgetPct: Number(form.budgetPct), autoApprovePct: Number(form.autoApprovePct) }),
+      body: JSON.stringify({ ...form, budgetPct: Number(form.budgetPct), autoApprovePct: Number(form.autoApprovePct), code: codeNote ? code : undefined }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(data.error || "Couldn't register. Try again.");
+    if (data.codeSent) {
+      setCodeNote(data.via === "call" ? `We're calling ${data.phone} now. Pick up and we'll read out your 6-digit code.` : "Dev mode: the code is in the server console.");
+      return;
+    }
     try {
       sessionStorage.setItem("gc_seller_token", data.token);
     } catch {}
@@ -74,7 +81,7 @@ export function SellerSignup() {
           <label htmlFor="sphone" className="text-muted">
             Mobile number
           </label>
-          <input id="sphone" type="tel" inputMode="numeric" required value={form.phone} onChange={set("phone")} className={field} />
+          <input id="sphone" type="tel" inputMode="numeric" required value={form.phone} onChange={set("phone")} disabled={!!codeNote} className={`${field} disabled:opacity-60`} />
         </div>
       </div>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -95,13 +102,42 @@ export function SellerSignup() {
         On a ₹20,000 item your agent can drop to ₹{Math.round(example - (example * budget * auto) / 10000).toLocaleString("en-IN")} on its own, and asks
         you before going as low as ₹{Math.round(example - (example * budget) / 100).toLocaleString("en-IN")}.
       </p>
+      {codeNote && (
+        <div className="grid gap-2">
+          <p className="text-muted">{codeNote}</p>
+          <label htmlFor="scode" className="text-muted">
+            6-digit code
+          </label>
+          <input
+            id="scode"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            required
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            className={`${field} font-receipt tracking-[0.4em]`}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setCodeNote("");
+              setCode("");
+            }}
+            className="justify-self-start text-muted underline underline-offset-4"
+          >
+            Use a different number or call again
+          </button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-alarm">
           {error}
         </p>
       )}
-      <button disabled={busy} className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink disabled:opacity-50">
-        {busy ? "Registering…" : "Register my store"}
+      <button disabled={busy || (!!codeNote && code.length !== 6)} className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink disabled:opacity-50">
+        {busy ? "One moment…" : codeNote ? "Verify and register" : "Register my store"}
       </button>
     </form>
   );

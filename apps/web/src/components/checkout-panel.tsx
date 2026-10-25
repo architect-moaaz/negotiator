@@ -490,15 +490,6 @@ export function CheckoutPanel({
                 Pay {inr(c.amount)} now
               </a>
             )}
-            {deal.simulate && (
-              <button
-                onClick={() => post({ action: "simulate" })}
-                disabled={busy}
-                className="w-full rounded-lg border-2 border-paper-ink py-2.5 font-sans font-semibold disabled:opacity-50"
-              >
-                {busy ? "Placing order…" : "Simulate UPI payment"}
-              </button>
-            )}
             {error && !editing && (
               <p role="alert" className="text-center font-sans text-alarm">
                 {error}

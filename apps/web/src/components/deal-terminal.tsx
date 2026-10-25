@@ -23,7 +23,6 @@ function useNow(active: boolean) {
 export function DealTerminal({ id }: { id: string }) {
   const [deal, setDeal] = useState<PublicDeal | null>(null);
   const [missing, setMissing] = useState(false);
-  const [paying, setPaying] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/deal?id=${encodeURIComponent(id)}`, { cache: "no-store" });
@@ -64,17 +63,6 @@ export function DealTerminal({ id }: { id: string }) {
     const t = setInterval(load, every);
     return () => clearInterval(t);
   }, [status, expiresAt, checkout, checkoutDue, delivered, load]);
-
-  async function simulatePay() {
-    setPaying(true);
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) setDeal(await res.json());
-    setPaying(false);
-  }
 
   if (missing) {
     return (
@@ -208,15 +196,6 @@ export function DealTerminal({ id }: { id: string }) {
               <a href={deal.upiIntent} className="w-full rounded-lg bg-paper-ink py-3 text-center font-sans font-semibold text-paper sm:hidden">
                 Pay {inr(deal.lockFee)} now
               </a>
-            )}
-            {deal.simulate && (
-              <button
-                onClick={simulatePay}
-                disabled={paying}
-                className="w-full rounded-lg border-2 border-paper-ink py-2.5 font-sans font-semibold disabled:opacity-50"
-              >
-                {paying ? "Locking…" : "Simulate UPI payment"}
-              </button>
             )}
             {deal.qrDataUrl && <p className="text-center text-paper-muted">Scan with your phone camera to pay · Pine Labs</p>}
             <div className="font-sans text-center [&_p]:text-paper-muted">

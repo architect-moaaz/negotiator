@@ -1,8 +1,6 @@
-import { cookies } from "next/headers";
+import { currentSubject } from "./session";
 import { store } from "./store";
 import type { Channel, Demographics, User } from "./types";
-
-export const SESSION_COOKIE = "gc_uid";
 
 /** Normalise Indian mobile numbers to E.164; returns null if it doesn't look like one. */
 export function normalizePhone(raw: string) {
@@ -16,7 +14,7 @@ export function maskPhone(phone: string) {
 }
 
 export async function currentUser() {
-  const id = (await cookies()).get(SESSION_COOKIE)?.value;
+  const id = await currentSubject("buyer");
   return id ? store.getUser(id) : undefined;
 }
 

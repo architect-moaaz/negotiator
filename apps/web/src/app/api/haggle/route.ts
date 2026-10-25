@@ -1,8 +1,9 @@
 import { after } from "next/server";
 import { agenticorgConfigured, explainAgenticorgError, requestDealReview } from "@/lib/agenticorg";
+import { canActAsShopper } from "@/lib/deal-access";
 import { acceptOffer, HaggleError, submitOffer, toPublic } from "@/lib/negotiate";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/store";
-import { currentUser } from "@/lib/users";
 
 export const maxDuration = 60;
 
@@ -12,11 +13,12 @@ export async function POST(request: Request) {
   const deal = body.id ? await store.getDeal(body.id) : undefined;
   if (!deal) return Response.json({ error: "Deal not found." }, { status: 404 });
 
-  // Web deals belong to the shopper who started them; WhatsApp deals are opened from the link.
-  if (deal.channel === "web") {
-    const user = await currentUser();
-    if (!user || user.id !== deal.userId) return Response.json({ error: "Only the shopper who started this deal can haggle." }, { status: 403 });
-  }
+  if (!(await canActAsShopper(deal))) return Response.json({ error: "Only the shopper who started this deal can haggle." }, { status: 403 });
+  const limited = await rateLimit(
+    { name: "haggle:deal", id: deal.id, max: 30, windowSeconds: 10 * 60 },
+    { name: "haggle:ip", id: clientIp(request), max: 120, windowSeconds: 10 * 60 },
+  );
+  if (limited) return limited;
 
   try {
     const updated = body.accept ? await acceptOffer(deal) : await submitOffer(deal, Number(body.offer));

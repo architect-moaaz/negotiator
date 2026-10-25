@@ -49,6 +49,10 @@ export function Negotiator() {
   // Ask for the link first; contact details only once they've committed to checking an item.
   const [wantsDetails, setWantsDetails] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
+  // Signup step 2: we've called their number; the negotiation they asked for waits for the code.
+  const [codeNote, setCodeNote] = useState("");
+  const [code, setCode] = useState("");
+  const pending = useRef<Record<string, string> | null>(null);
 
   // First touch: remember where this visitor came from (referrer, ?ref= or utm_source) for analytics.
   useEffect(() => {
@@ -67,13 +71,16 @@ export function Negotiator() {
       .catch(() => setUser(null));
   }, []);
 
-  /** Sign up first if needed; returns false (with an error shown) when signup fails. */
-  async function ensureUser() {
+  /**
+   * Sign up first if needed. The first call asks for a code (we phone the number) and parks the
+   * request; the second, with the code, creates the account. Returns true once signed in.
+   */
+  async function ensureUser(body: Record<string, string>) {
     if (user) return true;
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone, consent, ...firstTouch() }),
+      body: JSON.stringify({ name, phone, consent, ...firstTouch(), code: codeNote ? code : undefined }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -82,12 +89,22 @@ export function Negotiator() {
       setError(data.error || "Couldn't sign you up. Try again.");
       return false;
     }
+    if (data.codeSent) {
+      pending.current = body;
+      setPhase("idle");
+      setError("");
+      setCodeNote(data.via === "call" ? `We're calling ${data.phone} now. Pick up and we'll read out your 6-digit code.` : "Dev mode: the code is in the server console.");
+      return false;
+    }
+    pending.current = null;
+    setCodeNote("");
+    setCode("");
     setUser(data);
     return true;
   }
 
   async function negotiate(body: Record<string, string>) {
-    if (!(await ensureUser())) return;
+    if (!(await ensureUser(body))) return;
     setPhase("running");
     setSteps([]);
     setProduct(null);
@@ -170,14 +187,14 @@ export function Negotiator() {
   }
 
   const busy = phase === "running" || phase === "done";
-  const askDetails = user === null && (url.trim().length > 0 || wantsDetails);
+  const askDetails = user === null && (url.trim().length > 0 || wantsDetails || !!codeNote);
   const submitButton = (
     <button
       type="submit"
-      disabled={busy || !url.trim()}
+      disabled={busy || (codeNote ? code.length !== 6 : !url.trim())}
       className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink transition-transform active:scale-[0.98] disabled:opacity-50"
     >
-      {busy ? "Negotiating…" : user === null && !askDetails ? "Check prices free" : "Find my deal"}
+      {busy ? "Negotiating…" : codeNote ? "Verify and find my deal" : user === null && !askDetails ? "Check prices free" : "Find my deal"}
     </button>
   );
 
@@ -194,7 +211,8 @@ export function Negotiator() {
         className="flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
-          if (url.trim()) negotiate({ url: url.trim() });
+          if (codeNote && pending.current) negotiate(pending.current);
+          else if (url.trim()) negotiate({ url: url.trim() });
         }}
       >
         {user && (
@@ -268,7 +286,7 @@ export function Negotiator() {
                 placeholder="98765 43210"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                disabled={busy}
+                disabled={busy || !!codeNote}
                 className="rounded-xl border border-line bg-panel px-4 py-3 text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
               />
             </div>
@@ -284,6 +302,37 @@ export function Negotiator() {
               />
               <span>GhostCart can contact me on this number about this deal (calls or messages). We don&apos;t send marketing.</span>
             </label>
+            {codeNote && (
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <p className="text-muted">{codeNote}</p>
+                <label htmlFor="signup-code" className="text-muted">
+                  6-digit code
+                </label>
+                <input
+                  id="signup-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  autoFocus
+                  placeholder="••••••"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  disabled={busy}
+                  className="rounded-xl border border-line bg-panel px-4 py-3 font-receipt tracking-[0.4em] text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCodeNote("");
+                    setCode("");
+                    pending.current = null;
+                  }}
+                  className="self-start text-sm text-muted underline underline-offset-4 hover:text-fg"
+                >
+                  Use a different number or call again
+                </button>
+              </div>
+            )}
           </div>
         )}
         {askDetails && submitButton}
