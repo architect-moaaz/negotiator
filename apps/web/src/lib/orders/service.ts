@@ -156,7 +156,13 @@ export async function releaseOrder(orderId: string) {
   // Claim the hold first so two runs can't release it twice.
   const claimed = await db.update(holds).set({ state: "releasing", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "held"))).returning();
   if (!claimed.length) return order;
-  await gateway.release(hold.gatewayRef!);
+  try {
+    await gateway.release(hold.gatewayRef!);
+  } catch (err) {
+    // Hand the hold back so the next run retries, instead of leaving it stuck mid-release.
+    await db.update(holds).set({ state: "held", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "releasing")));
+    throw err;
+  }
   await post(db, { orderId, kind: "released", postings: releasePostings(await heldFor(order), order.storeId) });
   await db.update(holds).set({ state: "released", releasedAt: new Date(), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   const [done] = await db.update(orders).set({ status: "completed", updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
@@ -233,6 +239,8 @@ export async function runOrderJobs(now = new Date()) {
   const promoted = await promoteStores();
   const { retryWebhooks } = await import("../integrations/webhooks");
   await retryWebhooks();
+  const { pollAmazonImports } = await import("../amazon/connect");
+  await pollAmazonImports();
   return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted };
 }
 

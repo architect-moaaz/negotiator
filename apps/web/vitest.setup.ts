@@ -8,10 +8,18 @@ process.env.PINELABS_CLIENT_SECRET ??= "zz-test-secret";
 process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
 const SHOPIFY = "http://shopify.test/api/mock-shopify";
 process.env.SHOPIFY_ADMIN_BASE ??= SHOPIFY;
+const AMAZON = "http://amazon.test/api/mock-amazon";
+for (const k of ["AMAZON_CONSENT_BASE", "AMAZON_LWA_BASE", "AMAZON_SPAPI_BASE"]) process.env[k] ??= AMAZON;
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(AMAZON)) {
+    const mock = await import("./src/app/api/mock-amazon/[...path]/route");
+    const request = new Request(url, init);
+    const ctx = { params: Promise.resolve({ path: new URL(url).pathname.replace("/api/mock-amazon/", "").split("/") }) };
+    return request.method === "GET" ? mock.GET(request, ctx) : mock.POST(request, ctx);
+  }
   if (url.startsWith(SHOPIFY)) {
     const mock = await import("./src/app/api/mock-shopify/[...path]/route");
     const request = new Request(url, init);

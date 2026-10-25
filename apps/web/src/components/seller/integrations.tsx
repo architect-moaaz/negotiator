@@ -80,6 +80,16 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
           </a>
         </section>
       )}
+      {platform === "amazon" && <AmazonSection storeId={storeId} />}
+      {platform === "flipkart" && (
+        <section>
+          <h2 className="text-xl font-semibold">Flipkart listings</h2>
+          <p className="mt-1 text-muted">
+            In Flipkart Seller Hub, open Listings, download your listings file and save it as CSV. Then use &quot;Import a CSV&quot; on the Products tab: we read
+            Flipkart&apos;s own columns (Seller SKU Id, Product Title, Your Selling Price, MRP, Stock). Re-importing updates products by SKU.
+          </p>
+        </section>
+      )}
       {platform === "shopify" && (
         <section>
           <h2 className="text-xl font-semibold">Shopify</h2>
@@ -183,5 +193,53 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
           ))}
       </section>
     </div>
+  );
+}
+
+interface ConnectionRow {
+  platform: string;
+  externalId: string;
+  imported: number | null;
+  importedAt: string | null;
+  importing: boolean;
+  lastError: string | null;
+}
+
+/** Amazon Seller Central: connect with SP-API, then listings import in the background. */
+function AmazonSection({ storeId }: { storeId: string }) {
+  const [conn, setConn] = useState<ConnectionRow | null | undefined>(undefined);
+  useEffect(() => {
+    const load = async () => {
+      const r = await api<{ connections: ConnectionRow[] }>(`/api/seller/stores/${storeId}/connections`);
+      if (r.ok) setConn(r.data.connections.find((c) => c.platform === "amazon") ?? null);
+    };
+    const first = setTimeout(load, 0);
+    const t = setInterval(load, 15000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [storeId]);
+  return (
+    <section>
+      <h2 className="text-xl font-semibold">Amazon Seller Central</h2>
+      <p className="mt-1 text-muted">Authorise GhostCart to read your own listings. It also proves the Amazon account is yours. We never change anything on Amazon.</p>
+      {conn === undefined ? null : conn ? (
+        <p className="mt-3">
+          Connected ({conn.externalId}).{" "}
+          {conn.importing
+            ? "Amazon is preparing your listings report; this can take a few minutes."
+            : conn.importedAt
+              ? `${conn.imported} listings imported ${new Date(conn.importedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.`
+              : ""}
+          {conn.lastError && <span className="block text-alarm">Last import problem: {conn.lastError}</span>}
+        </p>
+      ) : (
+        <a href={`/api/amazon/connect?storeId=${storeId}`} className={`${secondary} mt-3 inline-block`}>
+          Connect Amazon Seller Central
+        </a>
+      )}
+      <p className="mt-3 text-sm text-muted">No access to Seller Central? Download your inventory report as a file and use &quot;Import a CSV&quot; on the Products tab instead.</p>
+    </section>
   );
 }
