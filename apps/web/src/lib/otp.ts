@@ -6,7 +6,7 @@ const CODE_TTL_S = 5 * 60;
 const RESEND_S = 40;
 const MAX_ATTEMPTS = 5;
 
-export type LoginRole = "buyer" | "seller" | "staff";
+export type LoginRole = "buyer" | "seller" | "staff" | "member";
 /** What a code proves: logging in to an account, or owning a number before an account exists. */
 export type OtpPurpose = LoginRole | "buyer-signup" | "seller-signup";
 

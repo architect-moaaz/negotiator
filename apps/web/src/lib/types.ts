@@ -200,7 +200,8 @@ export type ActivityType =
   | "negotiation_failed"
   | "staff_login"
   | "staff_action"
-  | "staff_denied";
+  | "staff_denied"
+  | "seller_action";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
 export interface Activity {

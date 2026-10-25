@@ -6,10 +6,11 @@ import { store } from "./store";
  * Server-side sessions: the cookie holds a random token, Redis maps its hash to the account.
  * Nothing in the cookie identifies the account, and deleting the key revokes it immediately.
  */
-export type SessionKind = "buyer" | "seller" | "staff";
+export type SessionKind = "buyer" | "seller" | "staff" | "member";
 
-const COOKIE: Record<SessionKind, string> = { buyer: "gc_session", seller: "gc_sid", staff: "gc_staff" };
-const TTL_S: Record<SessionKind, number> = { buyer: 30 * 24 * 60 * 60, seller: 7 * 24 * 60 * 60, staff: 12 * 60 * 60 };
+/** member: a person acting for one or more seller businesses (orgs), identified by verified phone. */
+const COOKIE: Record<SessionKind, string> = { buyer: "gc_session", seller: "gc_sid", staff: "gc_staff", member: "gc_member" };
+const TTL_S: Record<SessionKind, number> = { buyer: 30 * 24 * 60 * 60, seller: 7 * 24 * 60 * 60, staff: 12 * 60 * 60, member: 7 * 24 * 60 * 60 };
 /** Pre-hardening buyer cookie that held the raw user id. Ignored and cleared. */
 export const LEGACY_BUYER_COOKIE = "gc_uid";
 

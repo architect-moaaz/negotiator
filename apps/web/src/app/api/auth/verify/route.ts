@@ -3,12 +3,12 @@ import { rateLimit, verifyLimits } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
 import { staffRoster } from "@/lib/staff";
 import { store } from "@/lib/store";
-import { normalizePhone, publicUser } from "@/lib/users";
+import { maskPhone, normalizePhone, publicUser } from "@/lib/users";
 
 /** Step 2 of phone login: check the code and start a session. */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { phone?: string; code?: string; role?: LoginRole };
-  const role: LoginRole = body.role === "seller" || body.role === "staff" ? body.role : "buyer";
+  const role: LoginRole = body.role === "seller" || body.role === "staff" || body.role === "member" ? body.role : "buyer";
   const phone = body.phone ? normalizePhone(body.phone) : null;
   if (!phone || !body.code) return Response.json({ error: "Enter your number and the code we read out." }, { status: 400 });
   const limited = await rateLimit(...verifyLimits(request));
@@ -19,6 +19,12 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof OtpError) return Response.json({ error: err.message }, { status: err.status });
     throw err;
+  }
+
+  if (role === "member") {
+    await startSession("member", phone);
+    await store.log({ type: "login", actor: "seller", detail: `Seller ${maskPhone(phone)} signed in with a phone code` });
+    return Response.json({ ok: true });
   }
 
   if (role === "staff") {

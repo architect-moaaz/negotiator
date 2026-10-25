@@ -6,7 +6,7 @@ import { newId } from "./ids";
 import type { Category, Product } from "./products";
 import type { Store } from "./stores";
 
-const { categories, policies } = schema;
+const { categories, policies, products } = schema;
 
 type Row = typeof policies.$inferSelect;
 
@@ -48,6 +48,11 @@ export async function setPolicy(storeId: string, scope: PolicyScope, targetId: s
   if (errors.length) throw new PolicyError(errors);
   if ((scope === "store") !== (targetId === null)) throw new PolicyError(["Pick what this rule applies to."]);
   const db = await getDb();
+  if (scope !== "store") {
+    const table = scope === "category" ? categories : products;
+    const [owned] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, targetId!), eq(table.storeId, storeId)));
+    if (!owned) throw new PolicyError([scope === "category" ? "That category isn't in this store." : "That product isn't in this store."]);
+  }
   const where =
     scope === "store"
       ? and(eq(policies.storeId, storeId), eq(policies.scope, "store"))

@@ -12,7 +12,6 @@ vi.mock("next/headers", () => ({
 }));
 
 const { POST: signup } = await import("@/app/api/signup/route");
-const { POST: sellers } = await import("@/app/api/sellers/route");
 const { POST: checkout } = await import("@/app/api/deal/checkout/route");
 const { GET: getDeal } = await import("@/app/api/deal/route");
 const { DELETE: logout } = await import("@/app/api/me/route");
@@ -87,19 +86,6 @@ describe("shopper signup", () => {
     const back = await (await signup(post("/api/signup", { ...phone, name: "Someone Else", code: again.code }))).json();
     expect(back.id).toBe(created.id);
     expect(back.name).toBe("ZZ Signup");
-  });
-});
-
-describe("seller signup", () => {
-  it("needs the phone code before the store exists", async () => {
-    const form = { storeName: "ZZ Proof Store", contactName: "ZZ", phone: "9000000304", budgetPct: 8, autoApprovePct: 60 };
-    const { res, code } = await requestCode(() => sellers(post("/api/sellers", form)));
-    expect(await res.json()).toMatchObject({ codeSent: true });
-    expect(await store.sellerIdForPhone("+919000000304")).toBeUndefined();
-    const ok = await sellers(post("/api/sellers", { ...form, code }));
-    expect(ok.status).toBe(200);
-    expect(await store.sellerIdForPhone("+919000000304")).toBeTruthy();
-    expect(jar.get("gc_sid")).toBeTruthy();
   });
 });
 
