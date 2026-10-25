@@ -24,7 +24,18 @@ export interface Offer {
 }
 
 /** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid (locked; checkout opens) | expired */
-export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "expired";
+/** granted: the price was agreed on a Shopify/Woo store and a single-use discount code issued (paid on the seller's checkout). */
+export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "granted" | "expired";
+
+/** A price agreed for a seller's own platform: a single-use code locked to the product, used on their checkout. */
+export interface PriceGrant {
+  platform: string;
+  code: string;
+  checkoutUrl: string;
+  expiresAt: number;
+  redeemedAt?: number;
+  platformOrderRef?: string;
+}
 
 /** "whatsapp" deals came from the hackathon Twilio sandbox (removed); the WhatsApp channel returns in Wave 3. */
 export type Channel = "web" | "whatsapp";
@@ -95,7 +106,8 @@ export interface Deal extends Offer {
   userId?: string;
   checkout?: Checkout;
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
-  shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string };
+  shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string; platform?: string };
+  grant?: PriceGrant;
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */

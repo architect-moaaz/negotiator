@@ -1,6 +1,8 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
 import { openCheckout, toPublicCheckout } from "./checkout";
 import { chooseMove, computeTerms, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { GRANT_PLATFORMS } from "./grants/adapters";
+import { GrantError, issueGrant } from "./grants/service";
 import { createDealPayment, LOCK_FEE_INR, PaymentsUnavailableError, testPayments } from "./payments";
 import { inr, shortTitle } from "./format";
 import { matchListingSeller } from "./sellers";
@@ -156,6 +158,16 @@ const logFor = (deal: Deal) => (type: ActivityType, detail: string, actor: Activ
 
 /** Agreed price: create the UPI deal-lock payment and start the 180s invoice clock. */
 async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
+  // Shopify/WooCommerce stores: the shopper pays on the seller's own checkout with a single-use code.
+  if (deal.shop?.platform && GRANT_PLATFORMS.has(deal.shop.platform)) {
+    try {
+      return await issueGrant(deal, price, agreedBy);
+    } catch (err) {
+      if (err instanceof GrantError) throw new HaggleError(err.message);
+      console.error("price grant failed", err);
+      throw new HaggleError("Couldn't create your discount code on the store. Try accepting again.");
+    }
+  }
   let payment;
   try {
     payment = await createDealPayment({ dealId: deal.id, title: deal.product.title });

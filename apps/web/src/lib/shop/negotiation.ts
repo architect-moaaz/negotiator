@@ -1,5 +1,6 @@
 import { inr, TIER_LIMITS, type SellerTier } from "@ghostcart/core";
 import { assertCanHaggle, FraudBlock } from "../fraud/checks";
+import { grantAdapterFor, GRANT_PLATFORMS } from "../grants/adapters";
 import { allowedReturnUrl } from "../integrations/keys";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
@@ -27,8 +28,14 @@ export async function startShopNegotiation(productId: string, userId: string, op
   const store = product && (await getStore(product.storeId));
   if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
   if (store.status !== "live") throw new ShopError("This shop isn't open yet.", 409);
-  // Without a settlement gateway the buyer's money would land with GhostCart instead of on hold for the seller.
-  if (!settlementGateway()) throw new ShopError("This shop isn't taking payments yet. Check back soon.", 503);
+  const grants = GRANT_PLATFORMS.has(store.platform);
+  if (grants) {
+    // Shopify/Woo: paid on the seller's own checkout with a discount code, so the store must be connected.
+    if (!(await grantAdapterFor(store))) throw new ShopError(`${store.name}'s store isn't connected to GhostCart right now.`, 503);
+  } else if (!settlementGateway()) {
+    // Without a settlement gateway the buyer's money would land with GhostCart instead of on hold for the seller.
+    throw new ShopError("This shop isn't taking payments yet. Check back soon.", 503);
+  }
   if (product.stock < 1) throw new ShopError("Out of stock right now.", 409);
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (product.price > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
@@ -71,7 +78,7 @@ export async function startShopNegotiation(productId: string, userId: string, op
     city: opts.city,
     channel: "web",
     userId,
-    shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
+    shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };
   await kv.saveDeal(deal, true);
   await kv.incrStats({ deals: 1 });

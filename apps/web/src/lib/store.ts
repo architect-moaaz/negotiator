@@ -39,7 +39,7 @@ const g = globalThis as typeof globalThis & { __ghostcartMem?: ReturnType<typeof
 const mem = (g.__ghostcartMem ??= createMem());
 
 function withExpiry(deal: Deal | null | undefined) {
-  const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval";
+  const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval" || deal?.status === "granted";
   if (deal && live && Date.now() > deal.expiresAt) deal.status = "expired";
   return deal ?? undefined;
 }

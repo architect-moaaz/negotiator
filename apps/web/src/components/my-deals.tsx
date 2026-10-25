@@ -11,6 +11,7 @@ const STATUS: Record<DealStatus, string> = {
   awaiting_approval: "Waiting for approval",
   pending: "Agreed, pay to lock",
   paid: "Locked",
+  granted: "Code ready",
   expired: "Expired",
 };
 
