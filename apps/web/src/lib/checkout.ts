@@ -1,10 +1,9 @@
 import { inr } from "./format";
-import { BALANCE_REF_SUFFIX, createBalancePayment } from "./payments";
+import { BALANCE_REF_SUFFIX, createBalancePayment, PaymentsUnavailableError } from "./payments";
 import { store } from "./store";
 import { normalizePhone } from "./users";
 import { FULFILMENT_STAGES } from "./fulfilment";
 import type { Deal, DeliveryAddress, PublicCheckout } from "./types";
-import { sendWhatsApp } from "./whatsapp";
 
 export const CHECKOUT_WINDOW_MS = Number(process.env.CHECKOUT_WINDOW_MINUTES ?? 30) * 60 * 1000;
 // A UPI payment made in the last seconds of the window still counts.
@@ -73,21 +72,20 @@ export async function saveAddress(deal: Deal, address: DeliveryAddress) {
 
   if (c.amount === 0) return placeOrder(deal, "no balance due");
   if (!c.upiIntent && !c.qrDataUrl) {
-    Object.assign(c, await createBalancePayment({ dealId: deal.id, title: deal.product.title, amountInr: c.amount }));
-    await log(
-      deal,
-      "payment_link_created",
-      c.pinelabsOrderId
-        ? `Pine Labs UPI order ${c.pinelabsOrderId} for the ${inr(c.amount)} balance`
-        : c.qrDataUrl
-          ? `Static UPI QR for the ${inr(c.amount)} balance`
-          : "No UPI QR available for the balance; simulated payment enabled",
-    );
+    try {
+      Object.assign(c, await createBalancePayment({ dealId: deal.id, title: deal.product.title, amountInr: c.amount }));
+    } catch (err) {
+      if (!(err instanceof PaymentsUnavailableError)) throw err;
+      await store.saveDeal(deal); // keep the address; the payment can be issued on the next try
+      await log(deal, "payment_link_created", `No balance payment for ${inr(c.amount)}: ${err.message}`);
+      throw new CheckoutError("Your address is saved, but payments are paused right now. Try again in a few minutes.", 503);
+    }
+    await log(deal, "payment_link_created", `Pine Labs UPI order ${c.pinelabsOrderId} for the ${inr(c.amount)} balance`);
   }
   return store.saveDeal(deal);
 }
 
-/** Balance paid: place the order. Idempotent across pollers, the webhook and the simulate button. */
+/** Balance paid: place the order. Idempotent across pollers and the webhook. */
 export async function placeOrder(deal: Deal, source: string) {
   const c = deal.checkout;
   if (!c || c.status === "ordered") return deal;
@@ -109,11 +107,6 @@ export async function placeOrder(deal: Deal, source: string) {
     "order_placed",
     `${source}: ${inr(c.amount)} balance paid${c.pinelabsOrderId ? ` (Pine Labs order ${c.pinelabsOrderId})` : ""}; order ${c.orderRef} for ${deal.product.title} to ${c.address.city} ${c.address.pincode}`,
   );
-  if (deal.waFrom) {
-    await sendWhatsApp(deal.waFrom, `📦 Order ${c.orderRef} placed! ${deal.product.title} ships to ${c.address.city} ${c.address.pincode}. We'll message you with tracking.`).catch((err) =>
-      console.error("WhatsApp order confirm failed", err),
-    );
-  }
   return deal;
 }
 
@@ -133,9 +126,6 @@ export async function advanceOrder(deal: Deal, { courier, awb, by }: { courier?:
   c.tracking.push({ stage: next.stage, at: Date.now(), note });
   await store.saveDeal(deal);
   await store.log({ type: "order_status", actor: "human", userId: deal.userId, dealId: deal.id, detail: `${c.orderRef} → ${next.label}${note ? ` (${note})` : ""} by ${by}` });
-  if (deal.waFrom) {
-    await sendWhatsApp(deal.waFrom, `📦 ${c.orderRef}: ${next.label}${note ? ` (${note})` : ""}. ${deal.product.title}`).catch((err) => console.error("WhatsApp tracking update failed", err));
-  }
   return deal;
 }
 

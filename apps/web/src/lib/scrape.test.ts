@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_URL } from "./format";
-import { queryFromUrl, scrapeProduct } from "./scrape";
+import { queryFromUrl } from "./scrape";
 
 describe("queryFromUrl", () => {
   it("reads product names from Amazon and Flipkart slugs", () => {
@@ -65,14 +64,6 @@ describe("extractListingSeller", () => {
   it("ignores pages without a seller", async () => {
     const { extractListingSeller } = await import("./scrape");
     expect(extractListingSeller("[Become a Seller](https://seller.flipkart.com)", "https://www.flipkart.com/x")).toBeUndefined();
-  });
-});
-
-describe("demo listing", () => {
-  it("serves the demo product without scraping", async () => {
-    const p = await scrapeProduct(DEMO_URL);
-    expect(p.price).toBeGreaterThan(0);
-    expect(p.sourceUrl).toBe(DEMO_URL);
   });
 });
 

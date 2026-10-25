@@ -27,7 +27,7 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Staff access: roster (`STAFF`), roles, audit trail | `apps/web/src/lib/staff.ts` (`requireStaff` on every admin route) |
 | AgenticOrg agent tools (MCP server) and trigger | `apps/web/src/app/api/mcp/route.ts`, `apps/web/src/lib/agenticorg.ts`, [docs/agenticorg-setup.md](docs/agenticorg-setup.md) |
 | Voice approvals and login codes (Vobiz) | `apps/web/src/lib/vobiz.ts`, `apps/web/src/lib/voice-*.ts`, `apps/web/src/lib/otp.ts`, `apps/web/src/app/api/voice/*` |
-| Payments (Pine Labs, mock gateway for demos) and checkout | `apps/web/src/lib/pinelabs*.ts`, `apps/web/src/lib/payments.ts`, `apps/web/src/lib/checkout.ts` |
+| Payments (Pine Labs; test gateway off in production unless `ALLOW_TEST_PAYMENTS=1`) and checkout | `apps/web/src/lib/pinelabs*.ts`, `apps/web/src/lib/payments.ts`, `apps/web/src/lib/checkout.ts` |
 | Accounts, sellers, sessions | `apps/web/src/lib/session.ts` (server-side, revocable), `users.ts`, `sellers.ts`, `deal-access.ts`, `apps/web/src/app/api/auth/*`; OTP-verified signup in `api/signup` and `api/sellers` |
 | Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |

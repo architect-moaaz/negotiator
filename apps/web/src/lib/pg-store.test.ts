@@ -21,7 +21,7 @@ function deal(id: string, createdAt = Date.now(), status: Deal["status"] = "nego
     haggle: "",
     negotiation: { terms, currentOffer: terms.opening, rounds: 0, messages: [] },
     lockFee: 9,
-    simulate: true,
+    testPayments: true,
     createdAt,
     expiresAt: createdAt + 600_000,
     status,

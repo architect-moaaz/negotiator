@@ -19,7 +19,7 @@ async function invoicedDeal(id: string): Promise<Deal> {
     bestSeller: "Amazon",
     haggle: "",
     lockFee: 9,
-    simulate: true,
+    testPayments: true,
     createdAt: Date.now(),
     expiresAt: Date.now() + 180_000,
     status: "pending",
@@ -30,7 +30,7 @@ async function invoicedDeal(id: string): Promise<Deal> {
 
 describe("checkout after the deal is locked", () => {
   it("opens a 30-minute window for the balance once the lock fee is paid", async () => {
-    const deal = await markPaid(await invoicedDeal("co-open"), "simulated");
+    const deal = await markPaid(await invoicedDeal("co-open"), "pinelabs");
     expect(deal.checkout).toMatchObject({ status: "awaiting", amount: 5040 });
     expect(deal.checkout!.dueAt - deal.checkout!.openedAt).toBe(CHECKOUT_WINDOW_MS);
   });
@@ -42,13 +42,13 @@ describe("checkout after the deal is locked", () => {
   });
 
   it("takes the address, issues the balance payment, places the order and tracks it to delivery", async () => {
-    const deal = await markPaid(await invoicedDeal("co-flow"), "simulated");
+    const deal = await markPaid(await invoicedDeal("co-flow"), "pinelabs");
     await saveAddress(deal, parseAddress(address));
     const pub = toPublic(deal);
     expect(pub.checkout?.deliverTo).toEqual({ name: "Asha Rao", area: "Bengaluru 560001" });
     expect(JSON.stringify(pub)).not.toContain("MG Road"); // full address never reaches the browser
 
-    await placeOrder(deal, "simulated");
+    await placeOrder(deal, "pinelabs");
     expect(deal.checkout).toMatchObject({ status: "ordered", orderRef: "GC-CO-FLO" });
     expect(deal.checkout!.tracking!.map((t) => t.stage)).toEqual(["placed"]);
 
@@ -62,7 +62,7 @@ describe("checkout after the deal is locked", () => {
   });
 
   it("releases the lock when the window runs out", async () => {
-    const deal = await markPaid(await invoicedDeal("co-lapse"), "simulated");
+    const deal = await markPaid(await invoicedDeal("co-lapse"), "pinelabs");
     deal.checkout!.dueAt = Date.now() - 60_000;
     expect(await syncCheckout(deal)).toBe(true);
     expect(deal.checkout!.status).toBe("lapsed");

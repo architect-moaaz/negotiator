@@ -3,8 +3,12 @@ import { store } from "./store";
 /**
  * Stand-in for the Pine Labs Online UAT gateway, enabled with PINELABS_MODE=mock. It serves the same
  * endpoints and response shapes our client uses, so swapping in real UAT keys is env-only.
+ * Anyone can "pay" on it, so the production deployment refuses it unless ALLOW_TEST_PAYMENTS=1 is set
+ * on purpose (and then every deal is labelled test mode).
  */
-export const pinelabsMockEnabled = process.env.PINELABS_MODE === "mock";
+export const pinelabsMockConfigured = process.env.PINELABS_MODE === "mock";
+export const testPaymentsAllowed = process.env.VERCEL_ENV !== "production" || process.env.ALLOW_TEST_PAYMENTS === "1";
+export const pinelabsMockEnabled = pinelabsMockConfigured && testPaymentsAllowed;
 
 export type MockOrderStatus = "CREATED" | "PENDING" | "PROCESSED" | "FAILED";
 

@@ -500,6 +500,7 @@ export function CheckoutPanel({
                 Scan with your phone camera to pay · Pine Labs
               </p>
             )}
+            {deal.testPayments && <p className="text-center font-sans font-semibold">Test mode: no money moves.</p>}
           </div>
         )}
 
