@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ErrorText, field, secondary } from "./ui";
+import { WhatsAppConnect } from "./whatsapp-connect";
 
 interface Key {
   id: string;
@@ -80,6 +81,7 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
           </a>
         </section>
       )}
+      <ChatChannels storeId={storeId} />
       {platform === "amazon" && <AmazonSection storeId={storeId} />}
       {platform === "flipkart" && (
         <section>
@@ -240,6 +242,27 @@ function AmazonSection({ storeId }: { storeId: string }) {
         </a>
       )}
       <p className="mt-3 text-sm text-muted">No access to Seller Central? Download your inventory report as a file and use &quot;Import a CSV&quot; on the Products tab instead.</p>
+    </section>
+  );
+}
+
+/** Shoppers haggle with your agent in chat: WhatsApp now, Instagram next. */
+function ChatChannels({ storeId }: { storeId: string }) {
+  const [conns, setConns] = useState<ConnectionRow[] | null>(null);
+  const load = useCallback(async () => {
+    const r = await api<{ connections: ConnectionRow[] }>(`/api/seller/stores/${storeId}/connections`);
+    if (r.ok) setConns(r.data.connections);
+  }, [storeId]);
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+  const wa = conns?.find((c) => c.platform === "whatsapp");
+  return (
+    <section>
+      <h2 className="text-xl font-semibold">WhatsApp</h2>
+      <p className="mt-1 text-muted">Shoppers message your WhatsApp Business number, pick a product and bargain with your agent there. It uses your own number and your discount rules.</p>
+      {wa ? <p className="mt-3">Connected: shoppers can message {wa.externalId === "1099000000001" ? "your test number" : "your number"} to haggle.</p> : conns && <WhatsAppConnect storeId={storeId} onConnected={load} />}
     </section>
   );
 }

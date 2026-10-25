@@ -10,10 +10,18 @@ const SHOPIFY = "http://shopify.test/api/mock-shopify";
 process.env.SHOPIFY_ADMIN_BASE ??= SHOPIFY;
 const AMAZON = "http://amazon.test/api/mock-amazon";
 for (const k of ["AMAZON_CONSENT_BASE", "AMAZON_LWA_BASE", "AMAZON_SPAPI_BASE"]) process.env[k] ??= AMAZON;
+const META = "http://meta.test/api/mock-meta";
+process.env.META_GRAPH_BASE ??= META;
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(META)) {
+    const mock = await import("./src/app/api/mock-meta/[...path]/route");
+    const request = new Request(url, init);
+    const ctx = { params: Promise.resolve({ path: new URL(url).pathname.replace("/api/mock-meta/", "").split("/") }) };
+    return request.method === "GET" ? mock.GET(request, ctx) : mock.POST(request, ctx);
+  }
   if (url.startsWith(AMAZON)) {
     const mock = await import("./src/app/api/mock-amazon/[...path]/route");
     const request = new Request(url, init);

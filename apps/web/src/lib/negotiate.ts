@@ -1,6 +1,7 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
 import { openCheckout, toPublicCheckout } from "./checkout";
 import { chooseMove, computeTerms, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { notifyChat } from "./chat/engine";
 import { GRANT_PLATFORMS } from "./grants/adapters";
 import { GrantError, issueGrant } from "./grants/service";
 import { createDealPayment, LOCK_FEE_INR, PaymentsUnavailableError, testPayments } from "./payments";
@@ -306,6 +307,7 @@ export async function counterFromApprover(deal: Deal, price: number, decidedBy: 
   Object.assign(n, { currentOffer: price, rounds: MAX_ROUNDS });
   Object.assign(deal, { status: "negotiating", dealPrice: price, saved: deal.originalPrice - price, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   await store.saveDeal(deal);
+  await notifyChat(deal);
   return deal;
 }
 
@@ -338,6 +340,7 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
     Object.assign(deal, { status: "negotiating", dealPrice: final, saved: deal.originalPrice - final, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   }
   await store.saveDeal(deal);
+  await notifyChat(deal);
   return deal;
 }
 
