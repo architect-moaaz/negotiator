@@ -12,7 +12,7 @@ import { checkDnsTxt, checkMetaTag } from "./ownership";
 
 const { kycChecks, orgs, stores } = schema;
 
-export type CheckType = "pan" | "gstin" | "bank" | "ownership_dns" | "ownership_meta" | "ownership_photo" | "ownership_marketplace";
+export type CheckType = "pan" | "gstin" | "bank" | "ownership_dns" | "ownership_meta" | "ownership_photo" | "ownership_marketplace" | "ownership_platform";
 export type CheckStatus = "pending" | "passed" | "failed" | "manual_review";
 export type KycCheck = typeof kycChecks.$inferSelect & { type: CheckType; status: CheckStatus };
 
@@ -155,8 +155,9 @@ export async function checksFor(store: Pick<Store, "id" | "orgId">) {
 /** What each platform needs to prove the seller runs the store. */
 const OWNERSHIP: Record<string, CheckType[]> = {
   website: ["ownership_dns", "ownership_meta"],
-  shopify: ["ownership_dns", "ownership_meta"],
-  woocommerce: ["ownership_dns", "ownership_meta"],
+  // Installing the GhostCart app or plugin from the store's own admin proves ownership.
+  shopify: ["ownership_platform", "ownership_dns", "ownership_meta"],
+  woocommerce: ["ownership_platform", "ownership_dns", "ownership_meta"],
   ghostcart_shop: ["ownership_photo"],
   amazon: ["ownership_marketplace"],
   flipkart: ["ownership_marketplace"],

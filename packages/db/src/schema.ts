@@ -518,3 +518,23 @@ export const webhookDeliveries = pgTable(
   },
   (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId), index("webhook_deliveries_retry_idx").on(t.status, t.nextAttemptAt)],
 );
+
+/** A seller's connection to their own commerce platform (Shopify today, WooCommerce next). Tokens encrypted. */
+export const platformConnections = pgTable(
+  "platform_connections",
+  {
+    id: text("id").primaryKey(),
+    /** Null until the installing merchant signs in to GhostCart and picks or creates the store. */
+    storeId: text("store_id").references(() => stores.id, { onDelete: "set null" }),
+    platform: text("platform").notNull(),
+    /** e.g. zz-shop.myshopify.com, or the WooCommerce site URL. */
+    externalId: text("external_id").notNull(),
+    accessTokenEncrypted: text("access_token_encrypted").notNull(),
+    scopes: text("scopes"),
+    /** Platform-specific settings: billing subscription id, primary domain, … */
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
+    installedAt: ts("installed_at").notNull().defaultNow(),
+    uninstalledAt: ts("uninstalled_at"),
+  },
+  (t) => [uniqueIndex("platform_connections_external_idx").on(t.platform, t.externalId), index("platform_connections_store_idx").on(t.storeId)],
+);

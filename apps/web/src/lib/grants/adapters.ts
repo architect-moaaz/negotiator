@@ -8,6 +8,8 @@ import type { Store } from "../shop/stores";
  */
 export interface GrantAdapter {
   platform: string;
+  /** Can this store take a grant right now (e.g. the app is still installed)? Defaults to yes. */
+  ready?(store: Store): Promise<boolean>;
   createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date }): Promise<{ checkoutUrl: string }>;
 }
 
@@ -39,6 +41,6 @@ export function registerGrantAdapter(platform: string, adapter: GrantAdapter) {
 export async function grantAdapterFor(store: Store): Promise<GrantAdapter | null> {
   await import("./registry"); // platform adapters register on import
   const adapter = registry.get(store.platform);
-  if (adapter) return adapter;
+  if (adapter) return !adapter.ready || (await adapter.ready(store)) ? adapter : null;
   return process.env.VERCEL_ENV === "production" ? null : mock;
 }

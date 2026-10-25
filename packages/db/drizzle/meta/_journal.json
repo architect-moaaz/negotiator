@@ -50,6 +50,13 @@
       "when": 1792953396111,
       "tag": "0006_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792954236147,
+      "tag": "0007_platform_connections",
+      "breakpoints": true
     }
   ]
 }
