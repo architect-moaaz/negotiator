@@ -84,7 +84,7 @@ export function MockPayment({ orderId }: { orderId: string }) {
         )}
         {order.status === "CREATED" && <p className="text-center font-sans text-paper-muted">Waiting for the payment request…</p>}
       </section>
-      <p className="mt-4 text-center text-xs text-muted">Simulates Pine Labs Online UPI (UAT) for today&apos;s demo.</p>
+      <p className="mt-4 text-center text-xs text-muted">Test gateway standing in for Pine Labs UPI until live payments are switched on.</p>
     </div>
   );
 }

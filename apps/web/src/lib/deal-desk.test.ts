@@ -20,7 +20,7 @@ async function escalatedDeal(id: string): Promise<Deal> {
     haggle: "",
     negotiation: { terms, currentOffer: 19495, rounds: 2, messages: [], approval: { price: 19200, requestedAt: Date.now() } },
     lockFee: 9,
-    simulate: true,
+    testPayments: true,
     createdAt: Date.now(),
     expiresAt: Date.now() + 600_000,
     status: "awaiting_approval",

@@ -1,3 +1,5 @@
+> **Historical:** the AI Builders Day hackathon brief (24 Oct 2026). Some features here (WhatsApp sandbox, simulated payments, the voice pitch) have since been removed; the current plan is [PRODUCT_PLAN.md](PRODUCT_PLAN.md).
+
 # GhostCart — AI Cart Hijacker & Dynamic Deal Counter
 
 ## Pitch

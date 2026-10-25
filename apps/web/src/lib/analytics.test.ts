@@ -43,7 +43,7 @@ describe("computeAnalytics", () => {
       bestSeller: "Amazon",
       haggle: "",
       lockFee: 9,
-      simulate: true,
+      testPayments: true,
       createdAt: Date.now(),
       expiresAt: Date.now(),
       channel: "web",

@@ -1,7 +1,7 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
 import { openCheckout, toPublicCheckout } from "./checkout";
 import { chooseMove, computeTerms, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
-import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
+import { createDealPayment, LOCK_FEE_INR, PaymentsUnavailableError, testPayments } from "./payments";
 import { inr, shortTitle } from "./format";
 import { matchListingSeller } from "./sellers";
 import { maskPhone, normalizePhone } from "./users";
@@ -9,7 +9,6 @@ import { placeCall, vobizConfigured } from "./vobiz";
 import { findAlternatives, queryFromUrl, sameProductQuotes, scrapeProduct } from "./scrape";
 import { store } from "./store";
 import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Offer, Product, PublicDeal, Seller, SellerQuote } from "./types";
-import { sendWhatsApp } from "./whatsapp";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
 const NEGOTIATION_WINDOW_MS = 15 * 60 * 1000;
@@ -21,7 +20,6 @@ export { inr };
 export function toPublic(deal: Deal): PublicDeal {
   const pub: Partial<Deal> = { ...deal };
   delete pub.pinelabsOrderId;
-  delete pub.waFrom;
   delete pub.userId;
   delete pub.negotiation;
   delete pub.checkout;
@@ -46,7 +44,7 @@ export function toPublic(deal: Deal): PublicDeal {
 
 export async function runNegotiation(
   input: DealInput,
-  ctx: { city?: string; channel: Channel; waFrom?: string; userId?: string },
+  ctx: { city?: string; channel: Channel; userId?: string },
   emit: (e: NegotiationEvent) => void = () => {},
 ): Promise<Deal> {
   let product: Product;
@@ -137,13 +135,12 @@ export async function runNegotiation(
       messages: [{ from: "agent", text: haggle.trim(), price: terms.opening, at: now }],
     },
     lockFee: LOCK_FEE_INR,
-    simulate: simulateEnabled,
+    testPayments,
     createdAt: now,
     expiresAt: now + NEGOTIATION_WINDOW_MS,
     status: "negotiating",
     city: ctx.city,
     channel: ctx.channel,
-    waFrom: ctx.waFrom,
     userId,
   };
 
@@ -159,12 +156,20 @@ const logFor = (deal: Deal) => (type: ActivityType, detail: string, actor: Activ
 
 /** Agreed price: create the UPI deal-lock payment and start the 180s invoice clock. */
 async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
-  const payment = await createDealPayment({ dealId: deal.id, title: deal.product.title });
+  let payment;
+  try {
+    payment = await createDealPayment({ dealId: deal.id, title: deal.product.title });
+  } catch (err) {
+    if (!(err instanceof PaymentsUnavailableError)) throw err;
+    await logFor(deal)("payment_link_created", `No lock payment for ${inr(price)}: ${err.message}`, "system");
+    // Nothing is saved, so the deal stays where it was and the shopper can accept again.
+    throw new HaggleError("Your price is agreed, but payments are paused right now. Try again in a few minutes.");
+  }
   Object.assign(deal, payment, {
     dealPrice: price,
     saved: deal.originalPrice - price,
     status: "pending",
-    simulate: simulateEnabled || !payment.qrDataUrl,
+    testPayments,
     expiresAt: Date.now() + TTL_MS,
   });
   if (deal.negotiation) deal.negotiation.currentOffer = price;
@@ -172,11 +177,7 @@ async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
   await log("deal_agreed", `Agreed ${inr(price)} (${agreedBy}); saves ${inr(deal.saved)} vs ${inr(deal.originalPrice)}`, "agent");
   await log(
     "payment_link_created",
-    deal.pinelabsOrderId
-      ? `Pine Labs UPI order ${deal.pinelabsOrderId} for ${inr(deal.lockFee)} deal lock, ${TTL_MS / 1000}s window`
-      : deal.qrDataUrl
-        ? `Static UPI QR for ${inr(deal.lockFee)} deal lock`
-        : "No UPI QR available; simulated payment enabled",
+    `Pine Labs${testPayments ? " test" : ""} UPI order ${deal.pinelabsOrderId} for ${inr(deal.lockFee)} deal lock, ${TTL_MS / 1000}s window`,
     "system",
   );
   return deal;
@@ -317,7 +318,7 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
 }
 
 /** Idempotently mark a deal paid, update stats, broadcast to the ticker and confirm on WhatsApp. */
-export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhook" | "simulated") {
+export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhook") {
   if (deal.status === "paid") return deal;
   if (!(await store.claimPaid(deal.id))) return { ...deal, status: "paid" as const };
 
@@ -339,10 +340,5 @@ export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhoo
     at: Date.now(),
     message: `Someone${deal.city ? ` in ${deal.city}` : ""} just grabbed ${shortTitle(deal.product.title)} for ${inr(deal.dealPrice)} instead of ${inr(deal.originalPrice)}`,
   });
-  if (deal.waFrom) {
-    await sendWhatsApp(deal.waFrom, `✅ Deal locked! ${deal.product.title} at ${inr(deal.dealPrice)} + ${deal.perk}. You saved ${inr(deal.saved)}.`).catch(
-      (err) => console.error("WhatsApp confirm failed", err),
-    );
-  }
   return deal;
 }

@@ -1,24 +1,27 @@
 import QRCode from "qrcode";
 import { createUpiOrder, pinelabsConfigured } from "./pinelabs";
+import { pinelabsMockConfigured, pinelabsMockEnabled } from "./pinelabs-mock";
 
 export const LOCK_FEE_INR = Number(process.env.DEAL_LOCK_FEE_INR ?? 9);
-export const simulateEnabled = process.env.DEMO_SIMULATE === "1" || !pinelabsConfigured;
 
-/** Create a UPI payment for a deal. Pine Labs when configured, otherwise a static-VPA QR. */
+/** Payments go through the test gateway: no money moves, and the deal page says so. */
+export const testPayments = pinelabsMockEnabled;
+/** A gateway we can confirm payments with: real Pine Labs, or the test gateway where it's allowed. */
+export const paymentsAvailable = pinelabsConfigured && (!pinelabsMockConfigured || pinelabsMockEnabled);
+
+/** No payment could be created. Callers turn this into a shopper-facing message; nothing is charged. */
+export class PaymentsUnavailableError extends Error {}
+
+/** Create a Pine Labs UPI payment. Never falls back to an unverifiable QR: if we can't confirm it, we don't ask for it. */
 async function createUpiPayment({ dealId, reference, amountInr, note }: { dealId: string; reference: string; amountInr: number; note: string }) {
-  if (pinelabsConfigured) {
-    try {
-      const { orderId, upiIntent } = await createUpiOrder({ reference, amountInr, note, returnTo: `/deal/${dealId}` });
-      return { pinelabsOrderId: orderId, upiIntent, qrDataUrl: await QRCode.toDataURL(upiIntent, { margin: 1 }) };
-    } catch (err) {
-      // Keep the demo alive if the gateway hiccups; the simulate button covers payment.
-      console.error("Pine Labs order failed", err);
-    }
+  if (!paymentsAvailable) throw new PaymentsUnavailableError("payments are not configured for this deployment");
+  try {
+    const { orderId, upiIntent } = await createUpiOrder({ reference, amountInr, note, returnTo: `/deal/${dealId}` });
+    return { pinelabsOrderId: orderId, upiIntent, qrDataUrl: await QRCode.toDataURL(upiIntent, { margin: 1 }) };
+  } catch (err) {
+    console.error("Pine Labs order failed", err);
+    throw new PaymentsUnavailableError("the payment gateway didn't accept the order");
   }
-
-  if (!process.env.UPI_FALLBACK_VPA) return {};
-  const upiIntent = `upi://pay?pa=${encodeURIComponent(process.env.UPI_FALLBACK_VPA)}&pn=GhostCart&am=${amountInr}&tn=${encodeURIComponent(`Deal ${reference}`)}&cu=INR`;
-  return { upiIntent, qrDataUrl: await QRCode.toDataURL(upiIntent, { margin: 1 }) };
 }
 
 /** The small UPI payment that locks a deal's price. */

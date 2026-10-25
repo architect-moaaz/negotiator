@@ -121,7 +121,7 @@ describe("deal ownership", () => {
         haggle: "",
         negotiation: { terms, currentOffer: 19500, rounds: 1, messages: [] },
         lockFee: 9,
-        simulate: false,
+        testPayments: false,
         createdAt: Date.now(),
         expiresAt: Date.now() + 600_000,
         status: "paid",

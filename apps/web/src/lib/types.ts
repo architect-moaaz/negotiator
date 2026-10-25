@@ -26,6 +26,7 @@ export interface Offer {
 /** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid (locked; checkout opens) | expired */
 export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "expired";
 
+/** "whatsapp" deals came from the hackathon Twilio sandbox (removed); the WhatsApp channel returns in Wave 3. */
 export type Channel = "web" | "whatsapp";
 
 export interface DeliveryAddress {
@@ -84,13 +85,13 @@ export interface Deal extends Offer {
   upiIntent?: string;
   qrDataUrl?: string;
   pinelabsOrderId?: string;
-  simulate: boolean;
+  /** Paid through the test gateway: no money moved. */
+  testPayments: boolean;
   createdAt: number;
   expiresAt: number;
   status: DealStatus;
   city?: string;
   channel: Channel;
-  waFrom?: string;
   userId?: string;
   checkout?: Checkout;
 }
@@ -108,7 +109,7 @@ export interface PublicNegotiation {
   callStatus?: ApprovalCall["status"];
   reviewedByAgent?: boolean;
 }
-export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "waFrom" | "userId" | "negotiation" | "checkout"> & {
+export type PublicDeal = Omit<Deal, "pinelabsOrderId" | "userId" | "negotiation" | "checkout"> & {
   negotiation?: PublicNegotiation;
   checkout?: PublicCheckout;
 };

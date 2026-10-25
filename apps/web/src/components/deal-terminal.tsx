@@ -198,6 +198,7 @@ export function DealTerminal({ id }: { id: string }) {
               </a>
             )}
             {deal.qrDataUrl && <p className="text-center text-paper-muted">Scan with your phone camera to pay · Pine Labs</p>}
+            {deal.testPayments && <p className="text-center font-sans font-semibold">Test mode: no money moves.</p>}
             <div className="font-sans text-center [&_p]:text-paper-muted">
               <SocialProof variant="compact" />
             </div>

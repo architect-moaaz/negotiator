@@ -1,23 +1,10 @@
-import QRCode from "qrcode";
-import Image from "next/image";
 import Link from "next/link";
 import { AccountLink } from "@/components/account-link";
 import { Negotiator } from "@/components/negotiator";
 import { SocialProof } from "@/components/social-proof";
 import { Ticker } from "@/components/ticker";
 
-async function whatsappQr() {
-  "use cache";
-  const number = process.env.NEXT_PUBLIC_TWILIO_WHATSAPP_NUMBER;
-  if (!number) return null;
-  const text = process.env.NEXT_PUBLIC_TWILIO_SANDBOX_JOIN || "Hi GhostCart";
-  const href = `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
-  return { href, qr: await QRCode.toDataURL(href, { margin: 1, color: { dark: "#15131f", light: "#f1eee4" } }) };
-}
-
-export default async function Home() {
-  const wa = await whatsappQr();
-
+export default function Home() {
   return (
     <>
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-8 sm:px-8">
@@ -67,16 +54,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {wa && (
-          <section className="mt-16 flex items-center gap-5 rounded-2xl border border-line p-5 sm:max-w-md">
-            <a href={wa.href} className="shrink-0" aria-label="Open GhostCart on WhatsApp">
-              <Image src={wa.qr} alt="" width={96} height={96} unoptimized className="rounded-md" />
-            </a>
-            <p className="text-muted">
-              <span className="text-fg">On your phone?</span> Scan to send links or screenshots to the GhostCart bot on WhatsApp.
-            </p>
-          </section>
-        )}
       </main>
       <Ticker />
     </>
