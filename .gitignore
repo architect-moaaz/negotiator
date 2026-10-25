@@ -51,3 +51,6 @@ backfill-export-*.json
 
 # Local-dev uploads (deployments use Vercel Blob)
 apps/web/public/uploads/
+
+# Built by packages/widget
+apps/web/public/widget/

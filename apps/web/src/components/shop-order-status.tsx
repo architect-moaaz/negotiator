@@ -15,7 +15,7 @@ interface BuyerOrder {
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
 /** For GhostCart Shop orders: what the seller has done, the handover code, and the buyer's options. */
-export function ShopOrderStatus({ dealId, storeName }: { dealId: string; storeName: string }) {
+export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: string; storeName: string; returnUrl?: string }) {
   const [order, setOrder] = useState<BuyerOrder | null>(null);
   const [problem, setProblem] = useState({ open: false, reason: "not_received", details: "" });
   const [error, setError] = useState("");
@@ -107,6 +107,11 @@ export function ShopOrderStatus({ dealId, storeName }: { dealId: string; storeNa
         <p role="alert" className="text-alarm">
           {error}
         </p>
+      )}
+      {returnUrl && (
+        <a href={returnUrl} className="inline-block text-muted underline underline-offset-4 hover:text-fg">
+          Back to {new URL(returnUrl).hostname}
+        </a>
       )}
     </div>
   );

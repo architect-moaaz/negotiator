@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ShopperSignup } from "../shopper-signup";
 
 /** Starts a negotiation on a shop product; asks the shopper to sign up first if needed. */
-export function HaggleButton({ productId, disabled, label }: { productId: string; disabled?: boolean; label: string }) {
+export function HaggleButton({ productId, disabled, label, returnUrl }: { productId: string; disabled?: boolean; label: string; returnUrl?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [needsSignup, setNeedsSignup] = useState(false);
@@ -14,7 +14,7 @@ export function HaggleButton({ productId, disabled, label }: { productId: string
   async function start() {
     setBusy(true);
     setError("");
-    const res = await fetch("/api/shop/haggle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId }) });
+    const res = await fetch("/api/shop/haggle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId, returnUrl }) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.status === 401 && data.needsSignup) return setNeedsSignup(true);

@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 import { PhoneLogin } from "../phone-login";
 import { ApprovalsTab } from "./approvals";
 import { DiscountsTab } from "./discounts";
+import { IntegrationsTab } from "./integrations";
 import { OrdersTab } from "./orders";
 import { ProductsTab } from "./products";
 import { VerificationTab } from "./verification";
@@ -61,7 +62,7 @@ export function SellerDashboard() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [data, setData] = useState<StoreData | null>(null);
   const [waiting, setWaiting] = useState(0);
-  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "verification">("products");
+  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "integrations" | "verification">("products");
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
@@ -195,7 +196,7 @@ export function SellerDashboard() {
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
-            {(["approvals", "orders", "products", "discounts", "verification"] as const).map((t) => (
+            {(["approvals", "orders", "products", "discounts", ...(data.role === "owner" ? (["integrations"] as const) : []), "verification"] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -213,6 +214,7 @@ export function SellerDashboard() {
           {tab === "orders" && <OrdersTab storeId={data.store.id} canAct={["owner", "admin"].includes(data.role)} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
+          {tab === "integrations" && <IntegrationsTab storeId={data.store.id} domain={data.store.domain} />}
           {tab === "verification" && <VerificationTab storeId={data.store.id} canManage={data.role === "owner"} onStatus={() => loadStore(data.store.id)} />}
         </>
       )}

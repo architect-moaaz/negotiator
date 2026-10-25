@@ -217,7 +217,12 @@ export const products = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("products_store_idx").on(t.storeId), index("products_category_idx").on(t.categoryId)],
+  (t) => [
+    index("products_store_idx").on(t.storeId),
+    index("products_category_idx").on(t.categoryId),
+    // Catalogue sync (/api/v1/products) upserts by SKU, so a SKU is unique within a store.
+    uniqueIndex("products_store_sku_idx").on(t.storeId, t.sku).where(sql`sku is not null`),
+  ],
 );
 
 /** Discount rules. One row per level: the store default, a category, or a product. */
@@ -448,4 +453,68 @@ export const riskEvents = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("risk_events_created_idx").on(t.createdAt.desc()), index("risk_events_subject_idx").on(t.subjectType, t.subjectId)],
+);
+
+/* ---------- Integrations: API keys and outbound webhooks ---------- */
+
+/**
+ * Seller API keys. Publishable keys (gc_pk_) go in the widget on the seller's site and only work from
+ * its allowed origins; secret keys (gc_sk_) are for the seller's servers. Only a hash is stored.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    /** publishable | secret */
+    kind: text("kind").notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    /** First characters, to tell keys apart in the dashboard. */
+    prefix: text("prefix").notNull(),
+    allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
+    createdBy: text("created_by").notNull(),
+    lastUsedAt: ts("last_used_at"),
+    revokedAt: ts("revoked_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("api_keys_store_idx").on(t.storeId)],
+);
+
+/** Where GhostCart sends order events for a store, signed with a per-endpoint secret (stored encrypted). */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    secretEncrypted: text("secret_encrypted").notNull(),
+    events: jsonb("events").$type<string[]>().notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("webhook_endpoints_store_idx").on(t.storeId)],
+);
+
+/** Every delivery attempt, for the seller's "recent deliveries" view and retries. */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    endpointId: text("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    /** pending | delivered | failed */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    responseCode: integer("response_code"),
+    nextAttemptAt: ts("next_attempt_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId), index("webhook_deliveries_retry_idx").on(t.status, t.nextAttemptAt)],
 );

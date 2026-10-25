@@ -168,3 +168,20 @@ export async function takeStock(productId: string) {
     .returning({ id: products.id });
   return rows.length > 0;
 }
+
+/** A product by the seller's SKU, or by GhostCart product id. */
+export async function getProductByRef(storeId: string, ref: string) {
+  const db = await getDb();
+  const [bySku] = await db.select().from(products).where(and(eq(products.storeId, storeId), eq(products.sku, ref)));
+  if (bySku) return bySku;
+  const [byId] = await db.select().from(products).where(and(eq(products.storeId, storeId), eq(products.id, ref)));
+  return byId as Product | undefined;
+}
+
+/** Catalogue sync: create or update by SKU (the SKU is required here). */
+export async function upsertProductBySku(storeId: string, input: ProductInput & { sku?: string }) {
+  if (!input.sku?.trim()) throw new ProductError("Each product needs a sku.");
+  const existing = await getProductByRef(storeId, input.sku.trim());
+  if (existing && existing.sku === input.sku.trim()) return { product: (await updateProduct(storeId, existing.id, input))!, created: false };
+  return { product: await createProduct(storeId, input, "api"), created: true };
+}

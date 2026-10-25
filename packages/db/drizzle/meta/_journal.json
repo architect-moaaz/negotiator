@@ -43,6 +43,13 @@
       "when": 1792952998748,
       "tag": "0005_fraud_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792953396111,
+      "tag": "0006_integrations",
+      "breakpoints": true
     }
   ]
 }

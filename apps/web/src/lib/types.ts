@@ -95,7 +95,7 @@ export interface Deal extends Offer {
   userId?: string;
   checkout?: Checkout;
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
-  shop?: { storeId: string; productId: string; slug: string; storeName: string };
+  shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string };
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */

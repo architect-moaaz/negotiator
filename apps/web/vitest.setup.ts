@@ -10,7 +10,11 @@ process.env.NEXT_PUBLIC_APP_URL ??= "http://localhost:3000";
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  if (!url.startsWith(BASE)) return realFetch(input, init);
+  if (!url.startsWith(BASE)) {
+    // Tests never reach the internet: anything else fails like an unreachable host.
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) return realFetch(input, init);
+    throw new TypeError(`network disabled in tests: ${url}`);
+  }
   const gateway = await import("./src/app/api/mock-pinelabs/[...path]/route");
   const path = new URL(url).pathname.replace(/^\//, "").split("/");
   const request = new Request(url, init);

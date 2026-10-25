@@ -1,5 +1,6 @@
 import { inr, TIER_LIMITS, type SellerTier } from "@ghostcart/core";
 import { assertCanHaggle, FraudBlock } from "../fraud/checks";
+import { allowedReturnUrl } from "../integrations/keys";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
 import { store as kv } from "../store";
@@ -21,7 +22,7 @@ export class ShopError extends Error {
  * A shopper starts haggling on a GhostCart Shop product. The seller's list price is the benchmark and
  * their discount rules set the limits; from here the normal haggle, approval and checkout flow runs.
  */
-export async function startShopNegotiation(productId: string, userId: string, opts: { channel?: string; city?: string; request?: Request } = {}) {
+export async function startShopNegotiation(productId: string, userId: string, opts: { channel?: string; city?: string; request?: Request; returnUrl?: string } = {}) {
   const product = await getProduct(productId);
   const store = product && (await getStore(product.storeId));
   if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
@@ -70,7 +71,7 @@ export async function startShopNegotiation(productId: string, userId: string, op
     city: opts.city,
     channel: "web",
     userId,
-    shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name },
+    shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };
   await kv.saveDeal(deal, true);
   await kv.incrStats({ deals: 1 });
