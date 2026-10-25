@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * v1 schema: mirrors what the Redis store holds today so the app can dual-write and then switch
@@ -600,4 +600,33 @@ export const grievances = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("grievances_status_idx").on(t.status)],
+);
+
+/**
+ * Analytics warehouse: one row per store per IST day, rolled up nightly from negotiations (which leave
+ * Redis after a week) and orders. Money in paise. Idempotent: a re-run replaces the day's row.
+ */
+export const storeDailyMetrics = pgTable(
+  "store_daily_metrics",
+  {
+    day: date("day").notNull(),
+    storeId: text("store_id").notNull(),
+    orgId: text("org_id").notNull(),
+    negotiations: integer("negotiations").notNull().default(0),
+    agreed: integer("agreed").notNull().default(0),
+    escalated: integer("escalated").notNull().default(0),
+    humanApproved: integer("human_approved").notNull().default(0),
+    humanRejected: integer("human_rejected").notNull().default(0),
+    /** Sum of list prices and agreed prices over agreed deals: average discount = 1 - agreed / list. */
+    listValue: bigint("list_value", { mode: "number" }).notNull().default(0),
+    agreedValue: bigint("agreed_value", { mode: "number" }).notNull().default(0),
+    totalRounds: integer("total_rounds").notNull().default(0),
+    orders: integer("orders").notNull().default(0),
+    gmv: bigint("gmv", { mode: "number" }).notNull().default(0),
+    fees: bigint("fees", { mode: "number" }).notNull().default(0),
+    refunds: bigint("refunds", { mode: "number" }).notNull().default(0),
+    disputes: integer("disputes").notNull().default(0),
+    computedAt: ts("computed_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.storeId] }), index("store_daily_metrics_org_idx").on(t.orgId, t.day)],
 );

@@ -71,6 +71,13 @@
       "when": 1792957870467,
       "tag": "0009_disclosures",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792958901094,
+      "tag": "0010_analytics",
+      "breakpoints": true
     }
   ]
 }
