@@ -22,9 +22,6 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec tsc --noEmit
-      - run: pnpm lint
-      - run: pnpm test
-      - run: pnpm build
+      - run: pnpm turbo run typecheck lint test build
         env:
           NEXT_TELEMETRY_DISABLED: "1"

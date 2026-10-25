@@ -1,40 +1,16 @@
 {
   "name": "ghostcart",
-  "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.87",
-    "@mendable/firecrawl-js": "^4.51.0",
-    "@modelcontextprotocol/server": "2.3.1",
-    "@upstash/redis": "^1.39.0",
-    "ai": "^7.0.152",
-    "mcp-handler": "2.3.0",
-    "kokoro-js": "^1.2.1",
-    "next": "16.4.3",
-    "qrcode": "^1.5.4",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "twilio": "^6.2.0",
-    "zod": "^4.6.7"
+    "dev": "turbo run dev --filter=@ghostcart/web",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "check": "turbo run typecheck lint test build"
   },
   "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
-    "@types/qrcode": "^1.5.6",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.3",
-    "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^5.0.5"
-  },
-  "packageManager": "pnpm@10.33.0"
+    "turbo": "2.5.8"
+  }
 }
