@@ -20,7 +20,7 @@ async function paidShopOrder(price = 10000, tier: "new" | "verified" = "new") {
   let deal = await startShopNegotiation(product.id, `buyer-${n}`);
   deal = await acceptOffer(deal);
   deal = await markPaid(deal, "pinelabs");
-  deal = await saveAddress(deal, { name: "ZZ Buyer", phone: "+919000001299", line1: "1 Test Street", city: "Bengaluru", state: "Karnataka", pincode: "560038" });
+  deal = await saveAddress(deal, { name: "ZZ Buyer", phone: "+919000001299", line1: `${Math.random().toString(36).slice(2, 8)} Test Street`, city: "Bengaluru", state: "Karnataka", pincode: "560038" });
   deal = await placeOrder(deal, "pinelabs");
   return { store: s, deal, order: (await orderForDeal(deal.id))! };
 }

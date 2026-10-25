@@ -1,4 +1,5 @@
 import { demographicsFrom } from "@/lib/demographics";
+import { linkDevice } from "@/lib/fraud/signals";
 import { OtpError, sendLoginCode, verifyLoginCode } from "@/lib/otp";
 import { codeLimits, rateLimit, verifyLimits } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
@@ -48,5 +49,6 @@ export async function POST(request: Request) {
   const demographics = demographicsFrom(request, { referrer: body.referrer, source: body.source });
   const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics });
   await startSession("buyer", user.id);
+  await linkDevice(request, "buyer", user.id);
   return Response.json(publicUser(user));
 }

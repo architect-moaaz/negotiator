@@ -36,6 +36,13 @@
       "when": 1792952411692,
       "tag": "0004_shipments_disputes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792952998748,
+      "tag": "0005_fraud_signals",
+      "breakpoints": true
     }
   ]
 }

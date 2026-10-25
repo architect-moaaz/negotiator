@@ -118,7 +118,7 @@ describe("deal ownership", () => {
           openedAt: Date.now(),
           dueAt: Date.now() + 600_000,
           amount: 19491,
-          address: { name: "ZZ Owner", phone: "+919000000305", line1: "1 Test Street", city: "Bengaluru", state: "Karnataka", pincode: "560038" },
+          address: { name: "ZZ Owner", phone: "+919000000305", line1: `${Math.random().toString(36).slice(2, 8)} Test Street`, city: "Bengaluru", state: "Karnataka", pincode: "560038" },
         },
       },
       true,

@@ -1,6 +1,6 @@
 import { accounts, orderMoney, paidPostings, refundPostings, releasePostings, TIER_LIMITS, type Held, type SellerTier } from "@ghostcart/core";
 import { schema } from "@ghostcart/db";
-import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../db";
 import { getStore } from "../shop/stores";
@@ -82,7 +82,8 @@ export async function createOrderFromDeal(deal: Deal) {
   await db.insert(holds).values({ orderId: order.id, amount: m.sellerShare, gateway: gateway.name, gatewayRef: ref });
   await post(db, { orderId: order.id, kind: "paid", postings: paidPostings(m, shopStore.id), memo: `deal ${deal.id}` });
   await log(order, `placed; ₹${m.total / 100} paid, seller share ₹${m.sellerShare / 100} held (${gateway.name} ${ref}); ship by ${order.shipBy.toISOString()}`);
-  return order;
+  const { flagOrderIfRisky } = await import("../fraud/checks");
+  return flagOrderIfRisky(order);
 }
 
 /** What's still held for an order, read from the ledger. */
@@ -120,6 +121,7 @@ export async function releaseOrder(orderId: string) {
   if (!order || !hold) throw new OrderError("Order not found.", 404);
   if (hold.state !== "held") throw new OrderError(`The payout is ${hold.state}.`, 409);
   if (order.status !== "delivered") throw new OrderError("Payouts release only after delivery.", 409);
+  if (order.flagged) throw new OrderError(`Held for a fraud review: ${order.flagged}`, 409);
   const gateway = settlementGateway();
   if (!gateway) throw new OrderError("No settlement gateway.", 503);
   // Claim the hold first so two runs can't release it twice.
@@ -186,7 +188,7 @@ export async function runOrderJobs(now = new Date()) {
     .select({ orderId: holds.orderId })
     .from(holds)
     .innerJoin(orders, eq(orders.id, holds.orderId))
-    .where(and(eq(holds.state, "held"), isNotNull(holds.releaseAt), lte(holds.releaseAt, now), eq(orders.status, "delivered")));
+    .where(and(eq(holds.state, "held"), isNotNull(holds.releaseAt), lte(holds.releaseAt, now), eq(orders.status, "delivered"), isNull(orders.flagged)));
   const released: string[] = [];
   for (const { orderId } of due) {
     try {
@@ -196,7 +198,8 @@ export async function runOrderJobs(now = new Date()) {
       console.error(`couldn't release order ${orderId}`, err);
     }
   }
-  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released };
+  const promoted = await promoteStores();
+  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted };
 }
 
 /** Seller money at a glance: on hold until delivery, and released (on its way to the bank). */
@@ -214,4 +217,21 @@ export async function ordersForStore(storeId: string, statuses?: string[]) {
     .from(orders)
     .where(statuses ? and(eq(orders.storeId, storeId), inArray(orders.status, statuses)) : eq(orders.storeId, storeId))
     .orderBy(sql`${orders.createdAt} desc`);
+}
+
+/** Verified stores whose track record earns "trusted" move up (higher order cap, shorter payout hold). */
+async function promoteStores() {
+  const db = await getDb();
+  const candidates = await db.select({ id: schema.stores.id }).from(schema.stores).where(and(eq(schema.stores.status, "live"), eq(schema.stores.tier, "verified")));
+  const { storeTrackRecord } = await import("../fraud/checks");
+  const { recordRisk } = await import("../fraud/signals");
+  const { earnsTrusted } = await import("@ghostcart/core");
+  const promoted: string[] = [];
+  for (const r of await storeTrackRecord(candidates.map((c) => c.id))) {
+    if (!earnsTrusted(r)) continue;
+    await db.update(schema.stores).set({ tier: "trusted" }).where(eq(schema.stores.id, r.storeId));
+    await recordRisk("tier_promoted", "info", "store", r.storeId, r);
+    promoted.push(r.storeId);
+  }
+  return promoted;
 }

@@ -1,4 +1,5 @@
 import { OtpError, verifyLoginCode, type LoginRole } from "@/lib/otp";
+import { linkDevice } from "@/lib/fraud/signals";
 import { rateLimit, verifyLimits } from "@/lib/rate-limit";
 import { startSession } from "@/lib/session";
 import { staffRoster } from "@/lib/staff";
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
 
   if (role === "member") {
     await startSession("member", phone);
+    await linkDevice(request, "member", phone);
     await store.log({ type: "login", actor: "seller", detail: `Seller ${maskPhone(phone)} signed in with a phone code` });
     return Response.json({ ok: true });
   }
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
   user.lastLoginAt = Date.now();
   await store.updateUser(user);
   await startSession("buyer", user.id);
+  await linkDevice(request, "buyer", user.id);
   await store.log({ type: "login", actor: "user", userId: user.id, detail: `${user.name} logged in with a phone code` });
   return Response.json(publicUser(user));
 }

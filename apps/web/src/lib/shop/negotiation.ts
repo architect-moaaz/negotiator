@@ -1,4 +1,5 @@
 import { inr, TIER_LIMITS, type SellerTier } from "@ghostcart/core";
+import { assertCanHaggle, FraudBlock } from "../fraud/checks";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
 import { store as kv } from "../store";
@@ -20,7 +21,7 @@ export class ShopError extends Error {
  * A shopper starts haggling on a GhostCart Shop product. The seller's list price is the benchmark and
  * their discount rules set the limits; from here the normal haggle, approval and checkout flow runs.
  */
-export async function startShopNegotiation(productId: string, userId: string, opts: { channel?: string; city?: string } = {}) {
+export async function startShopNegotiation(productId: string, userId: string, opts: { channel?: string; city?: string; request?: Request } = {}) {
   const product = await getProduct(productId);
   const store = product && (await getStore(product.storeId));
   if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
@@ -30,6 +31,12 @@ export async function startShopNegotiation(productId: string, userId: string, op
   if (product.stock < 1) throw new ShopError("Out of stock right now.", 409);
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (product.price > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
+  try {
+    await assertCanHaggle({ userId, orgId: store.orgId, storeId: store.id, request: opts.request });
+  } catch (err) {
+    if (err instanceof FraudBlock) throw new ShopError(err.message, 403);
+    throw err;
+  }
 
   const terms = await termsForProduct(product, store, opts.channel ?? "shop");
   if (!terms) throw new ShopError("This product is sold at a fixed price.", 409);

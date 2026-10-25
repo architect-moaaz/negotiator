@@ -311,6 +311,8 @@ export const orders = pgTable(
     deliveredAt: ts("delivered_at"),
     /** Delivery address, needed by the seller to ship. */
     address: jsonb("address").$type<Record<string, string>>().notNull(),
+    /** Set when a fraud check flags the order: the payout stays held until staff clear it. */
+    flagged: text("flagged"),
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
@@ -412,4 +414,38 @@ export const disputes = pgTable(
     resolvedAt: ts("resolved_at"),
   },
   (t) => [index("disputes_order_idx").on(t.orderId), index("disputes_status_idx").on(t.status)],
+);
+
+/* ---------- Fraud signals ---------- */
+
+/** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */
+export const deviceLinks = pgTable(
+  "device_links",
+  {
+    deviceHash: text("device_hash").notNull(),
+    /** buyer (user id) | member (phone) */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    firstSeen: ts("first_seen").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceHash, t.actorType, t.actorId] }), index("device_links_actor_idx").on(t.actorType, t.actorId)],
+);
+
+/** Something a fraud check noticed or blocked, for the staff fraud dashboard. */
+export const riskEvents = pgTable(
+  "risk_events",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    /** self_dealing | velocity | buyer_risk | multi_account | order_flagged | tier_promoted */
+    kind: text("kind").notNull(),
+    /** blocked | flagged | info */
+    action: text("action").notNull(),
+    subjectType: text("subject_type").notNull(),
+    subjectId: text("subject_id").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    reviewedBy: text("reviewed_by"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("risk_events_created_idx").on(t.createdAt.desc()), index("risk_events_subject_idx").on(t.subjectType, t.subjectId)],
 );
