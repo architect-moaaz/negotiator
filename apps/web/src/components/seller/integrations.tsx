@@ -246,7 +246,7 @@ function AmazonSection({ storeId }: { storeId: string }) {
   );
 }
 
-/** Shoppers haggle with your agent in chat: WhatsApp now, Instagram next. */
+/** Shoppers haggle with your agent in chat: WhatsApp and Instagram. */
 function ChatChannels({ storeId }: { storeId: string }) {
   const [conns, setConns] = useState<ConnectionRow[] | null>(null);
   const load = useCallback(async () => {
@@ -258,11 +258,23 @@ function ChatChannels({ storeId }: { storeId: string }) {
     return () => clearTimeout(t);
   }, [load]);
   const wa = conns?.find((c) => c.platform === "whatsapp");
+  const ig = conns?.find((c) => c.platform === "instagram");
   return (
     <section>
       <h2 className="text-xl font-semibold">WhatsApp</h2>
       <p className="mt-1 text-muted">Shoppers message your WhatsApp Business number, pick a product and bargain with your agent there. It uses your own number and your discount rules.</p>
       {wa ? <p className="mt-3">Connected: shoppers can message {wa.externalId === "1099000000001" ? "your test number" : "your number"} to haggle.</p> : conns && <WhatsAppConnect storeId={storeId} onConnected={load} />}
+      <h2 className="mt-8 text-xl font-semibold">Instagram</h2>
+      <p className="mt-1 text-muted">Shoppers DM your Instagram professional account and bargain with your agent there. Your account must be linked to a Facebook Page.</p>
+      {ig ? (
+        <p className="mt-3">Connected: shoppers can DM your Instagram to haggle.</p>
+      ) : (
+        conns && (
+          <a href={`/api/instagram/connect?storeId=${storeId}`} className={`${secondary} mt-3 inline-block`}>
+            Connect Instagram
+          </a>
+        )
+      )}
     </section>
   );
 }

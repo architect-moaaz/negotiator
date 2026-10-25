@@ -1,2 +1,3 @@
-// Chat transports register here on import (WhatsApp now; Instagram next).
+// Chat transports register here on import.
+import "../meta/instagram";
 import "../meta/whatsapp";
