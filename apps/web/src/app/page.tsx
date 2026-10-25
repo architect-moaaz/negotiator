@@ -33,7 +33,7 @@ export default function Home() {
               id="q"
               name="q"
               type="search"
-              placeholder="Kurta, earbuds, steel bottle…"
+              placeholder="Search, or paste an Amazon or Flipkart link"
               className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-4 py-4 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none"
             />
             <button className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink">Search</button>
