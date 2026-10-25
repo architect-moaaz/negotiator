@@ -41,3 +41,17 @@ export async function memberRole(orgId: string, phone: string): Promise<MemberRo
   const [row] = await db.select({ role: members.role }).from(members).where(and(eq(members.orgId, orgId), eq(members.phone, phone)));
   return row?.role as MemberRole | undefined;
 }
+
+/** Who can approve a seller-funded offer, owner first: the numbers the approval call tries. */
+export async function approverPhones(orgId: string) {
+  const db = await getDb();
+  const rows = await db.select({ phone: members.phone, role: members.role, name: members.name }).from(members).where(eq(members.orgId, orgId));
+  const rank: Record<string, number> = { owner: 0, admin: 1, approver: 2 };
+  return rows.filter((r) => r.role in rank).sort((a, b) => rank[a.role] - rank[b.role]);
+}
+
+export async function memberName(orgId: string, phone: string) {
+  const db = await getDb();
+  const [row] = await db.select({ name: members.name }).from(members).where(and(eq(members.orgId, orgId), eq(members.phone, phone)));
+  return row?.name;
+}

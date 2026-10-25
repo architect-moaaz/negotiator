@@ -252,14 +252,24 @@ export async function acceptOffer(deal: Deal) {
 
 /** Human deal desk approves or rejects a price below the agent's auto-approve limit. */
 /** Phone the approver (the seller, or the deal desk for GhostCart-funded deals) through Vobiz. */
+/** The GhostCart Shop owner (or an admin/approver) to phone about a seller-funded offer. */
+async function shopApproverPhone(storeId: string) {
+  const { getStore } = await import("./shop/stores");
+  const { approverPhones } = await import("./shop/orgs");
+  const s = await getStore(storeId);
+  return s ? (await approverPhones(s.orgId))[0]?.phone : undefined;
+}
+
 async function startApprovalCall(deal: Deal) {
   const n = deal.negotiation!;
   if (!vobizConfigured) return;
   const role = n.terms.fundedBy === "seller" ? "seller" : "desk";
   const phone =
-    role === "seller"
-      ? n.terms.sellerId && (await store.getSeller(n.terms.sellerId))?.phone
-      : process.env.VOBIZ_DESK_PHONE && normalizePhone(process.env.VOBIZ_DESK_PHONE);
+    role === "desk"
+      ? process.env.VOBIZ_DESK_PHONE && normalizePhone(process.env.VOBIZ_DESK_PHONE)
+      : deal.shop
+        ? await shopApproverPhone(deal.shop.storeId)
+        : n.terms.sellerId && (await store.getSeller(n.terms.sellerId))?.phone;
   if (!phone) return;
 
   n.call = { status: "calling", to: phone, role, turns: 0, transcript: [], startedAt: Date.now() };
@@ -291,6 +301,9 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
   const n = deal.negotiation;
   if (!n?.approval || deal.status !== "awaiting_approval") throw new HaggleError("Nothing waiting for approval.");
   const { price } = n.approval;
+  // Create the lock payment first: if payments are down this throws before anything is recorded,
+  // so the offer stays waiting and the approver can try again.
+  if (decision === "approved") await issueInvoice(deal, price, `approved by ${decidedBy}`);
   Object.assign(n.approval, { decision, decidedAt: Date.now(), decidedBy });
   await logFor(deal)(
     "approval_decided",
@@ -301,7 +314,6 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
 
   if (decision === "approved") {
     n.messages.push({ from: role, text: `${who} approved ${inr(price)}. It's yours.`, price, at: Date.now() });
-    await issueInvoice(deal, price, `approved by ${decidedBy}`);
   } else {
     const final = n.terms.autoLimit;
     n.messages.push({

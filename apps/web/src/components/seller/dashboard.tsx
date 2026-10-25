@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import { PhoneLogin } from "../phone-login";
+import { ApprovalsTab } from "./approvals";
 import { DiscountsTab } from "./discounts";
 import { ProductsTab } from "./products";
 import { VerificationTab } from "./verification";
@@ -58,7 +59,8 @@ export function SellerDashboard() {
   const params = useSearchParams();
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [data, setData] = useState<StoreData | null>(null);
-  const [tab, setTab] = useState<"products" | "discounts" | "verification">("products");
+  const [waiting, setWaiting] = useState(0);
+  const [tab, setTab] = useState<"approvals" | "products" | "discounts" | "verification">("products");
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
@@ -81,6 +83,20 @@ export function SellerDashboard() {
     const t = setTimeout(() => loadStore(storeId), 0);
     return () => clearTimeout(t);
   }, [storeId, loadStore]);
+  // Keep the approvals badge current whichever tab is open.
+  useEffect(() => {
+    if (!storeId) return;
+    const poll = async () => {
+      const r = await api<{ waiting: unknown[] }>(`/api/seller/stores/${storeId}/approvals`);
+      if (r.ok) setWaiting(r.data.waiting.length);
+    };
+    const first = setTimeout(poll, 0);
+    const t = setInterval(poll, 15000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [storeId]);
 
   if (account === undefined) return <p className="mt-16 text-muted">Loading…</p>;
   if (account === null) {
@@ -178,7 +194,7 @@ export function SellerDashboard() {
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
-            {(["products", "discounts", "verification"] as const).map((t) => (
+            {(["approvals", "products", "discounts", "verification"] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -187,10 +203,12 @@ export function SellerDashboard() {
                 className={`-mb-px border-b-2 pb-3 capitalize ${tab === t ? "border-saffron text-fg" : "border-transparent text-muted hover:text-fg"}`}
               >
                 {t}
+                {t === "approvals" && waiting > 0 && <span className="ml-2 rounded-full bg-saffron px-2 text-sm text-paper-ink">{waiting}</span>}
               </button>
             ))}
           </div>
 
+          {tab === "approvals" && <ApprovalsTab storeId={data.store.id} canApprove={["owner", "admin", "approver"].includes(data.role)} onCount={setWaiting} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
           {tab === "verification" && <VerificationTab storeId={data.store.id} canManage={data.role === "owner"} onStatus={() => loadStore(data.store.id)} />}

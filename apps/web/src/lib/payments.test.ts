@@ -81,6 +81,20 @@ describe("when no gateway is available", () => {
     expect(saved?.qrDataUrl).toBeUndefined();
   });
 
+  it("approving an escalated offer records nothing, so the approver can try again", async () => {
+    const off = await underEnv({ VERCEL_ENV: "production", ALLOW_TEST_PAYMENTS: undefined });
+    const deal = await openDeal(off, "pay-off-approve");
+    Object.assign(deal, { status: "awaiting_approval" });
+    deal.negotiation!.approval = { price: deal.negotiation!.terms.floor, requestedAt: Date.now() };
+    await off.store.saveDeal(deal);
+    const fresh = (await off.store.getDeal("pay-off-approve"))!;
+    await expect(off.negotiate.decideApproval(fresh, "approved", "ZZ Approver")).rejects.toThrow(/payments are paused/);
+    const saved = (await off.store.getDeal("pay-off-approve"))!;
+    expect(saved.status).toBe("awaiting_approval");
+    expect(saved.negotiation?.approval?.decision).toBeUndefined();
+    expect(saved.negotiation?.messages.some((m) => m.text.includes("approved"))).toBe(false);
+  });
+
   it("never falls back to an unverifiable static UPI QR", async () => {
     const off = await underEnv({ VERCEL_ENV: "production", ALLOW_TEST_PAYMENTS: undefined, UPI_FALLBACK_VPA: "zz@upi" });
     await expect(off.payments.createDealPayment({ dealId: "pay-off-2", title: "x" })).rejects.toBeInstanceOf(off.payments.PaymentsUnavailableError);

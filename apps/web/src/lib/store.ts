@@ -51,21 +51,22 @@ export const legacyStore = {
       await redis.set(`deal:${deal.id}`, deal, { ex: DEAL_TTL_S });
       if (isNew) await redis.lpush("deals", deal.id);
     } else {
-      mem.deals.set(deal.id, deal);
+      // Copy, like Redis and Postgres do: unsaved changes to a deal object must never leak into the store.
+      mem.deals.set(deal.id, structuredClone(deal));
       if (isNew) mem.dealIds.unshift(deal.id);
     }
     return deal;
   },
 
   async getDeal(id: string) {
-    const deal = redis ? await redis.get<Deal>(`deal:${id}`) : mem.deals.get(id);
+    const deal = redis ? await redis.get<Deal>(`deal:${id}`) : structuredClone(mem.deals.get(id));
     return withExpiry(deal);
   },
 
   async listDeals(limit = 1000): Promise<Deal[]> {
     const ids = redis ? await redis.lrange<string>("deals", 0, limit - 1) : mem.dealIds.slice(0, limit);
     if (!ids.length) return [];
-    const deals = redis ? await redis.mget<(Deal | null)[]>(...ids.map((id) => `deal:${id}`)) : ids.map((id) => mem.deals.get(id));
+    const deals = redis ? await redis.mget<(Deal | null)[]>(...ids.map((id) => `deal:${id}`)) : ids.map((id) => structuredClone(mem.deals.get(id)));
     return deals.map(withExpiry).filter((d): d is Deal => !!d);
   },
 
