@@ -7,7 +7,7 @@ See [docs/PROJECT.md](docs/PROJECT.md) for the brief, architecture and event-day
 ## Local
 ```bash
 pnpm install
-cp .env.example .env.local   # fill in ANTHROPIC_API_KEY, FIRECRAWL_API_KEY, PINELABS_*, TWILIO_*
+cp .env.example apps/web/.env.local   # fill in ANTHROPIC_API_KEY, FIRECRAWL_API_KEY, PINELABS_*, TWILIO_*
 pnpm dev
 pnpm test
 ```
