@@ -214,7 +214,7 @@ export function SellerDashboard() {
           {tab === "orders" && <OrdersTab storeId={data.store.id} canAct={["owner", "admin"].includes(data.role)} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
-          {tab === "integrations" && <IntegrationsTab storeId={data.store.id} domain={data.store.domain} />}
+          {tab === "integrations" && <IntegrationsTab storeId={data.store.id} domain={data.store.domain} platform={data.store.platform} />}
           {tab === "verification" && <VerificationTab storeId={data.store.id} canManage={data.role === "owner"} onStatus={() => loadStore(data.store.id)} />}
         </>
       )}

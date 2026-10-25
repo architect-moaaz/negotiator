@@ -22,6 +22,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Lint the WooCommerce plugin (PHP is preinstalled on GitHub's Ubuntu runners)
+        run: find plugins -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: pnpm turbo run typecheck lint test build
         env:
           NEXT_TELEMETRY_DISABLED: "1"

@@ -24,7 +24,7 @@ function Snippet({ text }: { text: string }) {
 }
 
 /** Widget keys, server API keys and webhooks for sellers with their own site or systems. */
-export function IntegrationsTab({ storeId, domain }: { storeId: string; domain: string | null }) {
+export function IntegrationsTab({ storeId, domain, platform }: { storeId: string; domain: string | null; platform?: string }) {
   const [keys, setKeys] = useState<Key[]>([]);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [origins, setOrigins] = useState(domain ? `https://${domain}` : "");
@@ -69,6 +69,23 @@ export function IntegrationsTab({ storeId, domain }: { storeId: string; domain: 
   return (
     <div className="mt-6 max-w-3xl space-y-10">
       <ErrorText>{error}</ErrorText>
+      {platform === "woocommerce" && (
+        <section>
+          <h2 className="text-xl font-semibold">WooCommerce plugin</h2>
+          <p className="mt-1 text-muted">
+            Install it from WordPress → Plugins → Add New → Upload, then paste a widget key and a secret key (below) under WooCommerce → GhostCart and click Connect.
+          </p>
+          <a href="/api/plugins/woocommerce" className={`${secondary} mt-3 inline-block`}>
+            Download the plugin (.zip)
+          </a>
+        </section>
+      )}
+      {platform === "shopify" && (
+        <section>
+          <h2 className="text-xl font-semibold">Shopify</h2>
+          <p className="mt-1 text-muted">Your Shopify app manages the widget key and webhooks for you. In your theme editor, turn on the GhostCart app embed and add the &quot;Make an offer&quot; block to product pages.</p>
+        </section>
+      )}
       <section>
         <h2 className="text-xl font-semibold">Haggle button for your website</h2>
         <p className="mt-1 text-muted">Shoppers tap it on your product page and bargain with your agent on GhostCart. Payment is held until delivery, like your GhostCart shop.</p>
