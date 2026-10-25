@@ -19,10 +19,16 @@ const key = (kind: SessionKind, token: string) => `session:${kind}:${hash(token)
 
 export const sessionCookieName = (kind: SessionKind) => COOKIE[kind];
 
-/** Create a session and set its cookie. */
-export async function startSession(kind: SessionKind, subject: string) {
+/** A live session token for this account, without a cookie (load-test seeding; startSession uses it). */
+export async function issueSessionToken(kind: SessionKind, subject: string) {
   const token = randomBytes(32).toString("base64url");
   await store.kvSet(key(kind, token), subject, TTL_S[kind]);
+  return token;
+}
+
+/** Create a session and set its cookie. */
+export async function startSession(kind: SessionKind, subject: string) {
+  const token = await issueSessionToken(kind, subject);
   const jar = await cookies();
   jar.set(COOKIE[kind], token, {
     httpOnly: true,
