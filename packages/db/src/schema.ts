@@ -538,3 +538,50 @@ export const platformConnections = pgTable(
   },
   (t) => [uniqueIndex("platform_connections_external_idx").on(t.platform, t.externalId), index("platform_connections_store_idx").on(t.storeId)],
 );
+
+/* ---------- Data protection (DPDP Act 2023) ---------- */
+
+/** Every consent a person gives or withdraws, with the exact wording they saw. Append-only. */
+export const consents = pgTable(
+  "consents",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    /** The shopper's user id (or phone for people without an account). */
+    subject: text("subject").notNull(),
+    /** deal_contact | marketing */
+    purpose: text("purpose").notNull(),
+    /** granted | withdrawn */
+    action: text("action").notNull(),
+    wording: text("wording").notNull(),
+    source: text("source").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("consents_subject_idx").on(t.subject)],
+);
+
+/**
+ * Complaints to the grievance officer (DPDP and Consumer Protection (E-Commerce) Rules): acknowledge
+ * within 48 hours, resolve within a month.
+ */
+export const grievances = pgTable(
+  "grievances",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    contact: text("contact").notNull(),
+    /** order | data_privacy | seller | payment | other */
+    category: text("category").notNull(),
+    reference: text("reference"),
+    message: text("message").notNull(),
+    /** open → acknowledged → resolved */
+    status: text("status").notNull().default("open"),
+    response: text("response"),
+    handledBy: text("handled_by"),
+    acknowledgeBy: ts("acknowledge_by").notNull(),
+    resolveBy: ts("resolve_by").notNull(),
+    acknowledgedAt: ts("acknowledged_at"),
+    resolvedAt: ts("resolved_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("grievances_status_idx").on(t.status)],
+);

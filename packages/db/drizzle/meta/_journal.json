@@ -57,6 +57,13 @@
       "when": 1792954236147,
       "tag": "0007_platform_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792957114015,
+      "tag": "0008_dpdp",
+      "breakpoints": true
     }
   ]
 }

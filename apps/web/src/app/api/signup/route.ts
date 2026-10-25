@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
   // The number is proven, so an existing account for it simply signs back in.
   const demographics = demographicsFrom(request, { referrer: body.referrer, source: body.source });
-  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics });
+  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics, source: body.source?.slice(0, 40) });
   await startSession("buyer", user.id);
   await linkDevice(request, "buyer", user.id);
   return Response.json(publicUser(user));
