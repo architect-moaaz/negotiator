@@ -37,6 +37,7 @@ export interface ProductRow {
   categoryId: string | null;
   sku: string | null;
   images: string[];
+  countryOfOrigin: string | null;
   status: string;
 }
 export interface StoreData {

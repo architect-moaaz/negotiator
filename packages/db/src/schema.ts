@@ -176,6 +176,20 @@ export const stores = pgTable(
     /** Random token the seller publishes in DNS or a meta tag to prove they control `domain`. */
     verificationToken: text("verification_token"),
     reviewNote: text("review_note"),
+    /**
+     * What the Consumer Protection (E-Commerce) Rules 2020 make us show buyers: the seller's address,
+     * customer care contact, and return policy. Legal name and GSTIN come from verification.
+     */
+    disclosure: jsonb("disclosure").$type<{
+      address: string;
+      city: string;
+      state: string;
+      pincode: string;
+      supportPhone: string;
+      supportEmail?: string;
+      returnDays: number;
+      returnPolicy: string;
+    }>(),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("stores_org_idx").on(t.orgId)],
@@ -209,6 +223,8 @@ export const products = pgTable(
     mrp: integer("mrp"),
     stock: integer("stock").notNull().default(0),
     images: jsonb("images").$type<string[]>().notNull().default([]),
+    /** Shown on the product page (Legal Metrology (Packaged Commodities) Rules, for e-commerce). */
+    countryOfOrigin: text("country_of_origin"),
     sku: text("sku"),
     /** active | draft | archived */
     status: text("status").notNull().default("active"),
