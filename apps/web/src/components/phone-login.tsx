@@ -5,7 +5,7 @@ import { useState } from "react";
 const field = "rounded-xl border border-line bg-panel px-4 py-3 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60";
 
 /** Phone login: we call the number and read out a 6-digit code, then the user types it in. */
-export function PhoneLogin({ role, onDone }: { role: "buyer" | "seller"; onDone: () => void }) {
+export function PhoneLogin({ role, onDone }: { role: "buyer" | "seller" | "staff"; onDone: () => void }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "code">("phone");

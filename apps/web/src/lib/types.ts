@@ -196,7 +196,10 @@ export type ActivityType =
   | "order_placed"
   | "checkout_lapsed"
   | "order_status"
-  | "negotiation_failed";
+  | "negotiation_failed"
+  | "staff_login"
+  | "staff_action"
+  | "staff_denied";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
 export interface Activity {

@@ -5,6 +5,7 @@ import { inr } from "@/lib/format";
 import { FULFILMENT_STAGES } from "@/lib/fulfilment";
 import type { Activity, AgentRecommendation, DeliveryAddress, NegotiationTerms, PublicDeal, Seller, SellerDemand, Stats, User } from "@/lib/types";
 import { AnalyticsPanel } from "./analytics-panel";
+import { StaffLogin, staffLogout } from "./staff-login";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 
 type AdminDeal = PublicDeal & {
@@ -21,6 +22,7 @@ function orderStage(d: AdminDeal) {
   return { current: FULFILMENT_STAGES[i], next: i >= 0 ? FULFILMENT_STAGES[i + 1] : undefined };
 }
 interface AdminData {
+  me: { name: string; role: string };
   stats: Stats;
   users: User[];
   activity: Activity[];
@@ -30,7 +32,6 @@ interface AdminData {
 }
 type Tab = "analytics" | "approvals" | "users" | "activity" | "deals" | "sellers";
 
-const TOKEN_KEY = "gc_admin_token";
 const ist = (at: number) =>
   new Date(at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, dateStyle: "medium", timeStyle: "medium" });
 
@@ -43,72 +44,37 @@ function downloadCsv(filename: string, rows: (string | number | undefined)[][]) 
 }
 
 export function AdminConsole() {
-  const [token, setToken] = useState("");
-  const [data, setData] = useState<AdminData | null>(null);
+  // undefined = still checking the staff session
+  const [data, setData] = useState<AdminData | null | undefined>(undefined);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("approvals");
   const [deciding, setDeciding] = useState<string | null>(null);
-  const [deskName, setDeskName] = useState("");
   const [reviewNote, setReviewNote] = useState<Record<string, string>>({});
 
-  const load = useCallback(async (t: string) => {
-    const res = await fetch("/api/admin/logs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/logs", { cache: "no-store" });
     if (!res.ok) {
       setData(null);
-      setError(res.status === 401 ? "That admin token isn't valid." : "Couldn't load logs.");
+      setError(res.status === 401 ? "" : ((await res.json().catch(() => ({}))).error ?? "Couldn't load logs."));
       return;
     }
     setError("");
     setData(await res.json());
-    try {
-      sessionStorage.setItem(TOKEN_KEY, t);
-    } catch {}
   }, []);
 
   useEffect(() => {
-    let saved = "";
-    try {
-      saved = sessionStorage.getItem(TOKEN_KEY) ?? "";
-    } catch {}
-    if (!saved) return;
-    const t = setTimeout(() => {
-      setToken(saved);
-      load(saved);
-    }, 0);
-    return () => clearTimeout(t);
+    const first = setTimeout(load, 0);
+    return () => clearTimeout(first);
   }, [load]);
 
   useEffect(() => {
     if (!data) return;
-    const t = setInterval(() => load(token), 4000);
+    const t = setInterval(load, 4000);
     return () => clearInterval(t);
-  }, [data, token, load]);
+  }, [data, load]);
 
-  if (!data) {
-    return (
-      <form
-        className="mx-auto mt-24 flex w-full max-w-sm flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          load(token);
-        }}
-      >
-        <h1 className="text-2xl font-semibold">Proof of life</h1>
-        <label htmlFor="admin-token" className="text-muted">
-          Admin token
-        </label>
-        <input
-          id="admin-token"
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className="rounded-xl border border-line bg-panel px-4 py-3 focus:border-saffron focus:outline-none"
-        />
-        <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Open logs</button>
-        {error && <p role="alert" className="text-alarm">{error}</p>}
-      </form>
-    );
-  }
+  if (data === undefined) return <p className="mt-24 text-center text-muted">Checking your staff session…</p>;
+  if (!data) return <StaffLogin title="Proof of life" error={error} onDone={load} />;
 
   const usersById = new Map(data.users.map((u) => [u.id, u]));
   const approvals = data.deals.filter((d) => d.status === "awaiting_approval");
@@ -118,24 +84,24 @@ export function AdminConsole() {
     setReviewNote((r) => ({ ...r, [id]: "Asking the AgenticOrg agent…" }));
     const res = await fetch("/api/admin/agent-review", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
     const body = await res.json().catch(() => ({}));
     setReviewNote((r) => ({ ...r, [id]: res.ok ? (body.recommendation ? "" : `Agent replied without a recommendation: ${String(body.agentReply).slice(0, 200)}`) : body.error }));
     setDeciding(null);
-    load(token);
+    load();
   }
 
   async function decide(id: string, decision: "approved" | "rejected" | "recommendation") {
     setDeciding(id);
     await fetch("/api/admin/decision", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ id, decision, by: deskName.trim() || "Deal desk" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, decision }),
     });
     setDeciding(null);
-    load(token);
+    load();
   }
   async function advance(d: AdminDeal) {
     const { next } = orderStage(d);
@@ -148,12 +114,12 @@ export function AdminConsole() {
     setDeciding(d.id);
     const res = await fetch("/api/admin/fulfil", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ id: d.id, courier, awb, by: deskName.trim() || "Deal desk" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: d.id, courier, awb }),
     });
     if (!res.ok) window.alert((await res.json().catch(() => ({}))).error ?? "Couldn't update the order.");
     setDeciding(null);
-    load(token);
+    load();
   }
 
   const exportTab = () => {
@@ -207,6 +173,18 @@ export function AdminConsole() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold">Proof of life</h1>
+          <p className="mt-1 text-sm text-muted">
+            Signed in as {data.me.name} ({data.me.role}).{" "}
+            <button
+              onClick={async () => {
+                await staffLogout();
+                setData(null);
+              }}
+              className="underline underline-offset-4 hover:text-fg"
+            >
+              Log out
+            </button>
+          </p>
           <p className="mt-1 text-muted">
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
@@ -232,22 +210,10 @@ export function AdminConsole() {
         ))}
       </div>
 
-      {tab === "analytics" && <AnalyticsPanel token={token} />}
+      {tab === "analytics" && <AnalyticsPanel />}
 
       {tab === "approvals" && (
         <div className="mt-6 space-y-4">
-          <div className="flex max-w-sm flex-col gap-2">
-            <label htmlFor="desk-name" className="text-muted">
-              Your name (recorded with each decision)
-            </label>
-            <input
-              id="desk-name"
-              value={deskName}
-              onChange={(e) => setDeskName(e.target.value)}
-              placeholder="Deal desk"
-              className="rounded-xl border border-line bg-panel px-4 py-2.5 focus:border-saffron focus:outline-none"
-            />
-          </div>
           {approvals.length === 0 && <p className="py-6 text-muted">No offers waiting. When a shopper pushes below the agent&apos;s limit, it shows up here.</p>}
           {approvals.map((d) => {
             const price = d.negotiation?.approvalPrice ?? 0;

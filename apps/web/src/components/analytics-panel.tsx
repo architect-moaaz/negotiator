@@ -106,16 +106,16 @@ function Funnel({ data }: { data: Bucket[] }) {
 
 const secs = (s: number | null) => (s === null ? "—" : s < 90 ? `${s}s` : `${Math.round(s / 60)}m`);
 
-export function AnalyticsPanel({ token }: { token: string }) {
+export function AnalyticsPanel() {
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/analytics", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const res = await fetch("/api/admin/analytics", { cache: "no-store" });
     if (!res.ok) return setError("Couldn't load analytics.");
     setError("");
     setData(await res.json());
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const first = setTimeout(load, 0);
