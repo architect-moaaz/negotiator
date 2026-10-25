@@ -1,4 +1,6 @@
+import { createDb } from "@ghostcart/db";
 import { Redis } from "@upstash/redis";
+import { createPgStore, type PgStore } from "./pg-store";
 import type { Activity, Deal, Seller, SellerDemand, Stats, TickerEvent, User, Visit } from "./types";
 
 // Deals and logs are kept for the whole event so they can be exported as proof.
@@ -42,7 +44,8 @@ function withExpiry(deal: Deal | null | undefined) {
   return deal ?? undefined;
 }
 
-export const store = {
+/** Redis in production, in-memory in local dev. Holds everything until Postgres takes over. */
+export const legacyStore = {
   async saveDeal(deal: Deal, isNew = false) {
     if (redis) {
       await redis.set(`deal:${deal.id}`, deal, { ex: DEAL_TTL_S });
@@ -66,7 +69,7 @@ export const store = {
     return deals.map(withExpiry).filter((d): d is Deal => !!d);
   },
 
-  /** Create a user, or return the existing one for this phone number. */
+  /** Create a user, or return the existing one for this phone number. Counting is the caller's job. */
   async upsertUser(user: User): Promise<{ user: User; created: boolean }> {
     if (redis) {
       const claimed = await redis.set(`phone:${user.phone}`, user.id, { nx: true });
@@ -84,7 +87,6 @@ export const store = {
       mem.phones.set(user.phone, user.id);
       mem.userIds.unshift(user.id);
     }
-    await store.incrStats({ users: 1 });
     return { user, created: true };
   },
 
@@ -99,8 +101,7 @@ export const store = {
     return users.filter((u): u is User => !!u);
   },
 
-  async log(entry: Omit<Activity, "at"> & { at?: number }) {
-    const event: Activity = { at: Date.now(), ...entry };
+  async log(event: Activity) {
     try {
       if (redis) {
         await redis.lpush("activity", event);
@@ -278,3 +279,110 @@ export const store = {
     return true;
   },
 };
+
+/**
+ * STORE_MODE moves durable data from Redis to Postgres in three steps (needs DATABASE_URL):
+ * - "redis" (default): Redis only, as before.
+ * - "dual": every durable write also goes to Postgres; reads still come from Redis. Run the
+ *   backfill (scripts/backfill-postgres.mts) during this phase so Postgres holds everything.
+ * - "postgres": durable reads and writes go to Postgres only.
+ * Short-lived keys (OTP, sessions, locks, the ticker, mock gateway orders) stay in Redis in every mode.
+ */
+export type StoreMode = "redis" | "dual" | "postgres";
+
+const DURABLE_WRITES = [
+  "saveDeal",
+  "updateUser",
+  "log",
+  "incrStats",
+  "saveSeller",
+  "recordDemand",
+  "pushVisit",
+] as const satisfies readonly (keyof PgStore & keyof typeof legacyStore)[];
+const DURABLE_READS = [
+  "getDeal",
+  "listDeals",
+  "getUser",
+  "listUsers",
+  "userIdForPhone",
+  "listLog",
+  "stats",
+  "getSeller",
+  "listSellers",
+  "sellerIdForAlias",
+  "sellerIdForToken",
+  "sellerIdForPhone",
+  "topDemand",
+  "listVisits",
+] as const satisfies readonly (keyof PgStore & keyof typeof legacyStore)[];
+
+type AnyFn = (...args: unknown[]) => Promise<unknown>;
+
+export function composeStore(legacy: typeof legacyStore, pg: PgStore | null, mode: StoreMode) {
+  const active: StoreMode = pg ? mode : "redis";
+  const base = { ...legacy };
+  const fns = base as unknown as Record<string, AnyFn>;
+  const legacyFns = legacy as unknown as Record<string, AnyFn>;
+  const pgFns = pg as unknown as Record<string, AnyFn>;
+
+  // In dual mode a Postgres failure must never break the shopper's flow; Redis is still the truth.
+  const mirror = async (what: string, run: () => Promise<unknown>) => {
+    try {
+      await run();
+    } catch (err) {
+      console.error(`postgres mirror failed: ${what}`, err);
+    }
+  };
+
+  if (active !== "redis") {
+    for (const name of DURABLE_WRITES) {
+      fns[name] =
+        active === "postgres"
+          ? (...args) => pgFns[name](...args)
+          : async (...args) => {
+              const result = await legacyFns[name](...args);
+              await mirror(name, () => pgFns[name](...args));
+              return result;
+            };
+    }
+    if (active === "postgres") for (const name of DURABLE_READS) fns[name] = (...args) => pgFns[name](...args);
+  }
+
+  const source = active === "postgres" ? pg! : legacy;
+  return {
+    ...base,
+    mode: active,
+
+    async getDeal(id: string) {
+      return withExpiry(await (active === "postgres" ? pg!.getDeal(id) : legacy.getDeal(id)));
+    },
+
+    async listDeals(limit?: number) {
+      return (await source.listDeals(limit)).map(withExpiry).filter((d): d is Deal => !!d);
+    },
+
+    async log(entry: Omit<Activity, "at"> & { at?: number }) {
+      const event: Activity = { at: Date.now(), ...entry };
+      try {
+        await fns.log(event);
+      } catch (err) {
+        console.error("activity log write failed", err); // never break the user flow over logging
+      }
+    },
+
+    /** Create a user, or return the existing one for this phone number. */
+    async upsertUser(user: User): Promise<{ user: User; created: boolean }> {
+      const result = await source.upsertUser(user);
+      // Mirror the account Redis actually holds (the existing one, if the phone was taken).
+      if (active === "dual") await mirror("upsertUser", () => pg!.upsertUser(result.user));
+      if (result.created) await fns.incrStats({ users: 1 });
+      return result;
+    },
+  };
+}
+
+const pgStore = process.env.DATABASE_URL ? createPgStore(createDb(process.env.DATABASE_URL)) : null;
+const requestedMode = (process.env.STORE_MODE ?? "redis") as StoreMode;
+if (requestedMode !== "redis" && !pgStore) console.warn(`STORE_MODE=${requestedMode} needs DATABASE_URL; using Redis only`);
+
+export const store = composeStore(legacyStore, pgStore, requestedMode);

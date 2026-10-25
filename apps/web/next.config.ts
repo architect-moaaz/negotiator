@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   // Workspace packages ship TypeScript source.
-  transpilePackages: ["@ghostcart/core"],
+  transpilePackages: ["@ghostcart/core", "@ghostcart/db"],
   // The dev-mode "N" badge would show up on the projector during the pitch.
   devIndicators: false,
   // Kokoro's ONNX runtime ships native binaries that must load from node_modules, not the bundle.
