@@ -166,9 +166,11 @@ export async function refundOrder(orderId: string, amount: number, reason: strin
   return getOrder(orderId);
 }
 
-/** Scheduled: cancel and refund orders the seller didn't ship in time; release payouts that are due. */
+/** Scheduled: poll courier tracking, cancel and refund orders not shipped in time, release payouts that are due. */
 export async function runOrderJobs(now = new Date()) {
   const db = await getDb();
+  const { pollTracking } = await import("./fulfilment");
+  const tracking = await pollTracking();
   const late = await db.select().from(orders).where(and(eq(orders.status, "placed"), lte(orders.shipBy, now)));
   const cancelled: string[] = [];
   for (const o of late) {
@@ -194,7 +196,7 @@ export async function runOrderJobs(now = new Date()) {
       console.error(`couldn't release order ${orderId}`, err);
     }
   }
-  return { cancelled, released };
+  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released };
 }
 
 /** Seller money at a glance: on hold until delivery, and released (on its way to the bank). */

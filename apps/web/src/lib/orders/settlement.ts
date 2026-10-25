@@ -52,7 +52,9 @@ const mock: SettlementGateway = {
     const ref = await kv.kvGet<string>(`settle:order:${orderId}`);
     const s = ref ? await kv.kvGet<MockSettlement>(`settle:${ref}`) : undefined;
     if (!s) return { held: 0, released: 0, refunded: 0 };
-    return { held: s.state === "held" ? s.amount : 0, released: s.state === "released" ? s.amount : 0, refunded: s.refunded };
+    // Refunds come out of the seller's held share first, as in the ledger.
+    const held = Math.max(0, s.amount - s.refunded);
+    return { held: s.state === "held" ? held : 0, released: s.state === "released" ? held : 0, refunded: s.refunded };
   },
 };
 

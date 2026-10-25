@@ -371,3 +371,45 @@ export const refunds = pgTable(
   },
   (t) => [index("refunds_order_idx").on(t.orderId)],
 );
+
+/** The seller's shipment for an order: courier, AWB and what tracking says. */
+export const shipments = pgTable("shipments", {
+  orderId: text("order_id")
+    .primaryKey()
+    .references(() => orders.id),
+  courier: text("courier").notNull(),
+  awb: text("awb").notNull(),
+  /** Who we ask for tracking: shiprocket | mock | none. */
+  trackingProvider: text("tracking_provider").notNull(),
+  /** in_transit | out_for_delivery | delivered | returned | unknown */
+  lastStatus: text("last_status").notNull().default("unknown"),
+  events: jsonb("events").$type<{ at: string; status: string; note?: string }[]>().notNull().default([]),
+  /** Four digits the buyer reads out at handover; the seller enters them to confirm delivery. */
+  handoverCode: text("handover_code").notNull(),
+  lastCheckedAt: ts("last_checked_at"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** A buyer's problem with an order. While open, the seller's payout is frozen. */
+export const disputes = pgTable(
+  "disputes",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    /** not_received | damaged | not_as_described | other */
+    reason: text("reason").notNull(),
+    details: text("details").notNull(),
+    evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
+    sellerResponse: text("seller_response"),
+    sellerEvidence: jsonb("seller_evidence").$type<string[]>().notNull().default([]),
+    /** open → refunded | partial_refund | released */
+    status: text("status").notNull().default("open"),
+    resolution: text("resolution"),
+    resolvedBy: text("resolved_by"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    resolvedAt: ts("resolved_at"),
+  },
+  (t) => [index("disputes_order_idx").on(t.orderId), index("disputes_status_idx").on(t.status)],
+);
