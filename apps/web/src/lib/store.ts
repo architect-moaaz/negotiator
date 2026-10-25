@@ -245,6 +245,22 @@ export const legacyStore = {
     else mem.kv.delete(key);
   },
 
+  /** Count a hit in a fixed window; returns the count so far and seconds until the window resets. */
+  async hit(key: string, windowSeconds: number): Promise<{ count: number; resetIn: number }> {
+    if (redis) {
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, windowSeconds);
+      const ttl = await redis.ttl(key);
+      return { count, resetIn: ttl > 0 ? ttl : windowSeconds };
+    }
+    const now = Date.now();
+    const w = mem.kv.get(key) as { count: number; resetAt: number } | undefined;
+    const live = w && w.resetAt > now ? w : { count: 0, resetAt: now + windowSeconds * 1000 };
+    live.count += 1;
+    mem.kv.set(key, live);
+    return { count: live.count, resetIn: Math.ceil((live.resetAt - now) / 1000) };
+  },
+
   /** True the first time per TTL window (rate limits, one-shot actions). */
   async claimOnce(key: string, ttlSeconds: number) {
     if (redis) return (await redis.set(key, 1, { nx: true, ex: ttlSeconds })) === "OK";

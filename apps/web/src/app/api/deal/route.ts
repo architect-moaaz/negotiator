@@ -1,4 +1,5 @@
 import { CHECKOUT_GRACE_MS, placeOrder, syncCheckout } from "@/lib/checkout";
+import { canActAsShopper } from "@/lib/deal-access";
 import { markPaid, toPublic } from "@/lib/negotiate";
 import { getOrderStatus, PAID_STATUSES } from "@/lib/pinelabs";
 import { store } from "@/lib/store";
@@ -28,5 +29,8 @@ export async function GET(request: Request) {
     }
   }
   await syncCheckout(deal);
-  return Response.json(toPublic(deal), { headers: { "Cache-Control": "no-store" } });
+  const pub = toPublic(deal);
+  // Anyone with the link sees the deal; only its shopper sees who it's being delivered to.
+  if (pub.checkout && !(await canActAsShopper(deal))) delete pub.checkout.deliverTo;
+  return Response.json(pub, { headers: { "Cache-Control": "no-store" } });
 }

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { demographicsFrom } from "@/lib/demographics";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/store";
 
 const VISITOR_COOKIE = "gc_vid";
@@ -9,6 +10,8 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { path?: string; referrer?: string; source?: string };
   const path = (body.path ?? "/").slice(0, 80);
   if (!/^\/[\w\-/]*$/.test(path)) return new Response(null, { status: 204 });
+  // Beacons are fire-and-forget; over the limit we just stop recording.
+  if (await rateLimit({ name: "track:ip", id: clientIp(request), max: 120, windowSeconds: 60 })) return new Response(null, { status: 204 });
 
   const jar = await cookies();
   let vid = jar.get(VISITOR_COOKIE)?.value;

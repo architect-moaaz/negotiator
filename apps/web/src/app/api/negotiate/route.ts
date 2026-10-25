@@ -1,4 +1,5 @@
 import { failureMessage, runNegotiation } from "@/lib/negotiate";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { requestCity } from "@/lib/request";
 import { store } from "@/lib/store";
 import { currentUser } from "@/lib/users";
@@ -23,6 +24,12 @@ function parseInput(body: { url?: string; imageBase64?: string; mediaType?: stri
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return Response.json({ error: "Sign up to get your deal.", needsSignup: true }, { status: 401 });
+  // Each run costs a page read and several model calls.
+  const limited = await rateLimit(
+    { name: "negotiate:user", id: user.id, max: 20, windowSeconds: 60 * 60 },
+    { name: "negotiate:ip", id: clientIp(request), max: 40, windowSeconds: 60 * 60 },
+  );
+  if (limited) return limited;
   const input = parseInput(await request.json().catch(() => ({})));
   if (!input) return Response.json({ error: "Send a product URL or a screenshot (max 5MB)" }, { status: 400 });
 

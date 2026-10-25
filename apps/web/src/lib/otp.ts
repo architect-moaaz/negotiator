@@ -7,6 +7,8 @@ const RESEND_S = 40;
 const MAX_ATTEMPTS = 5;
 
 export type LoginRole = "buyer" | "seller";
+/** What a code proves: logging in to an account, or owning a number before an account exists. */
+export type OtpPurpose = LoginRole | "buyer-signup" | "seller-signup";
 
 interface OtpRecord {
   hash: string;
@@ -15,7 +17,7 @@ interface OtpRecord {
 }
 
 const hash = (phone: string, code: string) => createHash("sha256").update(`${phone}:${code}`).digest("hex");
-const key = (role: LoginRole, phone: string) => `otp:${role}:${phone}`;
+const key = (role: OtpPurpose, phone: string) => `otp:${role}:${phone}`;
 
 export class OtpError extends Error {
   constructor(
@@ -27,7 +29,7 @@ export class OtpError extends Error {
 }
 
 /** Create a 6-digit login code and read it out to the phone via a Vobiz voice call. */
-export async function sendLoginCode(role: LoginRole, phone: string) {
+export async function sendLoginCode(role: OtpPurpose, phone: string) {
   if (!(await store.claimOnce(`otp-throttle:${phone}`, RESEND_S))) throw new OtpError("We just called you. Wait a few seconds before asking for another code.", 429);
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   await store.kvSet<OtpRecord>(key(role, phone), { hash: hash(phone, code), attempts: 0, expiresAt: Date.now() + CODE_TTL_S * 1000 }, CODE_TTL_S);
@@ -45,7 +47,7 @@ export async function sendLoginCode(role: LoginRole, phone: string) {
   return { via: "call" as const };
 }
 
-export async function verifyLoginCode(role: LoginRole, phone: string, code: string) {
+export async function verifyLoginCode(role: OtpPurpose, phone: string, code: string) {
   const rec = await store.kvGet<OtpRecord>(key(role, phone));
   if (!rec || rec.expiresAt < Date.now()) throw new OtpError("That code has expired. Ask for a new one.");
   if (rec.attempts >= MAX_ATTEMPTS) throw new OtpError("Too many wrong codes. Ask for a new one.", 429);
