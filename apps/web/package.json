@@ -8,15 +8,18 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "db:backfill": "tsx --env-file-if-exists=.env.local scripts/backfill-postgres.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.87",
     "@ghostcart/core": "workspace:*",
+    "@ghostcart/db": "workspace:*",
     "@mendable/firecrawl-js": "^4.51.0",
     "@modelcontextprotocol/server": "2.3.1",
     "@upstash/redis": "^1.39.0",
     "ai": "^7.0.152",
+    "drizzle-orm": "0.45.4",
     "kokoro-js": "^1.2.1",
     "mcp-handler": "2.3.0",
     "next": "16.4.3",
@@ -27,6 +30,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
@@ -35,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   }
