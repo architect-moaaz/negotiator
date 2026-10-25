@@ -1,48 +1,29 @@
 # GhostCart roadmap
 
-**Direction: B first, then A.**
+Direction: **seller negotiation agent first, consumer app second.** The full plan covers architecture, seller onboarding and verification, payout holds, fraud protection, the team split and verification. It's in [PRODUCT_PLAN.md](PRODUCT_PLAN.md).
 
-- **B: seller negotiation agent.** D2C brands and online sellers put GhostCart's haggling agent on their own website and WhatsApp. It negotiates within the margin the seller sets, escalates bigger discounts to the seller (dashboard or phone call), and turns hesitant visitors into orders. Seller-funded, no marketplace scraping, recurring revenue.
-- **A: consumer deal-finder.** The app we demoed, brought back once enough sellers are on GhostCart, so shoppers haggle with real sellers instead of scraped marketplace prices.
+## Waves (each usable on its own)
 
-## Phase 0: foundations (week 1)
+| Wave | What ships | Est. |
+|---|---|---|
+| **0. Foundations** | Monorepo, `packages/core`, Postgres + Drizzle behind `store`, signed sessions, ownership checks, rate limits, admin RBAC + audit log, pitch/mock out of production, Playwright smoke on previews | ~2 wks |
+| **1. Seller core** | Simple onboarding; **seller verification** (KYC, bank, ownership, tiers); **GhostCart Shop** for sellers without a website; per-product/category discount rules; universal widget; hosted checkout; real Pine Labs with **payout held until delivery**; approvals (dashboard, push, voice); fraud v1 | 4–5 wks |
+| **2. Marketplace sellers + Shopify + Woo** | Amazon/Flipkart sellers connect via official seller APIs (import listings, prove ownership); Shopify app (discount-code grants, billing); WooCommerce plugin | 3–4 wks |
+| **3. WhatsApp + Instagram** | Each seller's own WhatsApp number (Meta Embedded Signup); Instagram DMs; BSP fallback while Meta verification is pending | ~3 wks |
+| **4. Consumer app + mobile** | Shoppers haggle across GhostCart sellers; Amazon/Flipkart price comparison via affiliate APIs (no cashback); Expo apps for shoppers and seller approvals | 4–6 wks |
+| **5. ONDC + scale** | ONDC buyer app certification; load tests; data export; analytics warehouse | ongoing |
 
-- [ ] Company: Udyam registration now, Pvt Ltd when we raise or invoice at scale
-- [ ] Real Pine Labs merchant account (replace the mock gateway); settlement to the company account
-- [ ] Vobiz: KYC, business number, DLT registration for calls and any SMS
-- [ ] Privacy policy and terms under India's DPDP Act 2023; consent records already exist
-- [ ] Rotate every key shared during the hackathon
-- [ ] Repo: branch protection on `main`, Vercel ↔ GitHub (production on merge, preview per PR)
-- [ ] Clean hackathon test data from production (export the proof CSVs first)
+## Long-lead items: start now (lead)
 
-## Phase 1: seller MVP (weeks 2–3)
+- [ ] Pvt Ltd company, GST, current account (critical path for everything below)
+- [ ] Pine Labs partner agreement: split settlements, hold/release limits, sub-merchant onboarding, plus a legal opinion
+- [ ] Meta Business verification, then Tech Provider; DLT entity and templates
+- [ ] Shopify Partner, Apple (D-U-N-S), Google developer accounts
+- [ ] KYC provider, shipping-aggregator tracking API, Amazon SP-API and Flipkart Seller API access (check terms)
+- [ ] ONDC registration; Amazon Creators API and Flipkart Affiliate applications
+- [ ] Privacy policy (DPDP), seller DPA, terms, returns/refund policy, grievance officer
+- [ ] Unlock GitHub billing (CI) and connect Vercel ↔ GitHub
 
-- [ ] **Embeddable "Make an offer" widget** for any store: one script tag, product id and price from the page
-- [ ] **WhatsApp entry** per seller (approved business number and message templates)
-- [ ] **Catalogue import:** CSV first, then Shopify app
-- [ ] **Per-product rules:** floor, auto-approve share, max rounds, bundles instead of discounts
-- [ ] Seller website domains as match keys (so listings on their own site route to them)
-- [ ] Seller-funded lowballs: after a few rounds, let the seller decide even below their floor
-- [ ] End the dead-end loop: after repeated holds, the agent says it plainly and suggests an alternative
-- [ ] Seller dashboard: conversion lift, discount given, revenue recovered; CSV export
-- [ ] Retire marketplace scraping in the seller flow (catalogue data only)
+## Rules that don't change
 
-## Phase 2: pilots (week 4)
-
-- [ ] 3–5 pilot sellers (first lead: RK World Infocom), free in exchange for data
-- [ ] Measure: offers made, conversion vs. no-haggle baseline, average discount, time to approve
-- [ ] Case study with real numbers; pricing (monthly fee plus a small share of recovered sales)
-
-## Phase 3: platform (month 2+)
-
-- [ ] Postgres for orders, sellers and billing (Redis stays for sessions and rate limits)
-- [ ] Roles and audit log for seller teams; per-seller usage metering
-- [ ] Monitoring and alerts (errors, failed calls, payment webhooks)
-- [ ] ONDC seller-app or buyer-app integration as a distribution channel
-- [ ] Bring back the consumer app (A) on top of the seller network
-
-## Open questions
-
-- Affiliate programmes' rules on passing commission back to buyers (decides how A is funded)
-- Payment flow: does GhostCart collect and settle (marketplace and payment-aggregator rules), or does the seller collect directly through their own Pine Labs account?
-- Who owns what: proposed split in the team kickoff
+No scraping or bot-check workarounds. Code sets every price and the LLM only talks. Humans approve beyond the agent's limits. GhostCart never holds buyer money (Pine Labs does). Honest UI copy. Secrets never in the repo or chat. See [CLAUDE.md](../CLAUDE.md).
