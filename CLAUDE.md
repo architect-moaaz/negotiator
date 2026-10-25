@@ -33,6 +33,12 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
 | Storage: Redis (short-lived keys; in-memory in dev) and Postgres via `STORE_MODE` | `apps/web/src/lib/store.ts`, `pg-store.ts`, `packages/db` (Drizzle schema, migrations), [docs/database.md](docs/database.md) |
+| Shopper data rights (consent records, export, erasure) and the grievance officer | `apps/web/src/lib/privacy/*`, `apps/web/src/app/grievance` |
+| Seller disclosures (E-Commerce Rules), draft legal pages | `apps/web/src/lib/shop/disclosure.ts`, `apps/web/src/app/legal` |
+| Security headers (CSP, HSTS) and controls | `apps/web/security-headers.ts`, [docs/security.md](docs/security.md) |
+| Per-org data export, analytics warehouse (nightly daily metrics) | `apps/web/src/lib/shop/export.ts`, `apps/web/src/lib/warehouse.ts` |
+| ONDC buyer app (signing, registry, callbacks, mock network) | `apps/web/src/lib/ondc/*`, [docs/ondc.md](docs/ondc.md) |
+| Load tests (k6) | `load/`, [load/README.md](load/README.md) |
 | UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 
 ## Rules we learned the hard way

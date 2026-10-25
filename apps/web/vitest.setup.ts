@@ -13,9 +13,34 @@ for (const k of ["AMAZON_CONSENT_BASE", "AMAZON_LWA_BASE", "AMAZON_SPAPI_BASE"])
 const META = "http://meta.test/api/mock-meta";
 process.env.META_GRAPH_BASE ??= META;
 
+// ONDC: the in-repo mock network, which calls our buyer-app endpoint back on ondc-bap.test.
+const ONDC = "http://ondc.test/api/mock-ondc";
+const ONDC_BAP = "http://ondc-bap.test/api/ondc";
+process.env.ONDC_REGISTRY_URL ??= `${ONDC}/registry`;
+process.env.ONDC_GATEWAY_URL ??= `${ONDC}/gateway`;
+process.env.ONDC_BAP_URI ??= ONDC_BAP;
+process.env.ONDC_SUBSCRIBER_ID ??= "zz-ghostcart.ondc.test";
+process.env.ONDC_UNIQUE_KEY_ID ??= "zz-uk-1";
+if (!process.env.ONDC_SIGNING_PRIVATE_KEY) {
+  const { generateSigningKeys } = await import("./src/lib/ondc/crypto");
+  const keys = generateSigningKeys();
+  process.env.ONDC_SIGNING_PRIVATE_KEY = keys.privateKey;
+  process.env.ONDC_SIGNING_PUBLIC_KEY = keys.publicKey;
+}
+
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(ONDC) || url.startsWith(ONDC_BAP)) {
+    const request = new Request(url, init);
+    const path = new URL(url).pathname;
+    if (url.startsWith(ONDC)) {
+      const mock = await import("./src/app/api/mock-ondc/[...path]/route");
+      return mock.POST(request, { params: Promise.resolve({ path: path.replace("/api/mock-ondc/", "").split("/") }) });
+    }
+    const bap = await import("./src/app/api/ondc/[action]/route");
+    return bap.POST(request, { params: Promise.resolve({ action: path.split("/").pop()! }) } as never);
+  }
   if (url.startsWith(META)) {
     const mock = await import("./src/app/api/mock-meta/[...path]/route");
     const request = new Request(url, init);
@@ -45,3 +70,5 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const ctx = { params: Promise.resolve({ path }) };
   return request.method === "GET" ? gateway.GET(request, ctx) : gateway.POST(request, ctx);
 };
+
+export {};

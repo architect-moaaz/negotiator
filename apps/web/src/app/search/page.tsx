@@ -3,8 +3,10 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { AffiliateCompare } from "@/components/affiliate-compare";
 import { CatalogueGrid } from "@/components/catalogue-grid";
+import { OndcResults } from "@/components/ondc-results";
 import { compare, isMarketplaceLink } from "@/lib/affiliate/compare";
 import { inr } from "@/lib/format";
+import { ondcReady } from "@/lib/ondc/config";
 import { searchCatalogue } from "@/lib/shop/catalogue";
 
 export const metadata = { title: "GhostCart · Search" };
@@ -54,6 +56,7 @@ async function Results({ searchParams }: { searchParams: PageProps<"/search">["s
           <CatalogueGrid items={items} />
         </div>
       )}
+      {q && !isMarketplaceLink(q) && ondcReady() && <OndcResults query={q} />}
       {comparison && <AffiliateCompare comparison={comparison} />}
     </>
   );
