@@ -160,6 +160,11 @@ export function SellerDashboard() {
           <Link href="/seller/start" className="hover:text-fg">
             Add a store
           </Link>
+          {data?.role === "owner" && (
+            <a href={`/api/seller/stores/${data.store.id}/export`} className="hover:text-fg" title="Everything your organisation holds on GhostCart, as spreadsheets">
+              Download all data
+            </a>
+          )}
           <button
             onClick={async () => {
               await api("/api/auth/logout", { body: { role: "member" } });
