@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { inr, timeAgo } from "@/lib/format";
 import type { UserInsights } from "@/lib/insights";
+import { StaffLogin } from "./staff-login";
 
-// Shared with /admin, so signing in on either page opens both.
-const TOKEN_KEY = "gc_admin_token";
 const ist = (at: number) => new Date(at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, dateStyle: "medium", timeStyle: "short" });
 
 function downloadCsv(filename: string, rows: (string | number | undefined)[][]) {
@@ -28,72 +27,34 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
 
 /** /userloggedin: how many shoppers logged in, and how far each got (negotiated, locked, bought, delivered). */
 export function UserInsightsView() {
-  const [token, setToken] = useState("");
-  const [data, setData] = useState<UserInsights | null>(null);
+  // undefined = still checking the staff session
+  const [data, setData] = useState<UserInsights | null | undefined>(undefined);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (t: string) => {
-    const res = await fetch("/api/admin/users", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+  const load = useCallback(async () => {
+    const res = await fetch("/api/admin/users", { cache: "no-store" });
     if (!res.ok) {
       setData(null);
-      setError(res.status === 401 ? "That admin token isn't valid." : "Couldn't load users.");
+      setError(res.status === 401 ? "" : ((await res.json().catch(() => ({}))).error ?? "Couldn't load users."));
       return;
     }
     setError("");
     setData(await res.json());
-    try {
-      sessionStorage.setItem(TOKEN_KEY, t);
-    } catch {}
   }, []);
 
   useEffect(() => {
-    let saved = "";
-    try {
-      saved = sessionStorage.getItem(TOKEN_KEY) ?? "";
-    } catch {}
-    if (!saved) return;
-    const t = setTimeout(() => {
-      setToken(saved);
-      load(saved);
-    }, 0);
-    return () => clearTimeout(t);
+    const first = setTimeout(load, 0);
+    return () => clearTimeout(first);
   }, [load]);
 
   useEffect(() => {
     if (!data) return;
-    const t = setInterval(() => load(token), 5000);
+    const t = setInterval(load, 5000);
     return () => clearInterval(t);
-  }, [data, token, load]);
+  }, [data, load]);
 
-  if (!data) {
-    return (
-      <form
-        className="mx-auto mt-24 flex w-full max-w-sm flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          load(token);
-        }}
-      >
-        <h1 className="text-2xl font-semibold">Users</h1>
-        <label htmlFor="users-token" className="text-muted">
-          Admin token
-        </label>
-        <input
-          id="users-token"
-          type="password"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          className="rounded-xl border border-line bg-panel px-4 py-3 focus:border-saffron focus:outline-none"
-        />
-        <button className="rounded-xl bg-saffron px-4 py-3 font-semibold text-paper-ink">Open</button>
-        {error && (
-          <p role="alert" className="text-alarm">
-            {error}
-          </p>
-        )}
-      </form>
-    );
-  }
+  if (data === undefined) return <p className="mt-24 text-center text-muted">Checking your staff session…</p>;
+  if (!data) return <StaffLogin title="Users" error={error} onDone={load} />;
 
   const t = data.totals;
   const funnel: [string, number][] = [

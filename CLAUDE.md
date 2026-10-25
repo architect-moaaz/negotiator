@@ -21,15 +21,17 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Area | Where |
 | --- | --- |
 | Negotiation pipeline (scrape → seller match → compare → terms → opening) | `apps/web/src/lib/negotiate.ts`, `apps/web/src/lib/scrape.ts` |
-| Money rules: budget, floor, auto-approve limit, allowed moves | `apps/web/src/lib/haggle.ts` (pure, tested) |
+| Money rules: budget, floor, auto-approve limit, allowed moves | `packages/core` (`terms.ts`, `moves.ts`; pure, property-tested). `apps/web/src/lib/haggle.ts` wraps it |
 | Agent wording (Claude via Vercel AI SDK 7) | `apps/web/src/lib/agent.ts`, `chooseMove` in `apps/web/src/lib/haggle.ts` |
 | Human approvals: deal desk, sellers, AgenticOrg recommendations | `apps/web/src/lib/deal-desk.ts`, `apps/web/src/app/api/admin/*`, `apps/web/src/app/api/seller/*` |
+| Staff access: roster (`STAFF`), roles, audit trail | `apps/web/src/lib/staff.ts` (`requireStaff` on every admin route) |
 | AgenticOrg agent tools (MCP server) and trigger | `apps/web/src/app/api/mcp/route.ts`, `apps/web/src/lib/agenticorg.ts`, [docs/agenticorg-setup.md](docs/agenticorg-setup.md) |
 | Voice approvals and login codes (Vobiz) | `apps/web/src/lib/vobiz.ts`, `apps/web/src/lib/voice-*.ts`, `apps/web/src/lib/otp.ts`, `apps/web/src/app/api/voice/*` |
 | Payments (Pine Labs, mock gateway for demos) and checkout | `apps/web/src/lib/pinelabs*.ts`, `apps/web/src/lib/payments.ts`, `apps/web/src/lib/checkout.ts` |
-| Accounts, sellers, sessions | `apps/web/src/lib/users.ts`, `apps/web/src/lib/sellers.ts`, `apps/web/src/app/api/auth/*` |
+| Accounts, sellers, sessions | `apps/web/src/lib/session.ts` (server-side, revocable), `users.ts`, `sellers.ts`, `deal-access.ts`, `apps/web/src/app/api/auth/*`; OTP-verified signup in `api/signup` and `api/sellers` |
+| Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
-| Storage (Upstash Redis; in-memory in dev) | `apps/web/src/lib/store.ts` |
+| Storage: Redis (short-lived keys; in-memory in dev) and Postgres via `STORE_MODE` | `apps/web/src/lib/store.ts`, `pg-store.ts`, `packages/db` (Drizzle schema, migrations), [docs/database.md](docs/database.md) |
 | UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 
 ## Rules we learned the hard way
