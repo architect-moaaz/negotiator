@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { candidateMoves, commissionFor, computeTerms, MAX_ROUNDS } from "./haggle";
+import { candidateMoves, MAX_ROUNDS, overrideAfterRejection } from "./moves";
+import { commissionFor, computeTerms } from "./terms";
 import type { Product } from "./types";
 
 const headphones: Product = { title: "Sony WH-1000XM5 Headphones", brand: "Sony", seller: "Amazon", price: 20990, mrp: 34990, inStock: true };
@@ -70,5 +71,31 @@ describe("candidateMoves", () => {
   it("on the last round, takes any offer above the limit and answers lowballs with a final offer", () => {
     expect(candidateMoves({ currentOffer: 19600, rounds: MAX_ROUNDS - 1 }, terms, 19395)[0]).toEqual({ action: "accept", price: 19395 });
     expect(candidateMoves({ currentOffer: 19600, rounds: MAX_ROUNDS - 1 }, terms, 15000)[0]).toEqual({ action: "final", price: terms.autoLimit });
+  });
+});
+
+describe("overrideAfterRejection", () => {
+  const n = { currentOffer: 19390, approval: { price: 19100, requestedAt: 0, decision: "rejected" as const } };
+
+  it("turns a repeat escalation into a hold at the current offer", () => {
+    expect(overrideAfterRejection({ action: "escalate", price: 19100 }, n)?.move).toEqual({ action: "hold", price: 19390 });
+  });
+
+  it("leaves other moves, and escalations nobody rejected, alone", () => {
+    expect(overrideAfterRejection({ action: "counter", price: 19500 }, n)).toBeUndefined();
+    expect(overrideAfterRejection({ action: "escalate", price: 19100 }, { currentOffer: 19390 })).toBeUndefined();
+  });
+});
+
+describe("computeTerms options", () => {
+  it("caps a GhostCart-funded budget at maxBudget", () => {
+    const tv: Product = { title: "Sony Bravia 65 inch television", seller: "Amazon", price: 120000, inStock: true };
+    expect(computeTerms(tv, []).terms.budget).toBe(1000);
+    expect(computeTerms(tv, [], undefined, { maxBudget: 2500 }).terms.budget).toBe(2500);
+  });
+
+  it("uses the seller's own margin when the seller is on GhostCart", () => {
+    const { terms } = computeTerms(headphones, [], { id: "s1", storeName: "Clicktech", budgetPct: 0.1, autoApproveShare: 0.5 });
+    expect(terms).toMatchObject({ fundedBy: "seller", sellerId: "s1", sellerName: "Clicktech", budget: 2099, floor: 18891, autoLimit: 19940 });
   });
 });

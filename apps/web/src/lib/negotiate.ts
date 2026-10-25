@@ -1,6 +1,6 @@
 import { extractProductFromImage, streamHaggle } from "./agent";
 import { openCheckout, toPublicCheckout } from "./checkout";
-import { chooseMove, computeTerms, MAX_ROUNDS } from "./haggle";
+import { chooseMove, computeTerms, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
 import { createDealPayment, LOCK_FEE_INR, simulateEnabled } from "./payments";
 import { inr, shortTitle } from "./format";
 import { matchListingSeller } from "./sellers";
@@ -204,7 +204,7 @@ export async function submitOffer(deal: Deal, offer: number) {
   n.messages.push({ from: "shopper", text: `How about ${inr(offer)}?`, price: offer, at: Date.now() });
   await log("offer_received", `Shopper offered ${inr(offer)} (agent at ${inr(n.currentOffer)}, round ${n.rounds + 1})`, "user");
 
-  let { move, message } = await chooseMove({
+  const chosen = await chooseMove({
     product: deal.product,
     terms: n.terms,
     bestSeller: deal.bestSeller,
@@ -212,11 +212,7 @@ export async function submitOffer(deal: Deal, offer: number) {
     negotiation: n,
     offer,
   });
-  // A human already turned this down: hold at the final offer instead of paging them again.
-  if (move.action === "escalate" && n.approval?.decision === "rejected") {
-    move = { action: "hold", price: n.currentOffer };
-    message = `${inr(n.currentOffer)} is my final offer. It's already been reviewed, so I can't go lower. Take it before the deal expires.`;
-  }
+  const { move, message } = overrideAfterRejection(chosen.move, n) ?? chosen;
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });
   await log("agent_move", `${move.action} at ${inr(move.price)}: "${message}"`, "agent");
 

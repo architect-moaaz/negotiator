@@ -1,34 +1,19 @@
+import type { ApprovalCall, ListingSeller, NegotiationMessage, Negotiation, Product, SellerQuote } from "@ghostcart/core";
+
+export type {
+  AgentRecommendation,
+  ApprovalCall,
+  ListingSeller,
+  Negotiation,
+  NegotiationMessage,
+  NegotiationTerms,
+  Product,
+  SellerQuote,
+} from "@ghostcart/core";
+
 export type DealInput =
   | { kind: "url"; url: string }
   | { kind: "screenshot"; imageBase64: string; mediaType: string };
-
-/** The marketplace merchant actually selling the listing ("Sold by …"). */
-export interface ListingSeller {
-  name: string;
-  marketplace: string; // Amazon, Flipkart, …
-  marketplaceSellerId?: string;
-  rating?: number;
-}
-
-export interface Product {
-  title: string;
-  soldBy?: ListingSeller;
-  brand?: string;
-  imageUrl?: string;
-  sourceUrl?: string;
-  seller: string;
-  price: number; // INR
-  mrp?: number;
-  inStock: boolean;
-}
-
-export interface SellerQuote {
-  seller: string;
-  title?: string;
-  url: string;
-  price: number;
-  inStock: boolean;
-}
 
 export interface Offer {
   originalPrice: number;
@@ -41,58 +26,6 @@ export interface Offer {
 /** negotiating → (awaiting_approval →) pending (invoice live, 180s) → paid (locked; checkout opens) | expired */
 export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid" | "expired";
 
-/** Private limits for the seller agent. Never sent to the browser. */
-export interface NegotiationTerms {
-  fundedBy: "ghostcart" | "seller";
-  sellerId?: string; // set when the listing's seller is on GhostCart
-  sellerName?: string;
-  category: string;
-  commissionRate: number;
-  benchmark: number; // cheapest in-stock price we found
-  budget: number; // max discount GhostCart can fund from its commission
-  floor: number; // benchmark - budget: below this we lose money
-  autoLimit: number; // the agent may agree down to here on its own; lower needs human approval
-  opening: number;
-}
-
-export interface NegotiationMessage {
-  from: "agent" | "shopper" | "desk" | "seller";
-  text: string;
-  price?: number;
-  at: number;
-}
-
-export interface Negotiation {
-  terms: NegotiationTerms;
-  currentOffer: number;
-  rounds: number;
-  messages: NegotiationMessage[];
-  approval?: { price: number; requestedAt: number; decidedAt?: number; decision?: "approved" | "rejected" | "countered"; decidedBy?: string };
-  /** Voice call to the approver (seller or deal desk) via Vobiz. */
-  call?: ApprovalCall;
-  /** Deal-desk agent's recommendation (AgenticOrg); a human still makes the call. */
-  recommendation?: AgentRecommendation;
-}
-
-export interface AgentRecommendation {
-  decision: "approve" | "reject" | "counter";
-  price?: number; // for counter
-  confidence: number; // 0-1
-  reasoning: string;
-  source: string; // e.g. "agenticorg"
-  at: number;
-}
-
-export interface ApprovalCall {
-  status: "calling" | "in_progress" | "completed" | "failed";
-  to: string;
-  role: "seller" | "desk";
-  callUuid?: string;
-  turns: number;
-  pendingCounter?: number; // price the approver asked for, awaiting their confirmation
-  transcript: { from: "agent" | "approver"; text: string; at: number }[];
-  startedAt: number;
-}
 export type Channel = "web" | "whatsapp";
 
 export interface DeliveryAddress {
