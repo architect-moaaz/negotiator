@@ -7,7 +7,7 @@
 3. Commit small, focused changes with messages that say why.
 4. Before pushing, all four must pass:
    ```bash
-   pnpm exec tsc --noEmit && pnpm lint && pnpm test && pnpm build
+   pnpm check   # typecheck, lint, test and build in every package
    ```
 5. Open a PR into `main`. Fill in what changed, how you tested it, and any new environment variables.
 6. One teammate reviews and approves. Claude's PRs need a human approval too.
@@ -19,7 +19,7 @@ Agents (Claude included) follow the same steps and never push to `main` directly
 
 ```bash
 pnpm install
-cp .env.example .env.local   # fill in what you need; most features degrade gracefully
+cp .env.example apps/web/.env.local   # fill in what you need; most features degrade gracefully
 pnpm dev
 ```
 
@@ -38,4 +38,4 @@ Without keys: no Firecrawl means plain fetch; no Anthropic means template replie
 
 ## Code style
 
-Match the surrounding code: TypeScript, small modules in `src/lib`, pure functions for rules (with tests), short comments that explain why. Read [CLAUDE.md](CLAUDE.md) for the architecture map and the non-negotiable rules.
+Match the surrounding code: TypeScript, small modules in `apps/web/src/lib` (pure rules move to `packages/*`), pure functions for rules (with tests), short comments that explain why. Read [CLAUDE.md](CLAUDE.md) for the architecture map and the non-negotiable rules.

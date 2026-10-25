@@ -10,28 +10,27 @@ Team: `architect-moaaz` (Moaaz), `rajathc93`, `lakshmie6x`, `ginger205`, and Cla
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:3000; without Redis env vars data is in memory
-pnpm test         # vitest
-pnpm lint
-pnpm exec tsc --noEmit
-pnpm build        # must pass: Next 16 cacheComponents enforces prerender rules
+pnpm dev          # apps/web on http://localhost:3000; without Redis env vars data is in memory
+pnpm check        # typecheck, lint, test, build across the workspace (what CI runs)
+pnpm test         # vitest in every package
+pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforces prerender rules
 ```
 
 ## Map
 
 | Area | Where |
 | --- | --- |
-| Negotiation pipeline (scrape → seller match → compare → terms → opening) | `src/lib/negotiate.ts`, `src/lib/scrape.ts` |
-| Money rules: budget, floor, auto-approve limit, allowed moves | `src/lib/haggle.ts` (pure, tested) |
-| Agent wording (Claude via Vercel AI SDK 7) | `src/lib/agent.ts`, `chooseMove` in `src/lib/haggle.ts` |
-| Human approvals: deal desk, sellers, AgenticOrg recommendations | `src/lib/deal-desk.ts`, `src/app/api/admin/*`, `src/app/api/seller/*` |
-| AgenticOrg agent tools (MCP server) and trigger | `src/app/api/mcp/route.ts`, `src/lib/agenticorg.ts`, [docs/agenticorg-setup.md](docs/agenticorg-setup.md) |
-| Voice approvals and login codes (Vobiz) | `src/lib/vobiz.ts`, `src/lib/voice-*.ts`, `src/lib/otp.ts`, `src/app/api/voice/*` |
-| Payments (Pine Labs, mock gateway for demos) and checkout | `src/lib/pinelabs*.ts`, `src/lib/payments.ts`, `src/lib/checkout.ts` |
-| Accounts, sellers, sessions | `src/lib/users.ts`, `src/lib/sellers.ts`, `src/app/api/auth/*` |
-| Analytics and demographics | `src/lib/analytics.ts`, `src/lib/demographics.ts`, `src/app/api/track` |
-| Storage (Upstash Redis; in-memory in dev) | `src/lib/store.ts` |
-| UI | `src/app/*` pages, `src/components/*` |
+| Negotiation pipeline (scrape → seller match → compare → terms → opening) | `apps/web/src/lib/negotiate.ts`, `apps/web/src/lib/scrape.ts` |
+| Money rules: budget, floor, auto-approve limit, allowed moves | `apps/web/src/lib/haggle.ts` (pure, tested) |
+| Agent wording (Claude via Vercel AI SDK 7) | `apps/web/src/lib/agent.ts`, `chooseMove` in `apps/web/src/lib/haggle.ts` |
+| Human approvals: deal desk, sellers, AgenticOrg recommendations | `apps/web/src/lib/deal-desk.ts`, `apps/web/src/app/api/admin/*`, `apps/web/src/app/api/seller/*` |
+| AgenticOrg agent tools (MCP server) and trigger | `apps/web/src/app/api/mcp/route.ts`, `apps/web/src/lib/agenticorg.ts`, [docs/agenticorg-setup.md](docs/agenticorg-setup.md) |
+| Voice approvals and login codes (Vobiz) | `apps/web/src/lib/vobiz.ts`, `apps/web/src/lib/voice-*.ts`, `apps/web/src/lib/otp.ts`, `apps/web/src/app/api/voice/*` |
+| Payments (Pine Labs, mock gateway for demos) and checkout | `apps/web/src/lib/pinelabs*.ts`, `apps/web/src/lib/payments.ts`, `apps/web/src/lib/checkout.ts` |
+| Accounts, sellers, sessions | `apps/web/src/lib/users.ts`, `apps/web/src/lib/sellers.ts`, `apps/web/src/app/api/auth/*` |
+| Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
+| Storage (Upstash Redis; in-memory in dev) | `apps/web/src/lib/store.ts` |
+| UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 
 ## Rules we learned the hard way
 
