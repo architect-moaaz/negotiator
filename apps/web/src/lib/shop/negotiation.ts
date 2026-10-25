@@ -1,4 +1,4 @@
-import { inr } from "@ghostcart/core";
+import { inr, TIER_LIMITS, type SellerTier } from "@ghostcart/core";
 import { LOCK_FEE_INR, testPayments } from "../payments";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
@@ -25,6 +25,8 @@ export async function startShopNegotiation(productId: string, userId: string, op
   if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
   if (store.status !== "live") throw new ShopError("This shop isn't open yet.", 409);
   if (product.stock < 1) throw new ShopError("Out of stock right now.", 409);
+  const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
+  if (product.price > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
 
   const terms = await termsForProduct(product, store, opts.channel ?? "shop");
   if (!terms) throw new ShopError("This product is sold at a fixed price.", 409);

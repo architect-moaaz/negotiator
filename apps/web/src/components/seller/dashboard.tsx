@@ -8,6 +8,7 @@ import { inr } from "@/lib/format";
 import { PhoneLogin } from "../phone-login";
 import { DiscountsTab } from "./discounts";
 import { ProductsTab } from "./products";
+import { VerificationTab } from "./verification";
 import { api } from "./ui";
 
 export interface StoreSummary {
@@ -46,7 +47,7 @@ export interface StoreData {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const STATUS: Record<string, string> = {
-  draft: "Draft: shoppers can't see this store yet. Verification comes next.",
+  draft: "Draft: shoppers can't see this store yet. Get verified to go live.",
   pending_review: "Waiting for review. We'll message you when it's live.",
   live: "Live",
   suspended: "Suspended. Contact GhostCart support.",
@@ -57,7 +58,7 @@ export function SellerDashboard() {
   const params = useSearchParams();
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [data, setData] = useState<StoreData | null>(null);
-  const [tab, setTab] = useState<"products" | "discounts">("products");
+  const [tab, setTab] = useState<"products" | "discounts" | "verification">("products");
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
@@ -177,7 +178,7 @@ export function SellerDashboard() {
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
-            {(["products", "discounts"] as const).map((t) => (
+            {(["products", "discounts", "verification"] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -192,6 +193,7 @@ export function SellerDashboard() {
 
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
+          {tab === "verification" && <VerificationTab storeId={data.store.id} canManage={data.role === "owner"} onStatus={() => loadStore(data.store.id)} />}
         </>
       )}
     </div>

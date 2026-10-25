@@ -133,6 +133,10 @@ export const sellerDemand = pgTable("seller_demand", {
 export const orgs = pgTable("orgs", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  /** As on PAN/GST, filled in during verification. */
+  legalName: text("legal_name"),
+  /** individual | proprietorship | partnership | company | llp */
+  businessType: text("business_type"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
 
@@ -169,6 +173,9 @@ export const stores = pgTable(
     /** new | verified | trusted: sets order caps and payout hold length. */
     tier: text("tier").notNull().default("new"),
     verifiedAt: ts("verified_at"),
+    /** Random token the seller publishes in DNS or a meta tag to prove they control `domain`. */
+    verificationToken: text("verification_token"),
+    reviewNote: text("review_note"),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("stores_org_idx").on(t.orgId)],
@@ -239,4 +246,35 @@ export const policies = pgTable(
     uniqueIndex("policies_category_level_idx").on(t.categoryId).where(sql`scope = 'category'`),
     uniqueIndex("policies_product_level_idx").on(t.productId).where(sql`scope = 'product'`),
   ],
+);
+
+/**
+ * Verification evidence for a seller business or store, one row per check. Raw PAN and bank account
+ * numbers are never stored: `masked` is for display and `identityHash` (HMAC) spots the same identity
+ * reused across accounts.
+ */
+export const kycChecks = pgTable(
+  "kyc_checks",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    storeId: text("store_id").references(() => stores.id, { onDelete: "cascade" }),
+    /** pan | gstin | bank | ownership_dns | ownership_meta | ownership_photo | ownership_marketplace */
+    type: text("type").notNull(),
+    /** pending | passed | failed | manual_review */
+    status: text("status").notNull(),
+    /** sandbox | manual | <provider name> */
+    provider: text("provider").notNull(),
+    providerRef: text("provider_ref"),
+    masked: text("masked"),
+    identityHash: text("identity_hash"),
+    /** Name returned by the provider (for the name match), file URLs, the provider's reason, … */
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: ts("reviewed_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("kyc_checks_org_idx").on(t.orgId), index("kyc_checks_hash_idx").on(t.identityHash)],
 );

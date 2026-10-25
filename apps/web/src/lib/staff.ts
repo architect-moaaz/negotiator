@@ -9,11 +9,11 @@ import { maskPhone, normalizePhone } from "./users";
  * from the roster locks them out on their next request, even mid-session.
  */
 export type StaffRole = "owner" | "approver" | "viewer";
-export type Permission = "view" | "pii" | "decide" | "fulfil";
+export type Permission = "view" | "pii" | "decide" | "fulfil" | "review";
 
 const GRANTS: Record<StaffRole, readonly Permission[]> = {
-  owner: ["view", "pii", "decide", "fulfil"],
-  approver: ["view", "pii", "decide", "fulfil"],
+  owner: ["view", "pii", "decide", "fulfil", "review"],
+  approver: ["view", "pii", "decide", "fulfil", "review"],
   viewer: ["view"],
 };
 

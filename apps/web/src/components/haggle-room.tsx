@@ -222,7 +222,7 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
           <span className="text-3xl font-semibold">{inr(waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer)}</span>
         </div>
         <p className="mt-1 text-right text-paper-muted">
-          {inr(n.benchmark - (waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer))} under the best market price
+          {inr(n.benchmark - (waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer))} under {deal.shop ? "the list price" : "the best market price"}
         </p>
         <div className="receipt-rule my-4" />
         <p className="text-center text-paper-muted">
