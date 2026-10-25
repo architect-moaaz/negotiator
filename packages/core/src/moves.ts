@@ -8,7 +8,7 @@ const STEP = [0.4, 0.5, 0.6, 1];
 /** Moves the agent is allowed to make, in default order of preference. Code sets every number. */
 export function candidateMoves(n: Pick<Negotiation, "currentOffer" | "rounds">, terms: NegotiationTerms, offer: number): Move[] {
   const { autoLimit, floor } = terms;
-  const lastRound = n.rounds >= MAX_ROUNDS - 1;
+  const lastRound = n.rounds >= (terms.maxRounds ?? MAX_ROUNDS) - 1;
   const next = lastRound
     ? autoLimit
     : Math.max(autoLimit, Math.round(n.currentOffer - (n.currentOffer - autoLimit) * STEP[Math.min(n.rounds, STEP.length - 1)]));

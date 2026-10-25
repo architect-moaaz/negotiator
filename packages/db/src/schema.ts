@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, doublePrecision, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { bigint, boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * v1 schema: mirrors what the Redis store holds today so the app can dual-write and then switch
@@ -126,3 +126,117 @@ export const sellerDemand = pgTable("seller_demand", {
     .notNull()
     .default(sql`now()`),
 });
+
+/* ---------- Wave 1: seller businesses, their stores, catalogue and discount rules ---------- */
+
+/** A seller business. Everything a seller owns hangs off an org. */
+export const orgs = pgTable("orgs", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** People who can act for an org, by verified phone number. */
+export const members = pgTable(
+  "members",
+  {
+    orgId: text("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(), // E.164
+    name: text("name").notNull(),
+    role: text("role").notNull(), // owner | admin | approver | viewer
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.phone] }), index("members_phone_idx").on(t.phone)],
+);
+
+export const stores = pgTable(
+  "stores",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** URL name for the hosted shop: ghostcart.app/s/<slug>. */
+    slug: text("slug").notNull().unique(),
+    /** How the seller sells: ghostcart_shop | website | shopify | woocommerce | amazon | flipkart. */
+    platform: text("platform").notNull(),
+    domain: text("domain"),
+    /** draft → pending_review → live; suspended by staff. */
+    status: text("status").notNull().default("draft"),
+    /** new | verified | trusted: sets order caps and payout hold length. */
+    tier: text("tier").notNull().default("new"),
+    verifiedAt: ts("verified_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("stores_org_idx").on(t.orgId)],
+);
+
+export const categories = pgTable(
+  "categories",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("categories_store_name_idx").on(t.storeId, t.name)],
+);
+
+export const products = pgTable(
+  "products",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    categoryId: text("category_id").references(() => categories.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    /** List price in INR: the benchmark the agent negotiates down from. */
+    price: integer("price").notNull(),
+    mrp: integer("mrp"),
+    stock: integer("stock").notNull().default(0),
+    images: jsonb("images").$type<string[]>().notNull().default([]),
+    sku: text("sku"),
+    /** active | draft | archived */
+    status: text("status").notNull().default("active"),
+    /** Where it came from: manual | csv | shopify:<id> | amazon:<asin> … */
+    source: text("source").notNull().default("manual"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("products_store_idx").on(t.storeId), index("products_category_idx").on(t.categoryId)],
+);
+
+/** Discount rules. One row per level: the store default, a category, or a product. */
+export const policies = pgTable(
+  "policies",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(), // store | category | product
+    categoryId: text("category_id").references(() => categories.id, { onDelete: "cascade" }),
+    productId: text("product_id").references(() => products.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled"),
+    maxDiscountPct: doublePrecision("max_discount_pct"),
+    autoApprovePct: doublePrecision("auto_approve_pct"),
+    floorPrice: integer("floor_price"),
+    maxRounds: integer("max_rounds"),
+    expiryMinutes: integer("expiry_minutes"),
+    bundlesAllowed: boolean("bundles_allowed"),
+    channels: jsonb("channels").$type<string[]>(),
+    updatedAt: ts("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("policies_store_level_idx").on(t.storeId).where(sql`scope = 'store'`),
+    uniqueIndex("policies_category_level_idx").on(t.categoryId).where(sql`scope = 'category'`),
+    uniqueIndex("policies_product_level_idx").on(t.productId).where(sql`scope = 'product'`),
+  ],
+);

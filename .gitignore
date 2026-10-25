@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Backfill exports contain the activity log (names, deal details)
 backfill-export-*.json
+
+# Embedded Postgres data for local development
+.pglite/

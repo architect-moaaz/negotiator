@@ -46,6 +46,8 @@ export interface NegotiationTerms {
   floor: number; // benchmark - budget: below this we lose money
   autoLimit: number; // the agent may agree down to here on its own; lower needs human approval
   opening: number;
+  /** Rounds before the agent's last offer; defaults to MAX_ROUNDS. */
+  maxRounds?: number;
 }
 
 export interface NegotiationMessage {

@@ -17,6 +17,9 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^4.0.87
         version: 4.0.87(zod@4.6.7)
+      '@electric-sql/pglite':
+        specifier: 0.5.8
+        version: 0.5.8
       '@ghostcart/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -57,9 +60,6 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
-      '@electric-sql/pglite':
-        specifier: 0.5.8
-        version: 0.5.8
       '@tailwindcss/turbopack':
         specifier: ^4
         version: 4.3.3
@@ -108,6 +108,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.8
+        version: 0.5.8
       '@neondatabase/serverless':
         specifier: 1.2.0
         version: 1.2.0
@@ -115,9 +118,6 @@ importers:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.2.0)(@upstash/redis@1.39.0)
     devDependencies:
-      '@electric-sql/pglite':
-        specifier: 0.5.8
-        version: 0.5.8
       '@types/node':
         specifier: ^20
         version: 20.19.43
