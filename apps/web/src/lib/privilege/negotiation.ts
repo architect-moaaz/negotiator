@@ -58,7 +58,11 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
   const store = await getStore(cart.storeId);
   if (!store || store.status !== "live") throw new ShopError("This store isn't taking orders on GhostCart right now.", 409);
   const recovery = await getRecovery(store.id);
-  if (!recovery.enabled) throw new ShopError(`${store.name} isn't making private offers right now.`, 409);
+  // Rescue my cart: the shopper brought a marketplace cart to this seller, so the store's normal discount
+  // rules apply. Abandoned-cart offers use the seller's recovery limits and need recovery switched on.
+  const rescue = cart.source === "rescue";
+  if (!rescue && !recovery.enabled) throw new ShopError(`${store.name} isn't making private offers right now.`, 409);
+  const limits = rescue ? { ...recovery, maxDiscountPct: undefined, autoApprovePct: undefined } : recovery;
 
   const grants = GRANT_PLATFORMS.has(store.platform);
   if (grants) {
@@ -69,7 +73,7 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
     if (cart.lines.length > 1 || cart.lines[0].quantity > 1) throw new ShopError("Bundle offers on this shop are coming soon. Make an offer on one item for now.", 409);
   }
 
-  const { lines, terms } = await bundleFor(cart, store, recovery);
+  const { lines, terms } = await bundleFor(cart, store, limits);
   const listTotal = terms.benchmark;
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (listTotal > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
@@ -83,7 +87,9 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
   const itemCount = lines.reduce((s, l) => s + l.quantity, 0);
   const title = lines.length === 1 && lines[0].quantity === 1 ? lines[0].title : `Your cart: ${itemCount} items from ${store.name}`;
   const now = Date.now();
-  const opening = `Welcome back. ${title} comes to ${inr(listTotal)}. As a GhostCart Privilege offer from ${store.name}, I can do ${inr(terms.opening)} right now. Make me an offer.`;
+  const opening = rescue
+    ? `${title} comes to ${inr(listTotal)} at ${store.name}. For you, right now: ${inr(terms.opening)}. Make me an offer.`
+    : `Welcome back. ${title} comes to ${inr(listTotal)}. As a GhostCart Privilege offer from ${store.name}, I can do ${inr(terms.opening)} right now. Make me an offer.`;
   const deal: Deal = {
     id: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     product: { title, seller: store.name, price: listTotal, imageUrl: lines[0].image, inStock: true },
@@ -91,7 +97,7 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
     originalPrice: listTotal,
     dealPrice: terms.opening,
     saved: listTotal - terms.opening,
-    perk: `Private offer from ${store.name}`,
+    perk: rescue ? `Ships from ${store.name}` : `Private offer from ${store.name}`,
     bestSeller: store.name,
     haggle: opening,
     negotiation: { terms, currentOffer: terms.opening, rounds: 0, messages: [{ from: "agent", text: opening, price: terms.opening, at: now }] },

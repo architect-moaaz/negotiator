@@ -11,8 +11,8 @@ const off = () => process.env.VERCEL_ENV === "production" || !process.env.SHOPIF
 type Ctx = { params: Promise<{ path: string[] }> };
 
 const PRODUCTS = [
-  { id: "gid://shopify/Product/9001", title: "ZZ Mock Kurta, Cotton", price: "1499.00", compareAt: "1999.00", stock: 12, variant: "gid://shopify/ProductVariant/7001" },
-  { id: "gid://shopify/Product/9002", title: "ZZ Mock Steel Bottle 1L", price: "699.00", compareAt: null, stock: 40, variant: "gid://shopify/ProductVariant/7002" },
+  { id: "gid://shopify/Product/9001", title: "ZZ Mock Kurta, Cotton", price: "1499.00", compareAt: "1999.00", stock: 12, variant: "gid://shopify/ProductVariant/7001", vendor: "ZZ Handloom", barcode: null },
+  { id: "gid://shopify/Product/9002", title: "ZZ Mock Steel Bottle 1L", price: "699.00", compareAt: null, stock: 40, variant: "gid://shopify/ProductVariant/7002", vendor: "Milton", barcode: "8901030865275" },
 ];
 
 function sign(params: URLSearchParams) {
@@ -71,7 +71,7 @@ export async function POST(request: Request, ctx: Ctx) {
         return Response.json({
           data: {
             products: {
-              nodes: PRODUCTS.map((p) => ({ id: p.id, title: p.title, descriptionHtml: `<p>${p.title}</p>`, status: "ACTIVE", featuredMedia: null, variants: { nodes: [{ id: p.variant, price: p.price, compareAtPrice: p.compareAt, inventoryQuantity: p.stock }] } })),
+              nodes: PRODUCTS.map((p) => ({ id: p.id, title: p.title, descriptionHtml: `<p>${p.title}</p>`, status: "ACTIVE", vendor: p.vendor, featuredMedia: null, variants: { nodes: [{ id: p.variant, price: p.price, compareAtPrice: p.compareAt, inventoryQuantity: p.stock, barcode: p.barcode }] } })),
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },

@@ -42,6 +42,7 @@ async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[
   const back = (await allowedReturnUrl(store.id, typeof raw === "string" ? raw : cart.returnUrl)) ?? undefined;
   const items = cart.lines.reduce((s, l) => s + l.quantity, 0);
   const seller = await sellerDetails(store);
+  const rescue = cart.source === "rescue";
 
   return (
     <>
@@ -50,9 +51,9 @@ async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[
           ← Back to {new URL(back).hostname}
         </a>
       )}
-      <p className="mt-6 text-sm font-semibold uppercase tracking-wider text-saffron">GhostCart Privilege</p>
+      <p className="mt-6 text-sm font-semibold uppercase tracking-wider text-saffron">{rescue ? "Rescue my cart" : "GhostCart Privilege"}</p>
       <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">
-        {closed ? "This offer is closed" : `A private offer on your cart from ${store.name}`}
+        {closed ? "This offer is closed" : rescue ? `Make ${store.name} an offer` : `A private offer on your cart from ${store.name}`}
       </h1>
       {closed ? (
         <p className="mt-3 text-muted">{closed}</p>
@@ -94,7 +95,7 @@ async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[
           <p className="text-sm text-muted">This link works until {when(invite.expiresAt)} IST. Prices are checked again when you start.</p>
         </div>
       )}
-      {cart.status !== "opted_out" && !closed && (
+      {!rescue && cart.status !== "opted_out" && !closed && (
         <div className="mt-6 text-sm text-muted">
           <StopOffers token={token} storeName={store.name} />
         </div>

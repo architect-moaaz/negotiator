@@ -5,7 +5,7 @@ import { inr } from "@/lib/format";
 import type { ProductRow, StoreData } from "./dashboard";
 import { api, ErrorText, field, primary, secondary } from "./ui";
 
-const empty = { title: "", price: "", mrp: "", stock: "1", category: "", sku: "", description: "", image: "", countryOfOrigin: "India" };
+const empty = { title: "", price: "", mrp: "", stock: "1", category: "", sku: "", description: "", image: "", countryOfOrigin: "India", brand: "", gtin: "", modelNumber: "" };
 
 export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdit: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<ProductRow | "new" | null>(null);
@@ -36,7 +36,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
     setForm(
       p === "new"
         ? empty
-        : { title: p.title, price: String(p.price), mrp: p.mrp ? String(p.mrp) : "", stock: String(p.stock), category: categoryName(p.categoryId), sku: p.sku ?? "", description: p.description, image: p.images[0] ?? "", countryOfOrigin: p.countryOfOrigin ?? "" },
+        : { title: p.title, price: String(p.price), mrp: p.mrp ? String(p.mrp) : "", stock: String(p.stock), category: categoryName(p.categoryId), sku: p.sku ?? "", description: p.description, image: p.images[0] ?? "", countryOfOrigin: p.countryOfOrigin ?? "", brand: p.brand ?? "", gtin: p.gtin ?? "", modelNumber: p.modelNumber ?? "" },
     );
   }
 
@@ -53,6 +53,9 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
       description: form.description,
       images: form.image ? [form.image] : [],
       countryOfOrigin: form.countryOfOrigin || undefined,
+      brand: form.brand,
+      gtin: form.gtin,
+      modelNumber: form.modelNumber,
       status: editing !== "new" && editing ? editing.status : "active",
     };
     const r = editing === "new" ? await api(`/api/seller/stores/${data.store.id}/products`, { body }) : await api(`/api/seller/stores/${data.store.id}/products/${editing!.id}`, { method: "PUT", body });
@@ -150,6 +153,14 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
             <span className="text-muted">Country of origin</span>
             <input value={form.countryOfOrigin} onChange={set("countryOfOrigin")} className={field} />
           </label>
+          <fieldset className="grid gap-2">
+            <legend className="text-muted">Brand, barcode and model (optional: shoppers find this exact item when they bring a marketplace cart)</legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <input aria-label="Brand" placeholder="Brand" value={form.brand} onChange={set("brand")} className={field} />
+              <input aria-label="Barcode (EAN or UPC)" placeholder="Barcode (EAN/UPC)" inputMode="numeric" value={form.gtin} onChange={set("gtin")} className={field} />
+              <input aria-label="Model number" placeholder="Model number" value={form.modelNumber} onChange={set("modelNumber")} className={field} />
+            </div>
+          </fieldset>
           <div className="grid gap-2">
             <span className="text-muted">Photo</span>
             <div className="flex items-center gap-4">

@@ -40,6 +40,9 @@ export interface ProductRow {
   sku: string | null;
   images: string[];
   countryOfOrigin: string | null;
+  brand: string | null;
+  gtin: string | null;
+  modelNumber: string | null;
   status: string;
 }
 export interface StoreData {

@@ -116,6 +116,12 @@ describe("Shopify install → haggle → code → order", () => {
     expect(await balance(await getDb(), accounts.sellerFeesDue(storeId))).toBeGreaterThan(0);
   });
 
+  it("imports brand (vendor) and barcode for matching shoppers' marketplace carts", async () => {
+    const { storeId } = await installAndConnect();
+    expect(await getProductByRef(storeId, "shopify-9002")).toMatchObject({ brand: "Milton", gtin: "08901030865275" });
+    expect(await getProductByRef(storeId, "shopify-9001")).toMatchObject({ brand: "ZZ Handloom", gtin: null });
+  });
+
   it("issues one code for a whole Privilege cart, with a cart link carrying every item", async () => {
     const { shop, storeId } = await installAndConnect();
     await updateStore(storeId, { status: "live" });

@@ -1,5 +1,5 @@
 import { schema } from "@ghostcart/db";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { store as kv } from "../store";
 
@@ -23,7 +23,8 @@ export interface RecoveryStats {
 /** GhostCart Privilege funnel for one store (or every store when storeId is omitted), since a date. */
 export async function recoveryStats(storeId?: string, since = new Date(Date.now() - 30 * 24 * 3600_000)): Promise<RecoveryStats> {
   const db = await getDb();
-  const where = and(storeId ? eq(carts.storeId, storeId) : undefined, gte(carts.createdAt, since));
+  // Rescue my cart carts are shoppers arriving from marketplaces, not this store's abandoned carts.
+  const where = and(storeId ? eq(carts.storeId, storeId) : undefined, gte(carts.createdAt, since), ne(carts.source, "rescue"));
   const rows = await db
     .select({ status: carts.status, n: sql<number>`count(*)::int`, value: sql<number>`coalesce(sum(${carts.subtotal}), 0)::int`, consented: sql<number>`count(${carts.consentAt})::int` })
     .from(carts)

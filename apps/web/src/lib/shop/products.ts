@@ -1,5 +1,6 @@
 import { schema } from "@ghostcart/db";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { normalizeGtin } from "@ghostcart/core";
 import { z } from "zod";
 import { getDb } from "../db";
 import { newId } from "./ids";
@@ -20,6 +21,15 @@ export const productInput = z.object({
   sku: z.string().trim().max(60).optional(),
   images: z.array(z.string().url()).max(8).default([]),
   countryOfOrigin: z.string().trim().max(60).optional(),
+  /** Identity for matching shoppers' marketplace carts (Rescue my cart). */
+  brand: z.string().trim().max(60).optional(),
+  gtin: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .refine((v) => !v || normalizeGtin(v) !== null, "That barcode (EAN/UPC) doesn't look right. Check the digits."),
+  modelNumber: z.string().trim().max(60).optional(),
   status: z.enum(["active", "draft", "archived"]).default("active"),
 });
 export type ProductInput = z.input<typeof productInput>;
@@ -53,19 +63,19 @@ export async function createProduct(storeId: string, input: ProductInput, source
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .insert(products)
-    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, countryOfOrigin: p.countryOfOrigin || null, status: p.status, source })
+    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, countryOfOrigin: p.countryOfOrigin || null, brand: p.brand || null, gtin: normalizeGtin(p.gtin), modelNumber: p.modelNumber || null, status: p.status, source })
     .returning();
   return row;
 }
 
-/** Fields left out keep their value only where a sync can't know them (country of origin); the rest are replaced. */
+/** Fields left out keep their value only where a sync can't know them (country of origin, brand, barcode, model); the rest are replaced. */
 export async function updateProduct(storeId: string, id: string, input: ProductInput) {
   const db = await getDb();
   const p = parse(input);
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .update(products)
-    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, ...(p.countryOfOrigin !== undefined && { countryOfOrigin: p.countryOfOrigin || null }), status: p.status, updatedAt: new Date() })
+    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, ...(p.countryOfOrigin !== undefined && { countryOfOrigin: p.countryOfOrigin || null }), ...(p.brand !== undefined && { brand: p.brand || null }), ...(p.gtin !== undefined && { gtin: normalizeGtin(p.gtin) }), ...(p.modelNumber !== undefined && { modelNumber: p.modelNumber || null }), status: p.status, updatedAt: new Date() })
     .where(and(eq(products.id, id), eq(products.storeId, storeId)))
     .returning();
   return row as Product | undefined;

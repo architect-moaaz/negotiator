@@ -1,0 +1,1 @@
+CREATE INDEX "products_gtin_idx" ON "products" USING btree ("gtin") WHERE gtin is not null;

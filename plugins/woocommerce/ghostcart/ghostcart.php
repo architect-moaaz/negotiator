@@ -188,11 +188,26 @@ final class GhostCart_Plugin {
 				'stock'       => max( 0, $stock ),
 				'images'      => $image ? array( $image ) : array(),
 				'status'      => 'publish' === $product->get_status() ? 'active' : 'draft',
+				// Identity for matching shoppers' marketplace carts: brand (WooCommerce 9.6+ brands, or a
+				// "brand" attribute), GTIN/EAN/UPC (WooCommerce 9.2+), and a "model" attribute if the store has one.
+				'brand'       => self::product_brand( $product ),
+				'gtin'        => method_exists( $product, 'get_global_unique_id' ) && $product->get_global_unique_id() ? (string) $product->get_global_unique_id() : null,
+				'modelNumber' => $product->get_attribute( 'model' ) ? wp_strip_all_tags( $product->get_attribute( 'model' ) ) : null,
 			),
 			static function ( $v ) {
 				return null !== $v;
 			}
 		);
+	}
+
+	private static function product_brand( $product ) {
+		if ( taxonomy_exists( 'product_brand' ) ) {
+			$terms = get_the_terms( $product->get_id(), 'product_brand' );
+			if ( is_array( $terms ) && $terms ) {
+				return wp_strip_all_tags( $terms[0]->name );
+			}
+		}
+		return $product->get_attribute( 'brand' ) ? wp_strip_all_tags( $product->get_attribute( 'brand' ) ) : null;
 	}
 
 	public static function sync_product( $product_id ) {

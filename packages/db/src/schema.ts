@@ -244,6 +244,8 @@ export const products = pgTable(
     index("products_category_idx").on(t.categoryId),
     // Catalogue sync (/api/v1/products) upserts by SKU, so a SKU is unique within a store.
     uniqueIndex("products_store_sku_idx").on(t.storeId, t.sku).where(sql`sku is not null`),
+    // Rescue my cart looks up the same barcode across every store.
+    index("products_gtin_idx").on(t.gtin).where(sql`gtin is not null`),
   ],
 );
 
