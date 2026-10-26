@@ -1,0 +1,43 @@
+# A Neon database branch per pull request, migrated to the PR's schema, deleted when the PR closes.
+# Vercel previews pick it up through the Neon–Vercel integration (or set DATABASE_URL per preview).
+# Needs vars.NEON_PROJECT_ID and secrets.NEON_API_KEY; skips itself until they exist.
+name: Neon branch per PR
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: neon-${{ github.event.number }}
+jobs:
+  branch:
+    if: github.event.action != 'closed' && vars.NEON_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: preview/pr-${{ github.event.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      - run: pnpm install --frozen-lockfile --filter @ghostcart/db
+      - name: Apply migrations to the PR branch
+        run: pnpm --filter @ghostcart/db db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ steps.neon.outputs.db_url }}
+  cleanup:
+    if: github.event.action == 'closed' && vars.NEON_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: preview/pr-${{ github.event.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}

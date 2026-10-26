@@ -64,7 +64,8 @@ export function SellerDashboard() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [data, setData] = useState<StoreData | null>(null);
   const [waiting, setWaiting] = useState(0);
-  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "integrations" | "verification">("products");
+  // A notification links to ?tab=approvals: open straight on the offer waiting for a decision.
+  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "integrations" | "verification">(() => (params.get("tab") === "approvals" ? "approvals" : "products"));
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
