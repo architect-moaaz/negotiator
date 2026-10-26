@@ -1,3 +1,4 @@
+import { DealConflictError } from "@/lib/errors";
 import { advanceOrder, CheckoutError } from "@/lib/checkout";
 import { toPublic } from "@/lib/negotiate";
 import { audit, requireStaff } from "@/lib/staff";
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
     return Response.json(toPublic(updated));
   } catch (err) {
     if (err instanceof CheckoutError) return Response.json({ error: err.message }, { status: err.status });
+    if (err instanceof DealConflictError) return Response.json({ error: err.message }, { status: 409 });
     throw err;
   }
 }

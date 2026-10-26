@@ -20,6 +20,9 @@ export function getDb(): Promise<Db> {
   if (process.env.VERCEL_ENV === "production") return Promise.reject(new DatabaseUnavailableError());
   // Vitest and next dev both run from apps/web.
   const migrations = path.resolve(process.cwd(), "../../packages/db/drizzle");
-  g.__ghostcartDb = import("@ghostcart/db/local").then(({ createLocalDb }) => createLocalDb(migrations, process.env.VITEST ? undefined : ".pglite"));
+  // Tests and `next build` use a throwaway in-memory database: a build running while `next dev` holds
+  // .pglite would open the same files from a second process and corrupt them.
+  const ephemeral = process.env.VITEST || process.env.NEXT_PHASE === "phase-production-build";
+  g.__ghostcartDb = import("@ghostcart/db/local").then(({ createLocalDb }) => createLocalDb(migrations, ephemeral ? undefined : ".pglite"));
   return g.__ghostcartDb;
 }

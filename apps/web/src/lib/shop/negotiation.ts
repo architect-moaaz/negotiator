@@ -4,6 +4,7 @@ import { grantAdapterFor, GRANT_PLATFORMS } from "../grants/adapters";
 import { allowedReturnUrl } from "../integrations/keys";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
+import { recordEvent } from "../negotiation-events";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
 import { policyForProduct, termsForProduct } from "./policies";
@@ -80,12 +81,13 @@ export async function startShopNegotiation(
     expiresAt: now + policy.expiryMinutes * 60 * 1000,
     status: "negotiating",
     city: opts.city,
-    channel: opts.chat?.channel ?? "web",
+    channel: opts.chat?.channel ?? (opts.channel === "api" ? "api" : "web"),
     chat: opts.chat,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };
   await kv.saveDeal(deal, true);
+  await recordEvent(deal, "started", "agent", { price: terms.opening, message: deal.negotiation?.messages.at(-1)?.text });
   await kv.incrStats({ deals: 1 });
   await kv.log({ type: "negotiation_started", actor: "user", userId, dealId: deal.id, detail: `Shop haggle on ${product.title} (${store.name}) at list ${inr(product.price)}` });
   await kv.log({ type: "agent_move", actor: "agent", userId, dealId: deal.id, detail: `Opening offer ${inr(terms.opening)} (agent alone to ${inr(terms.autoLimit)}, floor ${inr(terms.floor)})` });

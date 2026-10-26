@@ -1,3 +1,4 @@
+import { DealConflictError } from "@/lib/errors";
 import { CheckoutError, parseAddress, saveAddress } from "@/lib/checkout";
 import { canActAsShopper } from "@/lib/deal-access";
 import { toPublic } from "@/lib/negotiate";
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "unknown action" }, { status: 400 });
   } catch (err) {
     if (err instanceof CheckoutError) return Response.json({ error: err.message }, { status: err.status });
+    if (err instanceof DealConflictError) return Response.json({ error: err.message }, { status: 409 });
     throw err;
   }
 }

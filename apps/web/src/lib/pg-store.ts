@@ -1,5 +1,5 @@
 import { schema, type Db } from "@ghostcart/db";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Activity, Deal, Demographics, Seller, SellerDemand, Stats, User, Visit } from "./types";
 
 const { activity, counters, deals, sellerAliases, sellerDemand, sellers, sellerTokens, users, visits } = schema;
@@ -88,15 +88,41 @@ export function createPgStore(db: Db) {
         createdAt: date(deal.createdAt),
         expiresAt: date(deal.expiresAt),
         data: deal,
+        version: deal.version ?? 1,
       };
       await db
         .insert(deals)
         .values(row)
-        .onConflictDoUpdate({
-          target: deals.id,
-          set: { ...row, updatedAt: sql`now()`, version: sql`${deals.version} + 1` },
-        });
+        .onConflictDoUpdate({ target: deals.id, set: { ...row, updatedAt: sql`now()` } });
       return deal;
+    },
+
+    /** Compare-and-set on the version column (see composeStore.saveDeal). */
+    async casDeal(deal: Deal, expected: number | undefined, isNew = false) {
+      void isNew;
+      const row = {
+        id: deal.id,
+        userId: deal.userId ?? null,
+        sellerId: deal.negotiation?.terms.sellerId ?? null,
+        status: deal.status,
+        channel: deal.channel,
+        city: deal.city ?? null,
+        dealPrice: deal.dealPrice,
+        createdAt: date(deal.createdAt),
+        expiresAt: date(deal.expiresAt),
+        data: deal,
+        version: deal.version ?? 1,
+      };
+      if (expected === undefined) {
+        await db.insert(deals).values(row).onConflictDoUpdate({ target: deals.id, set: { ...row, updatedAt: sql`now()` } });
+        return true;
+      }
+      const updated = await db
+        .update(deals)
+        .set({ ...row, updatedAt: sql`now()` })
+        .where(and(eq(deals.id, deal.id), eq(deals.version, expected)))
+        .returning({ id: deals.id });
+      return updated.length > 0;
     },
 
     async getDeal(id: string) {

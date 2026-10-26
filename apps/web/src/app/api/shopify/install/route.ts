@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { authorizeUrl } from "@/lib/shopify/auth";
-import { isShopDomain, shopifyConfigured } from "@/lib/shopify/config";
+import { authorizeUrl } from "@ghostcart/channels";
+import { isShopDomain, shopifyConfigured } from "@ghostcart/channels";
 import { store as kv } from "@/lib/store";
 
 /** Start of the Shopify install: Shopify admin (or our "Connect Shopify" button) sends the merchant here with ?shop=. */

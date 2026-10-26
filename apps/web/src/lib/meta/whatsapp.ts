@@ -4,10 +4,11 @@ import { randomBytes, randomInt } from "node:crypto";
 import { registerChatTransport } from "../chat/engine";
 import { decryptSecret, encryptSecret } from "../crypto";
 import { getDb } from "../db";
+import { sendGupshupText } from "../gupshup/gupshup";
 import { CHAT_CONTACT_WORDING, recordConsent } from "../privacy/consent";
 import { normalizePhone } from "../users";
 import { store as kv } from "../store";
-import { graph, metaConfig } from "./config";
+import { graph, metaConfig } from "@ghostcart/channels";
 
 const { platformConnections } = schema;
 
@@ -22,8 +23,15 @@ export async function whatsappConnection(phoneNumberId: string) {
   return row;
 }
 
+// One WhatsApp transport for both routes: "gs:<number>:<shopper>" threads go through the BSP (Gupshup),
+// "<phone_number_id>:<shopper>" threads through Meta's Cloud API.
 registerChatTransport("whatsapp", async (deal, text) => {
-  const [phoneNumberId, to] = deal.chat!.threadKey.split(":");
+  const key = deal.chat!.threadKey;
+  if (key.startsWith("gs:")) {
+    const [, source, to] = key.split(":");
+    return sendGupshupText(source, to, text);
+  }
+  const [phoneNumberId, to] = key.split(":");
   const conn = await whatsappConnection(phoneNumberId);
   if (conn) await sendWhatsAppText(phoneNumberId, decryptSecret(conn.accessTokenEncrypted), to, text);
 });

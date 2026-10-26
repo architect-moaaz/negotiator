@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { metaConfig } from "@/lib/meta/config";
+import { metaConfig } from "@ghostcart/channels";
 import { store as kv } from "@/lib/store";
 
 /**

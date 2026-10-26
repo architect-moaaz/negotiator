@@ -21,7 +21,7 @@ const { GET: logs } = await import("@/app/api/admin/logs/route");
 const { GET: analytics } = await import("@/app/api/admin/analytics/route");
 const { POST: decision } = await import("@/app/api/admin/decision/route");
 const { store } = await import("./store");
-const { computeTerms } = await import("./haggle");
+const { computeTerms } = await import("@ghostcart/agent");
 
 let ip = 0;
 const json = (path: string, body: unknown, headers: Record<string, string> = {}) =>

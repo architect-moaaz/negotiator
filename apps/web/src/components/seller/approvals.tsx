@@ -4,6 +4,7 @@ import type { NegotiationTerms } from "@ghostcart/core";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import type { AgentRecommendation, PublicDeal } from "@/lib/types";
+import { BrowserNotifications } from "./browser-notifications";
 import { api, ErrorText, field, secondary } from "./ui";
 
 type Row = PublicDeal & { terms?: NegotiationTerms; recommendation: AgentRecommendation | null };
@@ -45,6 +46,7 @@ export function ApprovalsTab({ storeId, canApprove, onCount }: { storeId: string
   if (!data) return <p className="mt-6 text-muted">Loading…</p>;
   return (
     <section className="mt-6 max-w-3xl">
+      {canApprove && <BrowserNotifications />}
       {data.waiting.length === 0 ? (
         <p className="text-muted">No offers waiting. When a shopper goes below what your agent can give alone, it shows up here and we call you.</p>
       ) : (

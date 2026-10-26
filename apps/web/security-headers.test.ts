@@ -15,9 +15,9 @@ describe("security headers", () => {
     expect(csp).not.toContain("ws:");
   });
 
-  it("only allows scripts from us and Meta's SDK", () => {
+  it("only allows scripts from us, Meta's SDK and Cloudflare Turnstile", () => {
     const sources = directive(contentSecurityPolicy(false), "script-src")!.split(" ").slice(1);
-    expect(sources.filter((s) => s.startsWith("http"))).toEqual(["https://connect.facebook.net"]);
+    expect(sources.filter((s) => s.startsWith("http"))).toEqual(["https://connect.facebook.net", "https://challenges.cloudflare.com"]);
     expect(sources).not.toContain("*");
   });
 

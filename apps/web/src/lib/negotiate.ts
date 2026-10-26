@@ -1,6 +1,8 @@
 import { openCheckout, toPublicCheckout } from "./checkout";
-import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "@ghostcart/agent";
 import { notifyChat } from "./chat/engine";
+import { HaggleError } from "./errors";
+import { recordEvent } from "./negotiation-events";
 import { GRANT_PLATFORMS } from "./grants/adapters";
 import { GrantError, issueGrant } from "./grants/service";
 import { createDealPayment, PaymentsUnavailableError, testPayments } from "./payments";
@@ -9,6 +11,7 @@ import { maskPhone, normalizePhone } from "./users";
 import { placeCall, vobizConfigured } from "./vobiz";
 import { store } from "./store";
 import type { Activity, ActivityType, Deal, PublicDeal } from "./types";
+import { traced } from "./telemetry";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
 const NEGOTIATION_WINDOW_MS = 15 * 60 * 1000;
@@ -22,6 +25,7 @@ export function toPublic(deal: Deal): PublicDeal {
   delete pub.userId;
   delete pub.negotiation;
   delete pub.checkout;
+  if (pub.grant) pub.grant = { ...pub.grant, ref: undefined }; // the platform's internal id stays server-side
   const n = deal.negotiation;
   return {
     ...(pub as Omit<PublicDeal, "negotiation" | "checkout">),
@@ -83,7 +87,7 @@ async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
   return deal;
 }
 
-export class HaggleError extends Error {}
+export { HaggleError };
 
 /** Shopper makes a counter-offer; the seller agent responds within code-enforced limits. */
 export async function submitOffer(deal: Deal, offer: number) {
@@ -96,14 +100,14 @@ export async function submitOffer(deal: Deal, offer: number) {
   n.messages.push({ from: "shopper", text: `How about ${inr(offer)}?`, price: offer, at: Date.now() });
   await log("offer_received", `Shopper offered ${inr(offer)} (agent at ${inr(n.currentOffer)}, round ${n.rounds + 1})`, "user");
 
-  const chosen = await chooseMove({
+  const chosen = await traced("agent.choose_move", { "deal.id": deal.id, round: n.rounds }, () => chooseMove({
     product: deal.product,
     terms: n.terms,
     bestSeller: deal.bestSeller,
     quotes: deal.alternatives,
     negotiation: n,
     offer,
-  });
+  }));
   const { move, message } = overrideAfterRejection(chosen.move, n) ?? chosen;
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });
   await log("agent_move", `${move.action} at ${inr(move.price)}: "${message}"`, "agent");
@@ -121,7 +125,6 @@ export async function submitOffer(deal: Deal, offer: number) {
       "agent",
     );
     await startApprovalCall(deal);
-    await pushApprovalRequest(deal, move.price);
   } else {
     n.currentOffer = move.price;
     n.rounds += 1;
@@ -129,6 +132,10 @@ export async function submitOffer(deal: Deal, offer: number) {
     deal.saved = deal.originalPrice - move.price;
   }
   await store.saveDeal(deal);
+  await recordEvent(deal, "offer", "shopper", { price: offer });
+  await recordEvent(deal, move.action === "accept" ? "agreed" : move.action === "escalate" ? "escalated" : move.action, "agent", { price: move.price, message });
+  // Only once the deal is saved: a notification must never point at a state that didn't stick.
+  if (move.action === "escalate") await pushApprovalRequest(deal, move.price);
   return deal;
 }
 
@@ -139,6 +146,7 @@ export async function acceptOffer(deal: Deal) {
   n.messages.push({ from: "shopper", text: `Deal at ${inr(n.currentOffer)}.`, price: n.currentOffer, at: Date.now() });
   await issueInvoice(deal, n.currentOffer, "shopper accepted agent's offer");
   await store.saveDeal(deal);
+  await recordEvent(deal, "agreed", "shopper", { price: n.currentOffer });
   return deal;
 }
 
@@ -201,6 +209,7 @@ export async function counterFromApprover(deal: Deal, price: number, decidedBy: 
   Object.assign(n, { currentOffer: price, rounds: MAX_ROUNDS });
   Object.assign(deal, { status: "negotiating", dealPrice: price, saved: deal.originalPrice - price, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   await store.saveDeal(deal);
+  await recordEvent(deal, "countered", role, { price, message: n.messages.at(-1)!.text });
   await notifyChat(deal);
   await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
@@ -235,6 +244,7 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
     Object.assign(deal, { status: "negotiating", dealPrice: final, saved: deal.originalPrice - final, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   }
   await store.saveDeal(deal);
+  await recordEvent(deal, decision, role, { price: decision === "approved" ? price : n.terms.autoLimit, message: n.messages.at(-1)!.text });
   await notifyChat(deal);
   await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
@@ -248,6 +258,7 @@ export async function markPaid(deal: Deal, source: "pinelabs" | "pinelabs-webhoo
   deal.status = "paid";
   await openCheckout(deal);
   await store.saveDeal(deal);
+  await recordEvent(deal, "paid", "system", { price: deal.lockFee });
   await store.incrStats({ paid: 1, saved: deal.saved });
   await store.log({
     type: "payment_received",

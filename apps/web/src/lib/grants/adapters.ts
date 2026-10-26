@@ -10,7 +10,9 @@ export interface GrantAdapter {
   platform: string;
   /** Can this store take a grant right now (e.g. the app is still installed)? Defaults to yes. */
   ready?(store: Store): Promise<boolean>;
-  createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date }): Promise<{ checkoutUrl: string }>;
+  createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date }): Promise<{ checkoutUrl: string; kind?: "code" | "draft_order"; ref?: string }>;
+  /** Withdraw an unused grant once it has expired (codes expire on their own; draft orders don't). */
+  revoke?(input: { store: Store; ref: string }): Promise<void>;
 }
 
 export const GRANT_PLATFORMS = new Set(["shopify", "woocommerce"]);

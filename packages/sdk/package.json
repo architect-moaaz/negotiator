@@ -1,0 +1,19 @@
+{
+  "name": "@ghostcart/sdk",
+  "version": "0.1.0",
+  "description": "Typed client for the GhostCart negotiation API (/api/v1).",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./src/index.ts" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  }
+}
