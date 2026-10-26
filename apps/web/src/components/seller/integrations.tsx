@@ -83,15 +83,7 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
       )}
       <ChatChannels storeId={storeId} />
       {platform === "amazon" && <AmazonSection storeId={storeId} />}
-      {platform === "flipkart" && (
-        <section>
-          <h2 className="text-xl font-semibold">Flipkart listings</h2>
-          <p className="mt-1 text-muted">
-            In Flipkart Seller Hub, open Listings, download your listings file and save it as CSV. Then use &quot;Import a CSV&quot; on the Products tab: we read
-            Flipkart&apos;s own columns (Seller SKU Id, Product Title, Your Selling Price, MRP, Stock). Re-importing updates products by SKU.
-          </p>
-        </section>
-      )}
+      {platform === "flipkart" && <FlipkartSection storeId={storeId} />}
       {platform === "shopify" && (
         <section>
           <h2 className="text-xl font-semibold">Shopify</h2>
@@ -201,6 +193,7 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
 interface ConnectionRow {
   platform: string;
   externalId: string;
+  uninstalledAt?: string | null;
   imported: number | null;
   importedAt: string | null;
   importing: boolean;
@@ -242,6 +235,56 @@ function AmazonSection({ storeId }: { storeId: string }) {
         </a>
       )}
       <p className="mt-3 text-sm text-muted">No access to Seller Central? Download your inventory report as a file and use &quot;Import a CSV&quot; on the Products tab instead.</p>
+    </section>
+  );
+}
+
+/** Flipkart Seller Hub: connect (proves ownership), import the listings file, then keep prices and stock in sync. */
+function FlipkartSection({ storeId }: { storeId: string }) {
+  const [conn, setConn] = useState<(ConnectionRow & { syncedAt: string | null; updated: number | null }) | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const load = useCallback(async () => {
+    const r = await api<{ connections: (ConnectionRow & { syncedAt: string | null; updated: number | null })[] }>(`/api/seller/stores/${storeId}/connections`);
+    if (r.ok) setConn(r.data.connections.find((c) => c.platform === "flipkart" && !c.uninstalledAt) ?? null);
+  }, [storeId]);
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+  async function sync() {
+    setBusy(true);
+    setNote("");
+    const r = await api<{ updated: number; missing: string[] }>("/api/flipkart/sync", { body: { storeId } });
+    setBusy(false);
+    setNote(r.ok ? `${r.data.updated === 1 ? "1 product" : `${r.data.updated} products`} updated from Flipkart${r.data.missing.length ? `; ${r.data.missing.length === 1 ? "1 SKU isn't" : `${r.data.missing.length} SKUs aren't`} listed on Flipkart (${r.data.missing.slice(0, 5).join(", ")})` : ""}.` : r.error);
+    load();
+  }
+  return (
+    <section>
+      <h2 className="text-xl font-semibold">Flipkart Seller Hub</h2>
+      <p className="mt-1 text-muted">
+        1. Connect your Flipkart seller account: it proves the account is yours, and lets us read your listings. We never change anything on Flipkart.
+        <br />
+        2. In Seller Hub, download your listings file as CSV and use &quot;Import a CSV&quot; on the Products tab (we read Flipkart&apos;s own columns).
+        <br />
+        3. Sync prices and stock from Flipkart whenever they change.
+      </p>
+      {conn === undefined ? null : conn ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <p>
+            Connected.{conn.syncedAt ? ` Last synced ${new Date(conn.syncedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.` : ""}
+          </p>
+          <button onClick={sync} disabled={busy} className={secondary}>
+            {busy ? "Syncing…" : "Sync prices and stock"}
+          </button>
+        </div>
+      ) : (
+        <a href={`/api/flipkart/connect?storeId=${storeId}`} className={`${secondary} mt-3 inline-block`}>
+          Connect Flipkart Seller Hub
+        </a>
+      )}
+      {note && <p className="mt-2 text-sm text-muted">{note}</p>}
     </section>
   );
 }
