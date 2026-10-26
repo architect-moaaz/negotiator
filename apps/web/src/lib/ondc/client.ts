@@ -25,14 +25,14 @@ export interface Context {
 export const ACK = { message: { ack: { status: "ACK" } } };
 export const nack = (code: string, message: string, type = "CONTEXT-ERROR") => ({ message: { ack: { status: "NACK" } }, error: { type, code, message } });
 
-export function context(action: string, transactionId: string, bpp?: { id: string; uri: string }): Context {
+export function context(action: string, transactionId: string, bpp?: { id: string; uri: string }, coreVersion?: string): Context {
   const c = ondcConfig();
   return {
     domain: c.domain,
     country: "IND",
     city: c.city,
     action,
-    core_version: c.coreVersion,
+    core_version: coreVersion ?? c.coreVersion,
     bap_id: c.subscriberId,
     bap_uri: c.bapUri,
     ...(bpp && { bpp_id: bpp.id, bpp_uri: bpp.uri }),

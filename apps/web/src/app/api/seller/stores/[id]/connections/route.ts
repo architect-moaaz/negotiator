@@ -20,6 +20,8 @@ export async function GET(request: Request, ctx: RouteContext<"/api/seller/store
         importedAt: c.meta.importedAt ?? null,
         importing: Boolean(c.meta.reportId && !c.meta.importedAt),
         lastError: c.meta.lastError ?? null,
+        syncedAt: c.meta.syncedAt ?? null,
+        updated: c.meta.updated ?? null,
       })),
     },
     { headers: { "Cache-Control": "no-store" } },

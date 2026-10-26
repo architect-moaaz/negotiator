@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { inr } from "@/lib/format";
+import { OndcOrderActions } from "./ondc-order-actions";
 
 interface Item {
   bppId: string;
@@ -239,6 +240,7 @@ export function OndcResults({ query }: { query: string }) {
                         Pay the seller
                       </a>
                     )}
+                    {txn && <OndcOrderActions txn={txn} />}
                   </div>
                 )}
                 {error && (

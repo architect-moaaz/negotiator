@@ -101,6 +101,34 @@ export async function POST(request: Request, ctx: Ctx) {
     await callBack(c, "on_status", { message: { order: { id: (body.message as Json)?.order_id, state: "In-progress", fulfillments: [{ ...FULFILLMENT, state: { descriptor: { code: "Order-picked-up" } } }] } } });
     return ack();
   }
+  if (path === "bpp/cancel") {
+    const m = body.message as Json;
+    await callBack(c, "on_cancel", { message: { order: { id: m.order_id, state: "Cancelled", cancellation: { cancelled_by: us.subscriberId, reason: { id: m.cancellation_reason_id } }, fulfillments: [{ ...FULFILLMENT, state: { descriptor: { code: "Cancelled" } } }] } } });
+    return ack();
+  }
+  if (path === "bpp/update") {
+    const o = (body.message as Json).order as Json;
+    await callBack(c, "on_update", { message: { order: { id: o.id, state: "Completed", fulfillments: [{ id: "R1", type: "Return", state: { descriptor: { code: "Return_Initiated" } } }] } } });
+    return ack();
+  }
+  if (path === "bpp/track") {
+    await callBack(c, "on_track", { message: { tracking: { url: `${bppUri()}/track/${(body.message as Json).order_id}`, status: "active" } } });
+    return ack();
+  }
+  if (path === "bpp/support") {
+    await callBack(c, "on_support", { message: { phone: "+919000000999", email: "zz-support@mock-seller.test", uri: `${bppUri()}/support` } });
+    return ack();
+  }
+  if (path === "bpp/issue") {
+    const issue = (body.message as Json).issue as Json;
+    await callBack(c, "on_issue", { message: { issue: { id: issue.id, status: "OPEN", issue_actions: { respondent_actions: [{ respondent_action: "PROCESSING", short_desc: "We're looking into it", updated_at: new Date().toISOString() }] } } } });
+    return ack();
+  }
+  if (path === "bpp/issue_status") {
+    const id = (body.message as Json).issue_id;
+    await callBack(c, "on_issue_status", { message: { issue: { id, status: "CLOSED", issue_actions: { respondent_actions: [{ respondent_action: "RESOLVED", short_desc: "Refund issued", updated_at: new Date().toISOString() }] }, resolution: { short_desc: "Refunded the item", action_triggered: "REFUND", refund_amount: "899.00" } } } });
+    return ack();
+  }
   return Response.json({ error: `mock-ondc doesn't know ${path}` }, { status: 404 });
 }
 

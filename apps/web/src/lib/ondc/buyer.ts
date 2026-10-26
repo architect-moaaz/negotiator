@@ -1,5 +1,5 @@
 import { schema } from "@ghostcart/db";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db";
 import { context, OndcError, send } from "./client";
@@ -210,9 +210,21 @@ export async function confirm(transactionId: string, userId?: string) {
   return { messageId: ctx.message_id };
 }
 
-/** The order as the seller last described it (on_confirm, then on_status updates). */
+/** The newest of several callbacks (order updates arrive as on_status, on_cancel or on_update). */
+async function latestOf(transactionId: string, actions: string[]) {
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(ondcMessages)
+    .where(and(eq(ondcMessages.transactionId, transactionId), inArray(ondcMessages.action, actions), eq(ondcMessages.direction, "in")))
+    .orderBy(desc(ondcMessages.id))
+    .limit(1);
+  return row?.payload as { context: Json; message?: Json; error?: { message?: string } } | undefined;
+}
+
+/** The order as the seller last described it (on_confirm, then status, cancellation or return updates). */
 export async function orderState(transactionId: string) {
-  const p = (await latest(transactionId, "on_status")) ?? (await latest(transactionId, "on_confirm"));
+  const p = await latestOf(transactionId, ["on_confirm", "on_status", "on_cancel", "on_update"]);
   if (!p) return null;
   if (p.error?.message) return { error: p.error.message };
   const order = (p.message?.order as Json | undefined) ?? {};
@@ -229,4 +241,148 @@ export async function transactionOwner(transactionId: string) {
     .where(and(eq(ondcMessages.transactionId, transactionId), eq(ondcMessages.direction, "out"), eq(ondcMessages.action, "search")))
     .limit(1);
   return row ? row.userId : undefined;
+}
+
+// After the order: status, cancel, return, track, support, and IGM issues.
+
+/** The confirmed order's seller app and id, or an error if there's no order yet. */
+async function confirmedOrder(transactionId: string) {
+  const p = await latest(transactionId, "on_confirm");
+  const id = str((p?.message?.order as Json | undefined)?.id);
+  if (!p || !id) throw new OndcError("There's no confirmed order for this yet.");
+  return { bpp: { id: str(p.context.bpp_id), uri: str(p.context.bpp_uri) }, orderId: id, order: p.message!.order as Json };
+}
+
+/** ONDC retail cancellation reasons a buyer may give (the network's reason codes). */
+export const CANCEL_REASONS = { "001": "Price of one or more items have changed", "003": "Product available at lower price", "006": "Order delayed", "009": "Wrong product delivered", "010": "Buyer doesn't want the product any more" } as const;
+
+/** Ask the seller app for the order's latest state (answer on /on_status). */
+export async function refreshStatus(transactionId: string, userId?: string) {
+  const { bpp, orderId } = await confirmedOrder(transactionId);
+  const ctx = context("status", transactionId, bpp);
+  await send(bpp.uri, ctx, { order_id: orderId }, userId);
+  return { messageId: ctx.message_id };
+}
+
+/** Cancel the whole order with one of the network's reason codes (answer on /on_cancel). */
+export async function cancelOrder(transactionId: string, reason: string, userId?: string) {
+  if (!(reason in CANCEL_REASONS)) throw new OndcError("Pick a reason for cancelling.");
+  const { bpp, orderId } = await confirmedOrder(transactionId);
+  const ctx = context("cancel", transactionId, bpp);
+  await send(bpp.uri, ctx, { order_id: orderId, cancellation_reason_id: reason }, userId);
+  return { messageId: ctx.message_id };
+}
+
+/** Ask to return a delivered item: an item-level update (the seller app answers on /on_update). */
+export async function requestReturn(transactionId: string, reason: string, userId?: string) {
+  const { bpp, orderId, order } = await confirmedOrder(transactionId);
+  const item = ((order.items as Json[] | undefined) ?? [])[0];
+  if (!item) throw new OndcError("This order has no items to return.");
+  if (reason.trim().length < 5) throw new OndcError("Say why you're returning it.");
+  const ctx = context("update", transactionId, bpp);
+  await send(
+    bpp.uri,
+    ctx,
+    {
+      update_target: "item",
+      order: {
+        id: orderId,
+        state: "Completed",
+        provider: order.provider,
+        items: [{ id: str(item.id), quantity: item.quantity ?? { count: 1 }, tags: { update_type: "return", reason_code: "001", ttl_approval: "PT24H", ttl_reverseqc: "P3D" } }],
+        payment: order.payment,
+      },
+      reason: reason.trim().slice(0, 200),
+    },
+    userId,
+  );
+  return { messageId: ctx.message_id };
+}
+
+/** Where the parcel is (answer on /on_track: a tracking link from the seller app's logistics). */
+export async function trackOrder(transactionId: string, userId?: string) {
+  const { bpp, orderId } = await confirmedOrder(transactionId);
+  const ctx = context("track", transactionId, bpp);
+  await send(bpp.uri, ctx, { order_id: orderId }, userId);
+  return { messageId: ctx.message_id };
+}
+
+export async function trackResult(transactionId: string) {
+  const p = await latest(transactionId, "on_track");
+  if (!p) return null;
+  const t = (p.message?.tracking as Json | undefined) ?? {};
+  return { url: str(t.url) || undefined, status: str(t.status) || undefined };
+}
+
+/** The seller's support contact (answer on /on_support). */
+export async function askSupport(transactionId: string, userId?: string) {
+  const { bpp, orderId } = await confirmedOrder(transactionId);
+  const ctx = context("support", transactionId, bpp);
+  await send(bpp.uri, ctx, { ref_id: orderId }, userId);
+  return { messageId: ctx.message_id };
+}
+
+export async function supportResult(transactionId: string) {
+  const p = await latest(transactionId, "on_support");
+  if (!p) return null;
+  const m = p.message ?? {};
+  return { phone: str(m.phone) || undefined, email: str(m.email) || undefined, url: str(m.uri) || undefined };
+}
+
+/** IGM (ONDC's issue and grievance protocol, v1.0.0) categories a buyer can raise against an order. */
+export const ISSUE_TYPES = { ITM01: "Missing items", ITM02: "Quantity issue", ITM03: "Item mismatch", ITM04: "Quality issue", FLM01: "Wrong delivery address", FLM02: "Delay in delivery", PMT01: "Refund not received" } as const;
+
+/**
+ * Raise an issue with the seller app under IGM. It answers on /on_issue with what it's doing, and
+ * /issue_status asks for the latest; GhostCart (the buyer app) stays the shopper's point of contact.
+ */
+export async function raiseIssue(transactionId: string, input: { type: string; description: string; name: string; phone: string; email?: string }, userId?: string) {
+  if (!(input.type in ISSUE_TYPES)) throw new OndcError("Pick what went wrong.");
+  if (input.description.trim().length < 10) throw new OndcError("Describe the problem in a sentence or two.");
+  const { bpp, orderId, order } = await confirmedOrder(transactionId);
+  const c = ondcConfig();
+  const now = new Date().toISOString();
+  const issueId = randomUUID();
+  const ctx = context("issue", transactionId, bpp, "1.0.0");
+  await send(
+    bpp.uri,
+    ctx,
+    {
+      issue: {
+        id: issueId,
+        category: input.type.startsWith("ITM") ? "ITEM" : input.type.startsWith("FLM") ? "FULFILLMENT" : "PAYMENT",
+        sub_category: input.type,
+        complainant_info: { person: { name: input.name.slice(0, 80) }, contact: { phone: input.phone, ...(input.email && { email: input.email }) } },
+        order_details: { id: orderId, state: "Completed", items: ((order.items as Json[] | undefined) ?? []).map((i) => ({ id: str(i.id), quantity: (i.quantity as Json | undefined)?.count ?? 1 })), provider_id: str((order.provider as Json | undefined)?.id) },
+        description: { short_desc: ISSUE_TYPES[input.type as keyof typeof ISSUE_TYPES], long_desc: input.description.trim().slice(0, 1000) },
+        source: { network_participant_id: c.subscriberId, type: "CONSUMER" },
+        expected_response_time: { duration: "PT2H" },
+        expected_resolution_time: { duration: "P1D" },
+        status: "OPEN",
+        issue_type: "ISSUE",
+        issue_actions: { complainant_actions: [{ complainant_action: "OPEN", short_desc: "Complaint created", updated_at: now, updated_by: { org: { name: c.subscriberId }, contact: { phone: input.phone }, person: { name: input.name.slice(0, 80) } } }] },
+        created_at: now,
+        updated_at: now,
+      },
+    },
+    userId,
+  );
+  return { issueId, messageId: ctx.message_id };
+}
+
+export async function issueStatusRequest(transactionId: string, issueId: string, userId?: string) {
+  const { bpp } = await confirmedOrder(transactionId);
+  const ctx = context("issue_status", transactionId, bpp, "1.0.0");
+  await send(bpp.uri, ctx, { issue_id: issueId }, userId);
+  return { messageId: ctx.message_id };
+}
+
+/** The seller app's latest word on an issue (on_issue or on_issue_status). */
+export async function issueState(transactionId: string) {
+  const p = await latestOf(transactionId, ["on_issue", "on_issue_status"]);
+  if (!p) return null;
+  const issue = (p.message?.issue as Json | undefined) ?? {};
+  const action = (((issue.issue_actions as Json | undefined)?.respondent_actions as Json[] | undefined) ?? []).at(-1);
+  const resolution = (issue.resolution as Json | undefined) ?? {};
+  return { id: str(issue.id), status: str(issue.status) || undefined, lastAction: str(action?.respondent_action) || undefined, note: str(action?.short_desc) || undefined, resolution: str(resolution.short_desc) || undefined, refund: str(resolution.refund_amount) || undefined };
 }
