@@ -1,10 +1,10 @@
 import { schema } from "@ghostcart/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { randomBytes, randomInt } from "node:crypto";
 import { registerChatTransport } from "../chat/engine";
 import { decryptSecret, encryptSecret } from "../crypto";
 import { getDb } from "../db";
-import { sendGupshupText } from "../gupshup/gupshup";
+import { gupshupBase, sendGupshupText } from "../gupshup/gupshup";
 import { CHAT_CONTACT_WORDING, recordConsent } from "../privacy/consent";
 import { normalizePhone } from "../users";
 import { store as kv } from "../store";
@@ -15,6 +15,55 @@ const { platformConnections } = schema;
 /** Send a WhatsApp text from the seller's number (inside the 24-hour window the shopper opened). */
 export async function sendWhatsAppText(phoneNumberId: string, token: string, to: string, body: string) {
   await graph(`${phoneNumberId}/messages`, { token, body: { messaging_product: "whatsapp", recipient_type: "individual", to, type: "text", text: { preview_url: true, body: body.slice(0, 4000) } } });
+}
+
+/** A store's own WhatsApp number: Meta Cloud API if connected, otherwise its Gupshup app. */
+export async function storeWhatsApp(storeId: string) {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(platformConnections)
+    .where(and(eq(platformConnections.storeId, storeId), inArray(platformConnections.platform, ["whatsapp", "gupshup"]), isNull(platformConnections.uninstalledAt)));
+  return rows.find((r) => r.platform === "whatsapp") ?? rows.find((r) => r.platform === "gupshup");
+}
+
+export interface TemplateMessage {
+  /** Meta template name, or Gupshup template id. */
+  template: string;
+  language?: string;
+  body: string[];
+  /** Dynamic part of the template's URL button (e.g. the private link token). */
+  urlSuffix?: string;
+}
+
+/**
+ * Send an approved template from the store's own number: the only way to message a shopper outside the
+ * 24 hours after they last wrote. The template itself (wording, category) is approved per number by Meta.
+ */
+export async function sendWhatsAppTemplate(conn: NonNullable<Awaited<ReturnType<typeof storeWhatsApp>>>, to: string, msg: TemplateMessage) {
+  const digits = to.replace(/^\+/, "");
+  if (conn.platform === "gupshup") {
+    const res = await fetch(`${gupshupBase()}/wa/api/v1/template/msg`, {
+      method: "POST",
+      headers: { apikey: decryptSecret(conn.accessTokenEncrypted), "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        channel: "whatsapp",
+        source: conn.externalId,
+        destination: digits,
+        "src.name": String(conn.meta.appName ?? ""),
+        template: JSON.stringify({ id: msg.template, params: [...msg.body, ...(msg.urlSuffix ? [msg.urlSuffix] : [])] }),
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Gupshup template ${res.status}`);
+    return;
+  }
+  const components: unknown[] = [{ type: "body", parameters: msg.body.map((text) => ({ type: "text", text })) }];
+  if (msg.urlSuffix) components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: msg.urlSuffix }] });
+  await graph(`${conn.externalId}/messages`, {
+    token: decryptSecret(conn.accessTokenEncrypted),
+    body: { messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "template", template: { name: msg.template, language: { code: msg.language ?? "en" }, components } },
+  });
 }
 
 export async function whatsappConnection(phoneNumberId: string) {

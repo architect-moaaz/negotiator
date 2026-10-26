@@ -37,6 +37,12 @@ export async function setInviteStatus(id: string, status: "sent" | "opened" | "u
     .where(eq(cartInvites.id, id));
 }
 
+export async function getInvite(id: string) {
+  const db = await getDb();
+  const [row] = await db.select().from(cartInvites).where(eq(cartInvites.id, id));
+  return row;
+}
+
 export async function invitesForCart(cartId: string) {
   const db = await getDb();
   return db.select().from(cartInvites).where(eq(cartInvites.cartId, cartId));

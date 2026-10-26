@@ -20,16 +20,20 @@ export async function startFromInvite(token: string, userId: string, opts: { cit
 
 /**
  * "Stop offers": no more invites for this cart, on any channel, recorded as a withdrawal of the recovery
- * consent. Works without signing in, from the link itself.
+ * consent. Finished carts (checked out, expired) are left as they are.
  */
+export async function stopCart(cart: CartRow, storeName: string, source: "privilege_link" | "voice_keypress" | "whatsapp_stop") {
+  if (cart.status === "opted_out") return cart;
+  if (!RECOVERABLE.includes(cart.status as CartStatus) && cart.status !== "negotiating") return cart;
+  const updated = await updateCart(cart.id, { status: "opted_out" });
+  if (cart.consentAt) await recordConsent(consentSubject(cart), "recovery_offers", "withdrawn", `Stopped private offers from ${storeName}`, source);
+  await kv.log({ type: "privilege_opt_out", actor: "user", userId: cart.userId ?? undefined, detail: `Shopper stopped private offers for cart ${cart.id} (${storeName}, ${source})` });
+  return updated ?? cart;
+}
+
+/** "Stop offers" from the private link itself: works without signing in. */
 export async function stopFromInvite(token: string) {
   const found = await resolveInvite(token);
   if (!found) throw new ShopError("This private offer link isn't valid.", 404);
-  const { cart, store } = found;
-  if (cart.status === "opted_out") return cart;
-  if (!RECOVERABLE.includes(cart.status as CartStatus) && cart.status !== "negotiating") return cart; // already checked out or expired
-  const updated = await updateCart(cart.id, { status: "opted_out" });
-  if (cart.consentAt) await recordConsent(consentSubject(cart), "recovery_offers", "withdrawn", `Stopped private offers from ${store.name}`, "privilege_link");
-  await kv.log({ type: "privilege_opt_out", actor: "user", userId: cart.userId ?? undefined, detail: `Shopper stopped private offers for cart ${cart.id} (${store.name})` });
-  return updated ?? cart;
+  return stopCart(found.cart, found.store.name, "privilege_link");
 }

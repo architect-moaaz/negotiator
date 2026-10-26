@@ -59,6 +59,21 @@ cart captured ─┬─ on-site: shopper clicks "Make an offer on your cart" (wi
 | 3.3 `/rescue` | Shopper uploads a cart screenshot (read by the vision model) or pastes product links (only the link text is used, never fetched). Each item shows GhostCart sellers' offers; picking them builds a cart per store and opens its Privilege page. |
 | 3.4 Ops | Analytics, docs (`docs/api.md`, ROADMAP), e2e scenarios. |
 
+## Channel details
+
+- **Email:** `RESEND_API_KEY`, `EMAIL_FROM`; one-click unsubscribe header points at the private link
+  (its "Stop offers" button). No tracking pixels.
+- **WhatsApp template** (category Marketing), submitted on each seller's own number; name in
+  `WHATSAPP_PRIVILEGE_TEMPLATE` or the connection's `privilegeTemplate`:
+  - Body: `{{1}}: you left {{2}} ({{3}}) in your cart. As you asked at checkout, here's one private
+    offer: make us an offer on the whole cart. Open until {{4}} IST. Reply STOP to stop these offers.`
+  - URL button "Make an offer": `https://ghostcart.app/p/{{1}}` (the link token).
+  - Replies of STOP on the store's number stop offers on that shopper's carts at that store.
+- **Voice:** off unless `PRIVILEGE_VOICE_CALLS=1`. The call only offers press 1 (link by WhatsApp or
+  email) or press 9 (stop); no haggling on the call. Callback URLs are HMAC-signed per invite.
+- **One offer per cart.** Channels are tried in the seller's order and only where the shopper gave that
+  contact and the store can send on it; a failed send is recorded, not retried.
+
 ## Open items for the team
 
 - Shopify: confirm `read_orders` covers checkout webhooks on API 2026-07, and request Protected Customer
