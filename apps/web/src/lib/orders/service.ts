@@ -21,6 +21,32 @@ export class OrderError extends Error {
   }
 }
 
+/** What sellers' systems receive about an order (webhooks, /api/v1/orders). Money in paise. */
+export function orderPayload(o: Order, { withAddress = false } = {}) {
+  return {
+    id: o.id,
+    dealId: o.dealId,
+    status: o.status,
+    title: o.title,
+    productId: o.productId,
+    total: o.total,
+    sellerShare: o.sellerShare,
+    fee: o.fee,
+    gst: o.gst,
+    testPayments: o.testPayments,
+    shipBy: o.shipBy,
+    shippedAt: o.shippedAt,
+    deliveredAt: o.deliveredAt,
+    createdAt: o.createdAt,
+    address: withAddress ? o.address : undefined,
+  };
+}
+
+async function notifySeller(o: Order, event: "order.placed" | "order.shipped" | "order.delivered" | "order.completed" | "order.refunded" | "order.cancelled") {
+  const { emitWebhook } = await import("../integrations/webhooks");
+  await emitWebhook(o.storeId, event, orderPayload(o, { withAddress: event === "order.placed" }));
+}
+
 const FEE_BPS = () => Number(process.env.PLATFORM_FEE_BPS ?? 200);
 const SHIP_SLA_HOURS = () => Number(process.env.SHIP_SLA_HOURS ?? 48);
 const id = (p: string) => `${p}_${randomBytes(9).toString("base64url")}`;
@@ -83,7 +109,9 @@ export async function createOrderFromDeal(deal: Deal) {
   await post(db, { orderId: order.id, kind: "paid", postings: paidPostings(m, shopStore.id), memo: `deal ${deal.id}` });
   await log(order, `placed; ₹${m.total / 100} paid, seller share ₹${m.sellerShare / 100} held (${gateway.name} ${ref}); ship by ${order.shipBy.toISOString()}`);
   const { flagOrderIfRisky } = await import("../fraud/checks");
-  return flagOrderIfRisky(order);
+  const checked = await flagOrderIfRisky(order);
+  await notifySeller(checked, "order.placed");
+  return checked;
 }
 
 /** What's still held for an order, read from the ledger. */
@@ -110,6 +138,7 @@ export async function markDelivered(orderId: string, via: string, at = new Date(
   const [updated] = await db.update(orders).set({ status: "delivered", deliveredAt: at, updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
   await db.update(holds).set({ releaseAt: new Date(at.getTime() + days * 24 * 60 * 60 * 1000), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   await log(order, `delivered (${via}); payout releases in ${days} days unless the buyer raises a problem`);
+  await notifySeller(updated, "order.delivered");
   return updated;
 }
 
@@ -127,11 +156,18 @@ export async function releaseOrder(orderId: string) {
   // Claim the hold first so two runs can't release it twice.
   const claimed = await db.update(holds).set({ state: "releasing", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "held"))).returning();
   if (!claimed.length) return order;
-  await gateway.release(hold.gatewayRef!);
+  try {
+    await gateway.release(hold.gatewayRef!);
+  } catch (err) {
+    // Hand the hold back so the next run retries, instead of leaving it stuck mid-release.
+    await db.update(holds).set({ state: "held", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "releasing")));
+    throw err;
+  }
   await post(db, { orderId, kind: "released", postings: releasePostings(await heldFor(order), order.storeId) });
   await db.update(holds).set({ state: "released", releasedAt: new Date(), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   const [done] = await db.update(orders).set({ status: "completed", updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
   await log(order, `payout of ₹${hold.amount / 100} released to the seller`);
+  await notifySeller(done, "order.completed");
   return done;
 }
 
@@ -165,7 +201,9 @@ export async function refundOrder(orderId: string, amount: number, reason: strin
     await db.update(holds).set({ amount: remaining.sellerShare, updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   }
   await log(order, `refunded ₹${amount / 100} to the buyer (${reason}) by ${requestedBy}`, requestedBy === "system" ? "system" : "human");
-  return getOrder(orderId);
+  const after = (await getOrder(orderId))!;
+  await notifySeller(after, after.status === "cancelled" ? "order.cancelled" : "order.refunded");
+  return after;
 }
 
 /** Scheduled: poll courier tracking, cancel and refund orders not shipped in time, release payouts that are due. */
@@ -199,6 +237,10 @@ export async function runOrderJobs(now = new Date()) {
     }
   }
   const promoted = await promoteStores();
+  const { retryWebhooks } = await import("../integrations/webhooks");
+  await retryWebhooks();
+  const { pollAmazonImports } = await import("../amazon/connect");
+  await pollAmazonImports();
   return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted };
 }
 

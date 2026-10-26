@@ -12,8 +12,8 @@ const WAYS: { value: Platform; label: string; detail: string }[] = [
   { value: "amazon", label: "I sell on Amazon", detail: "Start by uploading your catalogue as a CSV. Connecting your Seller Central account to import listings comes next." },
   { value: "flipkart", label: "I sell on Flipkart", detail: "Start with a CSV of your catalogue. Connecting your Flipkart seller account comes next." },
   { value: "website", label: "I have my own website", detail: "Add the GhostCart haggle button to your product pages." },
-  { value: "shopify", label: "My store is on Shopify", detail: "Our Shopify app is on its way; you can set up your catalogue and rules now." },
-  { value: "woocommerce", label: "My store is on WooCommerce", detail: "Our WooCommerce plugin is on its way; you can set up your catalogue and rules now." },
+  { value: "shopify", label: "My store is on Shopify", detail: "Install the GhostCart app from your Shopify admin; it imports your products and adds the haggle button." },
+  { value: "woocommerce", label: "My store is on WooCommerce", detail: "Install the GhostCart plugin; it syncs your products, adds the haggle button and creates coupons for agreed prices." },
 ];
 const NEEDS_DOMAIN = new Set<Platform>(["website", "shopify", "woocommerce"]);
 

@@ -114,7 +114,7 @@ export function computeAnalytics({ users, deals, activity, visits }: { users: Us
       pages: tally(visits.map((v) => v.path)),
     },
     commerce: {
-      status: tally(deals.map((d) => ({ negotiating: "Haggling", awaiting_approval: "Awaiting approval", pending: "Agreed, unpaid", paid: "Locked", expired: "Expired" })[d.status])),
+      status: tally(deals.map((d) => ({ negotiating: "Haggling", awaiting_approval: "Awaiting approval", pending: "Agreed, unpaid", paid: "Locked", granted: "Code issued", expired: "Expired" })[d.status])),
       category: tally(deals.map((d) => d.negotiation?.terms.category)),
       marketplace: tally(deals.map((d) => d.product.seller)),
       fundedBy: tally(deals.map((d) => (d.negotiation?.terms.fundedBy === "seller" ? "Seller margin" : "GhostCart commission"))),

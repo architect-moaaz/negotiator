@@ -2,9 +2,10 @@ import { schema } from "@ghostcart/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { randomBytes, randomInt } from "node:crypto";
 import { getDb } from "../db";
+import { notifyBuyer } from "../push";
 import { store as kv } from "../store";
 import type { FulfilmentStage } from "../types";
-import { getOrder, heldFor, markDelivered, OrderError, refundOrder, type Order } from "./service";
+import { getOrder, heldFor, markDelivered, OrderError, orderPayload, refundOrder, type Order } from "./service";
 import { trackingProvider } from "./tracking";
 
 const { disputes, holds, orders, shipments } = schema;
@@ -48,7 +49,11 @@ export async function markShipped(orderId: string, input: { courier: string; awb
   await db.update(orders).set({ status: "shipped", shippedAt: new Date(), updatedAt: new Date() }).where(eq(orders.id, orderId));
   await syncDeal(order, "shipped", { courier, awb, note: `${courier} · AWB ${awb}` });
   await kv.log({ type: "order_status", actor: "seller", userId: order.userId, dealId: order.dealId, detail: `${orderId}: shipped by ${by} with ${courier}, AWB ${awb}` });
-  return getOrder(orderId);
+  await notifyBuyer(order.userId, { title: "Your order has shipped", body: `${order.title} is on its way with ${courier}.`, data: { type: "order", dealId: order.dealId } });
+  const shipped = (await getOrder(orderId))!;
+  const { emitWebhook } = await import("../integrations/webhooks");
+  await emitWebhook(shipped.storeId, "order.shipped", { ...orderPayload(shipped), courier, awb });
+  return shipped;
 }
 
 async function confirmDelivery(order: Order, via: string, at?: Date) {

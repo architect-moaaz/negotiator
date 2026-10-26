@@ -51,3 +51,9 @@ backfill-export-*.json
 
 # Local-dev uploads (deployments use Vercel Blob)
 apps/web/public/uploads/
+
+# Built by packages/widget
+apps/web/public/widget/
+
+# Load-test seed (contains session tokens)
+load/k6/.seed.json

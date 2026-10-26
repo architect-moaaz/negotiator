@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "GhostCart",
+    "slug": "ghostcart",
+    "scheme": "ghostcart",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#15131f",
+    "ios": { "bundleIdentifier": "app.ghostcart.mobile", "supportsTablet": false },
+    "android": { "package": "app.ghostcart.mobile", "edgeToEdgeEnabled": true },
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-web-browser",
+      ["expo-notifications", { "color": "#f4b740" }]
+    ],
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "router": {},
+      "eas": { "projectId": "" }
+    }
+  }
+}
