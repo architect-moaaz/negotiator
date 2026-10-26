@@ -58,6 +58,17 @@ export default function Home() {
             <p className="mt-1 text-muted">UPI through Pine Labs. The seller is paid only after your order is delivered.</p>
           </div>
         </section>
+        <footer className="mt-16 flex flex-wrap gap-6 border-t border-line pt-6 text-sm text-muted">
+          <Link href="/account" className="hover:text-fg">
+            Your account and data
+          </Link>
+          <Link href="/grievance" className="hover:text-fg">
+            Make a complaint
+          </Link>
+          <Link href="/legal" className="hover:text-fg">
+            Terms and policies
+          </Link>
+        </footer>
       </main>
       <Ticker />
     </>
