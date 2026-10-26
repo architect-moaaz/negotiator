@@ -1,8 +1,7 @@
-import * as Notifications from "expo-notifications";
 import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { notifications } from "@/lib/notifications";
 import { SessionProvider } from "@/lib/session";
 import { color } from "@/lib/theme";
 
@@ -16,7 +15,8 @@ function openFromNotification(data: Data) {
 
 export default function RootLayout() {
   useEffect(() => {
-    if (Platform.OS === "web") return;
+    const Notifications = notifications();
+    if (!Notifications) return;
     const last = Notifications.getLastNotificationResponse();
     if (last) openFromNotification(last.notification.request.content.data as Data);
     const sub = Notifications.addNotificationResponseReceivedListener((r) => openFromNotification(r.notification.request.content.data as Data));

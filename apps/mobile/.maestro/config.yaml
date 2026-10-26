@@ -1,0 +1,10 @@
+# Device flows for the app, run in Expo Go against a local GhostCart (see README.md in this folder).
+# They depend on each other: the shopper's offer is what the seller approves.
+flows:
+  - "flows/*"
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - shopper-offers
+    - seller-approves
+    - shopper-agreed

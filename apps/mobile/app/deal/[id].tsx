@@ -95,7 +95,7 @@ export default function DealScreen() {
           <Body>
             Current offer <Text style={{ fontWeight: "700" }}>{inr(n.currentOffer)}</Text>
           </Body>
-          <Field label="Your offer (₹)" keyboardType="number-pad" value={offer} onChangeText={(v) => setOffer(v.replace(/\D/g, ""))} placeholder={String(Math.round(n.currentOffer * 0.95))} />
+          <Field label="Your offer (₹)" testID="offer" keyboardType="number-pad" value={offer} onChangeText={(v) => setOffer(v.replace(/\D/g, ""))} placeholder={String(Math.round(n.currentOffer * 0.95))} />
           <Button label="Send offer" busy={busy === "offer"} disabled={!offer} onPress={() => act("offer", "/api/haggle", { id: deal.id, offer: Number(offer) }).then((ok) => ok && setOffer(""))} />
           <Button kind="secondary" label={`Take ${inr(n.currentOffer)}`} busy={busy === "accept"} onPress={() => act("accept", "/api/haggle", { id: deal.id, accept: true })} />
         </View>

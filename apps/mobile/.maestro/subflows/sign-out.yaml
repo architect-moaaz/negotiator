@@ -1,0 +1,17 @@
+# Start signed out. Sessions live in the Keychain/Keystore, which clearState doesn't always wipe (iOS
+# keeps Keychain items), so sign out of both roles from the Account tab if signed in.
+appId: ${APP_ID}
+---
+- tapOn: "Account(, tab.*)?"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+- runFlow:
+    when:
+      visible: "Sign out of your store"
+    commands:
+      - tapOn: "Sign out of your store"
+- assertVisible: "Sign in to shop"
+- tapOn: "Shop(, tab.*)?"

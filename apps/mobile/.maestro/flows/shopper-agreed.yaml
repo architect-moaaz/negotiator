@@ -1,0 +1,22 @@
+# Back as the shopper: the deal now shows the seller's approval, the agreed price and the payment to lock it
+# (test mode). Each check scrolls to its line, since the chat pushes them below the fold on short screens.
+appId: ${APP_ID}
+name: shopper-agreed
+tags: [shopper]
+---
+- launchApp
+- runFlow: ../subflows/open-app.yaml
+- tapOn: "My deals(, tab.*)?"
+- tapOn: ".*ZZ Maestro Kettle.*"
+- scrollUntilVisible:
+    element: "ZZ Maestro Shop approved ₹1,850\\. It's yours\\."
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Agreed at ₹1,850\\..*"
+    direction: DOWN
+- scrollUntilVisible:
+    element: "Pay ₹.* to lock"
+    direction: DOWN
+    visibilityPercentage: 100
+- assertVisible: "Test mode: no money moves\\."

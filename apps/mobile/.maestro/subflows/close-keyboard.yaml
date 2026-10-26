@@ -1,0 +1,9 @@
+# Android: close the keyboard (as its ✓ or Back would) so buttons below it can be tapped. iOS number pads
+# have no dismiss key; the iOS steps close them by tapping text instead.
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard

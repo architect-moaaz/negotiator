@@ -14,7 +14,7 @@ pnpm --filter @ghostcart/web dev
 EXPO_PUBLIC_API_URL=http://<your-computer's-LAN-IP>:3000 pnpm --filter @ghostcart/mobile start
 ```
 
-Scan the QR code with Expo Go, or press `i` / `a` for a simulator.
+Scan the QR code with Expo Go, or press `i` / `a` for a simulator. Push notifications need a development or store build (Expo Go on Android can't receive them); everything else works in Expo Go.
 
 `pnpm --filter @ghostcart/mobile web` runs the app in a browser. To use it, set `MOBILE_DEV_ORIGIN=http://localhost:8081` on the web dev server. That allows CORS in development only; native apps don't need it.
 
@@ -30,4 +30,4 @@ Scan the QR code with Expo Go, or press `i` / `a` for a simulator.
 2. Set `EXPO_ACCESS_TOKEN` on the server if push security is enabled in the Expo project.
 3. Add the Apple push key and Firebase (FCM v1) credentials in EAS, then run `eas build` for iOS and Android.
 4. Prepare the store listings: icon, screenshots, privacy labels (phone number, name and address, collected for orders) and the content rating.
-5. Device QA with Maestro flows (sign-in, haggle, approve), per the plan's Wave 4 verification.
+5. Device QA: the Maestro flows (sign-in, haggle, approve) are in [.maestro](.maestro/README.md) and pass on an iOS simulator and an Android emulator. Run them on real devices before each store release.

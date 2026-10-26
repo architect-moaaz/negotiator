@@ -50,7 +50,7 @@ export default function Shop() {
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
             <Title>Every price is open to a bargain</Title>
-            <Field label="Search" value={q} onChangeText={setQ} placeholder="Kurta, kettle, phone…" returnKeyType="search" autoCorrect={false} />
+            <Field label="Search" testID="search" value={q} onChangeText={setQ} placeholder="Kurta, kettle, phone…" returnKeyType="search" autoCorrect={false} />
             <ErrorText>{error}</ErrorText>
             {items?.length === 0 && <Text style={[s.body, { color: color.muted }]}>Nothing matches yet. Try a broader word.</Text>}
           </View>

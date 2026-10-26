@@ -1,0 +1,19 @@
+# The code step of phone sign-in. Local runs fix the code with E2E_LOGIN_CODE on the web server.
+appId: ${APP_ID}
+---
+- extendedWaitUntil:
+    visible: "Code"
+    timeout: 20000
+- tapOn:
+    id: "code"
+- inputText: ${CODE}
+- runFlow: close-keyboard.yaml
+- scrollUntilVisible:
+    element:
+      text: "Sign in"
+      index: -1
+    direction: DOWN
+    visibilityPercentage: 100
+- tapOn:
+    text: "Sign in"
+    index: -1
