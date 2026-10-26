@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { SellerDetails } from "@/lib/shop/disclosure";
 
 /** Who the buyer is buying from, as the E-Commerce Rules require, plus returns and where to complain. */
-export function SellerDetailsBlock({ seller, compact = false }: { seller: SellerDetails; compact?: boolean }) {
+export function SellerDetailsBlock({ seller, compact = false, paidOn }: { seller: SellerDetails; compact?: boolean; /** Set for Shopify/Woo stores: paid on their own checkout. */ paidOn?: string }) {
   return (
     <section aria-label="Seller details" className={`text-sm text-muted ${compact ? "" : "mt-16 border-t border-line pt-6"}`}>
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -37,7 +37,9 @@ export function SellerDetailsBlock({ seller, compact = false }: { seller: Seller
         </div>
       </dl>
       <p className="mt-4">
-        Payments by UPI through Pine Labs; the seller is paid after delivery. GhostCart runs this marketplace.{" "}
+        {paidOn
+          ? `You pay on ${paidOn}'s own checkout; GhostCart only agrees the price with you.`
+          : "Payments by UPI through Pine Labs; the seller is paid after delivery. GhostCart runs this marketplace."}{" "}
         <Link href="/grievance" className="underline underline-offset-4">
           Make a complaint
         </Link>{" "}

@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../db";
 import { newId } from "../shop/ids";
 import { getStore } from "../shop/stores";
+import { store as kv } from "../store";
 import { getCart, RECOVERABLE, type CartRow, type CartStatus } from "./carts";
 
 const { cartInvites } = schema;
@@ -70,7 +71,10 @@ export async function resolveInvite(token: string, now = Date.now()): Promise<Re
   else if (invite.expiresAt.getTime() < now || cart.status === "expired") closed = "This private offer has expired.";
   else if (store.status !== "live") closed = `${store.name} isn't taking orders on GhostCart right now.`;
   else if (!RECOVERABLE.includes(cart.status as CartStatus) && cart.status !== "negotiating") closed = "This private offer isn't available.";
-  if (!closed && !invite.openedAt) await setInviteStatus(invite.id, "opened");
+  if (!closed && !invite.openedAt) {
+    await setInviteStatus(invite.id, "opened");
+    await kv.log({ type: "privilege_opened", actor: "user", userId: cart.userId ?? undefined, detail: `Private offer opened (${invite.channel}) for cart ${cart.id}, ${store.name}` });
+  }
   return { invite, cart, store, closed };
 }
 

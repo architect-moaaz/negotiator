@@ -202,3 +202,34 @@ describe("GhostCart Privilege on the seller's cart page", async () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("GhostCart Privilege links", async () => {
+  const { startFromInvite, stopFromInvite } = await import("./actions");
+  const { currentConsents } = await import("../privacy/consent");
+
+  it("start the haggle from the link and mark the invite used", async () => {
+    const { store, a } = await storeWithCart();
+    const cart = await captureCart({ storeId: store.id, source: "widget", items: [{ ref: a.sku!, quantity: 1 }] });
+    const { token, invite } = await createInvite(cart.id, "email");
+    const deal = await startFromInvite(token, "priv-link-buyer-1");
+    expect(deal.cart?.cartId).toBe(cart.id);
+    const { invitesForCart } = await import("./invites");
+    expect((await invitesForCart(cart.id)).find((i) => i.id === invite.id)?.status).toBe("used");
+    await expect(startFromInvite("y".repeat(32), "priv-link-buyer-1")).rejects.toThrow("isn't valid");
+  });
+
+  it("stop offers without signing in, withdrawing the recovery consent, and close the link", async () => {
+    const { store, a } = await storeWithCart();
+    const cart = await captureCart({ storeId: store.id, source: "woo_checkout", externalRef: "stop-1", items: [{ ref: a.sku!, quantity: 1 }], contact: { phone: "9876500002" }, consent: true });
+    expect((await currentConsents("+919876500002")).recovery_offers).toBe("granted");
+    const { token } = await createInvite(cart.id, "whatsapp");
+    expect((await stopFromInvite(token)).status).toBe("opted_out");
+    expect((await currentConsents("+919876500002")).recovery_offers).toBe("withdrawn");
+    await expect(startFromInvite(token, "priv-link-buyer-2")).rejects.toThrow("stopped");
+    // A finished cart stays finished.
+    const done = await captureCart({ storeId: store.id, source: "woo_checkout", externalRef: "stop-2", items: [{ ref: a.sku!, quantity: 1 }] });
+    await completeCart(store.id, "woo_checkout", "stop-2");
+    const { token: t2 } = await createInvite(done.id, "email");
+    expect((await stopFromInvite(t2)).status).toBe("completed");
+  });
+});

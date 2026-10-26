@@ -4,8 +4,25 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ShopperSignup } from "../shopper-signup";
 
-/** Starts a negotiation on a shop product; asks the shopper to sign up first if needed. */
-export function HaggleButton({ productId, disabled, label, returnUrl }: { productId: string; disabled?: boolean; label: string; returnUrl?: string }) {
+/**
+ * Starts a negotiation on a shop product (or, with endpoint and payload, on something else such as a
+ * GhostCart Privilege cart); asks the shopper to sign up first if needed.
+ */
+export function HaggleButton({
+  productId,
+  disabled,
+  label,
+  returnUrl,
+  endpoint = "/api/shop/haggle",
+  payload,
+}: {
+  productId?: string;
+  disabled?: boolean;
+  label: string;
+  returnUrl?: string;
+  endpoint?: string;
+  payload?: Record<string, unknown>;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [needsSignup, setNeedsSignup] = useState(false);
@@ -14,7 +31,7 @@ export function HaggleButton({ productId, disabled, label, returnUrl }: { produc
   async function start() {
     setBusy(true);
     setError("");
-    const res = await fetch("/api/shop/haggle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId, returnUrl }) });
+    const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload ?? { productId, returnUrl }) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.status === 401 && data.needsSignup) return setNeedsSignup(true);

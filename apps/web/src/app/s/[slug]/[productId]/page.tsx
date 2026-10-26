@@ -7,6 +7,7 @@ import { HaggleButton } from "@/components/shop/haggle-button";
 import { SellerDetailsBlock } from "@/components/shop/seller-details";
 import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
+import { GRANT_PLATFORMS } from "@/lib/grants/adapters";
 import { getProduct } from "@/lib/shop/products";
 import { policyForProduct } from "@/lib/shop/policies";
 import { allowedReturnUrl } from "@/lib/integrations/keys";
@@ -74,7 +75,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
           {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">Country of origin: {product.countryOfOrigin}</p>}
         </div>
       </div>
-      <SellerDetailsBlock seller={seller} />
+      <SellerDetailsBlock seller={seller} paidOn={GRANT_PLATFORMS.has(store.platform) ? store.name : undefined} />
     </>
   );
 }
