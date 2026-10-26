@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { store } from "./store";
 
 /**
@@ -18,6 +18,13 @@ const hash = (token: string) => createHash("sha256").update(token).digest("hex")
 const key = (kind: SessionKind, token: string) => `session:${kind}:${hash(token)}`;
 
 export const sessionCookieName = (kind: SessionKind) => COOKIE[kind];
+
+/**
+ * The mobile app has no cookie jar: it sends its session token in a header per kind (x-gc-buyer,
+ * x-gc-member). Custom headers can't be sent cross-site without a CORS preflight we never allow,
+ * so this is as safe from CSRF as the SameSite cookie.
+ */
+export const sessionHeaderName = (kind: SessionKind) => `x-gc-${kind}`;
 
 /** A live session token for this account, without a cookie (load-test seeding; startSession uses it). */
 export async function issueSessionToken(kind: SessionKind, subject: string) {
@@ -46,22 +53,22 @@ export async function sessionSubject(kind: SessionKind, token: string | undefine
   return (await store.kvGet<string>(key(kind, token))) ?? undefined;
 }
 
-/** Account id for the current request's session cookie (server components and route handlers). */
+/** Account id for the current request's session (cookie, or the app's header), in components and route handlers. */
 export async function currentSubject(kind: SessionKind) {
-  return sessionSubject(kind, (await cookies()).get(COOKIE[kind])?.value);
+  return sessionSubject(kind, (await cookies()).get(COOKIE[kind])?.value ?? (await headers()).get(sessionHeaderName(kind)) ?? undefined);
 }
 
 /** Revoke the current session and clear its cookie. */
 export async function endSession(kind: SessionKind) {
   const jar = await cookies();
-  const token = jar.get(COOKIE[kind])?.value;
+  const token = jar.get(COOKIE[kind])?.value ?? (await headers()).get(sessionHeaderName(kind));
   if (token) await store.kvDel(key(kind, token));
   jar.delete(COOKIE[kind]);
   if (kind === "buyer") jar.delete(LEGACY_BUYER_COOKIE);
 }
 
-/** Session token from a raw Cookie header (for code paths that only have the Request). */
+/** Session token from the Cookie header or the app's session header (for code paths that only have the Request). */
 export function sessionTokenFromRequest(kind: SessionKind, request: Request) {
   const raw = request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${COOKIE[kind]}=([^;]+)`))?.[1];
-  return raw ? decodeURIComponent(raw) : undefined;
+  return raw ? decodeURIComponent(raw) : (request.headers.get(sessionHeaderName(kind)) ?? undefined);
 }
