@@ -5,7 +5,7 @@
 export const shopifyConfig = () => ({
   apiKey: process.env.SHOPIFY_API_KEY ?? (process.env.VERCEL_ENV ? "" : "zz-dev-shopify-key"),
   apiSecret: process.env.SHOPIFY_API_SECRET ?? (process.env.VERCEL_ENV ? "" : "zz-dev-shopify-secret"),
-  scopes: process.env.SHOPIFY_SCOPES ?? "read_products,write_discounts,read_orders",
+  scopes: process.env.SHOPIFY_SCOPES ?? "read_products,write_discounts,read_orders,write_draft_orders",
   apiVersion: process.env.SHOPIFY_API_VERSION ?? "2026-07",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   billing: process.env.SHOPIFY_BILLING === "on",

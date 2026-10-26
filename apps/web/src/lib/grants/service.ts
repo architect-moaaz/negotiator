@@ -23,17 +23,17 @@ export async function issueGrant(deal: Deal, price: number, agreedBy: string) {
   const code = grantCode();
   const expiresAt = new Date(Date.now() + GRANT_MINUTES() * 60 * 1000);
   const discountInr = product.price - price;
-  const { checkoutUrl } = await adapter.createGrant({ store, product, code, discountInr, expiresAt });
+  const { checkoutUrl, kind = "code", ref } = await adapter.createGrant({ store, product, code, discountInr, expiresAt });
 
   Object.assign(deal, {
     status: "granted",
     dealPrice: price,
     saved: deal.originalPrice - price,
     expiresAt: expiresAt.getTime(),
-    grant: { platform: adapter.platform, code, checkoutUrl, expiresAt: expiresAt.getTime() },
+    grant: { platform: adapter.platform, code, kind, ref, checkoutUrl, expiresAt: expiresAt.getTime() },
   });
   if (deal.negotiation) deal.negotiation.currentOffer = price;
-  await kv.log({ type: "deal_agreed", actor: "agent", userId: deal.userId, dealId: deal.id, detail: `Agreed ${inr(price)} (${agreedBy}); ${adapter.platform} code ${code} for ${inr(discountInr)} off, valid ${GRANT_MINUTES()} min` });
+  await kv.log({ type: "deal_agreed", actor: "agent", userId: deal.userId, dealId: deal.id, detail: `Agreed ${inr(price)} (${agreedBy}); ${adapter.platform} ${kind === "draft_order" ? "draft order" : "code"} ${code} for ${inr(discountInr)} off, valid ${GRANT_MINUTES()} min` });
   return deal;
 }
 
@@ -62,4 +62,28 @@ export async function redeemGrant(input: { storeId: string; code: string; platfo
   await kv.incrStats({ paid: 1, saved: deal.saved });
   await kv.log({ type: "order_placed", actor: "system", userId: deal.userId, dealId: deal.id, detail: `${deal.grant.platform} order ${input.platformOrderRef} used ${input.code}; fee ${inr((m.fee + m.gst) / 100)} owed by the seller` });
   return deal;
+}
+
+/**
+ * Withdraw grants that expired unused where the platform won't expire them itself (Shopify draft
+ * orders). Run by the order job; a failure is retried next run.
+ */
+export async function revokeExpiredGrants(now = Date.now()) {
+  const revoked: string[] = [];
+  for (const deal of await kv.listDeals(5000)) {
+    const g = deal.grant;
+    if (!g?.ref || g.redeemedAt || g.revokedAt || g.expiresAt > now || !deal.shop) continue;
+    const store = await getStore(deal.shop.storeId);
+    const adapter = store && (await grantAdapterFor(store));
+    if (!store || !adapter?.revoke) continue;
+    try {
+      await adapter.revoke({ store, ref: g.ref });
+      g.revokedAt = now;
+      await kv.saveDeal(deal);
+      revoked.push(deal.id);
+    } catch (err) {
+      console.error(`couldn't revoke ${g.platform} grant ${g.ref}`, err);
+    }
+  }
+  return revoked;
 }

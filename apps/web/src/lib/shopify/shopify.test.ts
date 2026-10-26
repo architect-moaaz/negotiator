@@ -42,8 +42,8 @@ const signedWebhook = (topic: string, shop: string, payload: unknown, sig?: stri
 
 let n = 0;
 /** Install (via the mock's instant consent) and connect a fresh shop; returns the GhostCart store. */
-async function installAndConnect() {
-  const shop = `zz-shop-${++n}.myshopify.com`;
+async function installAndConnect(prefix = "zz-shop") {
+  const shop = `${prefix}-${++n}.myshopify.com`;
   const start = await install.GET(new Request(`http://test/api/shopify/install?shop=${shop}`));
   expect(start.status).toBe(302);
   const authorize = new URL(start.headers.get("location")!);
@@ -114,6 +114,34 @@ describe("Shopify install → haggle → code → order", () => {
     const after = (await kv.getDeal(deal.id))!;
     expect(after.grant).toMatchObject({ platformOrderRef: "#1001" });
     expect(await balance(await getDb(), accounts.sellerFeesDue(storeId))).toBeGreaterThan(0);
+  });
+
+  it("falls back to a draft order when Shopify won't create the code, redeems it, and deletes it once expired", async () => {
+    const { shop, storeId } = await installAndConnect("zz-nodiscount");
+    await updateStore(storeId, { status: "live" });
+    const product = (await getProductByRef(storeId, "shopify-9001"))!;
+    let deal = await startShopNegotiation(product.id, `shopify-draft-buyer-${n}`);
+    deal = await acceptOffer(deal);
+    expect(deal.status).toBe("granted");
+    expect(deal.grant).toMatchObject({ platform: "shopify", kind: "draft_order", ref: expect.stringMatching(/^gid:\/\/shopify\/DraftOrder\//) });
+    expect(deal.grant!.checkoutUrl).toMatch(new RegExp(`^https://${shop}/invoices/`));
+    const draft = (await kv.kvGet<{ lineItems: { variantId: string; appliedDiscount: { value: number } }[]; customAttributes: { key: string; value: string }[] }>(`mockshopify:${shop}:draft:${deal.grant!.ref}`))!;
+    expect(draft.lineItems[0]).toMatchObject({ variantId: "gid://shopify/ProductVariant/7001", appliedDiscount: { value: product.price - deal.dealPrice } });
+    expect(draft.customAttributes).toEqual([{ key: "ghostcart_code", value: deal.grant!.code }]);
+
+    // Paying the draft's invoice creates an order carrying the code as a note attribute.
+    await webhooks.POST(signedWebhook("orders/create", shop, { id: 2, name: "#1002", discount_codes: [], note_attributes: [{ name: "ghostcart_code", value: deal.grant!.code }] }));
+    expect((await kv.getDeal(deal.id))!.grant).toMatchObject({ platformOrderRef: "#1002" });
+
+    // A second, unused draft is withdrawn after it expires.
+    let unused = await startShopNegotiation(product.id, `shopify-draft-buyer-b-${n}`);
+    unused = await acceptOffer(unused);
+    const { revokeExpiredGrants } = await import("../grants/service");
+    expect(await revokeExpiredGrants(unused.grant!.expiresAt - 1000)).not.toContain(unused.id);
+    expect(await revokeExpiredGrants(unused.grant!.expiresAt + 1000)).toContain(unused.id);
+    expect(await kv.kvGet(`mockshopify:${shop}:draft:${unused.grant!.ref}`)).toBeUndefined();
+    expect((await kv.getDeal(unused.id))!.grant!.revokedAt).toBeDefined();
+    expect(await revokeExpiredGrants(unused.grant!.expiresAt + 2000)).not.toContain(unused.id); // once only
   });
 
   it("keeps products in sync and closes the store when the app is uninstalled", async () => {
