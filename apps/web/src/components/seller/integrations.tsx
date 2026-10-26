@@ -289,6 +289,62 @@ function FlipkartSection({ storeId }: { storeId: string }) {
   );
 }
 
+/** WhatsApp through a Gupshup app, for sellers already on Gupshup or while Meta approval is pending. */
+function GupshupConnect({ storeId, onConnected }: { storeId: string; onConnected: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ appName: "", apiKey: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [webhook, setWebhook] = useState("");
+  if (webhook)
+    return (
+      <div className="mt-4 text-sm">
+        <p>Connected. In your Gupshup app&apos;s settings, set this as the callback URL for inbound messages (it&apos;s shown only once):</p>
+        <Snippet text={webhook} />
+        <button onClick={onConnected} className={`${secondary} mt-2`}>
+          Done
+        </button>
+      </div>
+    );
+  if (!open)
+    return (
+      <button onClick={() => setOpen(true)} className="mt-3 block text-sm text-muted underline underline-offset-4 hover:text-fg">
+        Already on Gupshup, or waiting for Meta? Connect a Gupshup WhatsApp app instead
+      </button>
+    );
+  return (
+    <form
+      className="mt-4 grid gap-3 sm:max-w-md"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError("");
+        const r = await api<{ webhookUrl: string }>(`/api/seller/stores/${storeId}/gupshup`, { body: form });
+        setBusy(false);
+        if (!r.ok) return setError(r.error);
+        setWebhook(r.data.webhookUrl);
+      }}
+    >
+      <label className="grid gap-1 text-sm">
+        <span className="text-muted">Gupshup app name</span>
+        <input required value={form.appName} onChange={(e) => setForm({ ...form, appName: e.target.value })} className={field} />
+      </label>
+      <label className="grid gap-1 text-sm">
+        <span className="text-muted">API key</span>
+        <input required type="password" autoComplete="off" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} className={field} />
+      </label>
+      <label className="grid gap-1 text-sm">
+        <span className="text-muted">WhatsApp number on that app</span>
+        <input required inputMode="tel" placeholder="98765 43210" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={field} />
+      </label>
+      <ErrorText>{error}</ErrorText>
+      <button disabled={busy} className={`${secondary} justify-self-start`}>
+        {busy ? "Connecting…" : "Connect Gupshup"}
+      </button>
+    </form>
+  );
+}
+
 /** Shoppers haggle with your agent in chat: WhatsApp and Instagram. */
 function ChatChannels({ storeId }: { storeId: string }) {
   const [conns, setConns] = useState<ConnectionRow[] | null>(null);
@@ -301,12 +357,24 @@ function ChatChannels({ storeId }: { storeId: string }) {
     return () => clearTimeout(t);
   }, [load]);
   const wa = conns?.find((c) => c.platform === "whatsapp");
+  const gs = conns?.find((c) => c.platform === "gupshup" && !c.uninstalledAt);
   const ig = conns?.find((c) => c.platform === "instagram");
   return (
     <section>
       <h2 className="text-xl font-semibold">WhatsApp</h2>
       <p className="mt-1 text-muted">Shoppers message your WhatsApp Business number, pick a product and bargain with your agent there. It uses your own number and your discount rules.</p>
-      {wa ? <p className="mt-3">Connected: shoppers can message {wa.externalId === "1099000000001" ? "your test number" : "your number"} to haggle.</p> : conns && <WhatsAppConnect storeId={storeId} onConnected={load} />}
+      {wa ? (
+        <p className="mt-3">Connected: shoppers can message {wa.externalId === "1099000000001" ? "your test number" : "your number"} to haggle.</p>
+      ) : gs ? (
+        <p className="mt-3">Connected through Gupshup: shoppers can message +{gs.externalId} to haggle.</p>
+      ) : (
+        conns && (
+          <>
+            <WhatsAppConnect storeId={storeId} onConnected={load} />
+            <GupshupConnect storeId={storeId} onConnected={load} />
+          </>
+        )
+      )}
       <h2 className="mt-8 text-xl font-semibold">Instagram</h2>
       <p className="mt-1 text-muted">Shoppers DM your Instagram professional account and bargain with your agent there. Your account must be linked to a Facebook Page.</p>
       {ig ? (
