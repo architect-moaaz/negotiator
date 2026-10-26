@@ -10,9 +10,20 @@ export interface GrantAdapter {
   platform: string;
   /** Can this store take a grant right now (e.g. the app is still installed)? Defaults to yes. */
   ready?(store: Store): Promise<boolean>;
-  createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date }): Promise<{ checkoutUrl: string; kind?: "code" | "draft_order"; ref?: string }>;
+  /**
+   * One product, or a whole cart when `lines` is set (GhostCart Privilege): then the code takes
+   * `discountInr` off those products together, and the checkout link puts every line in the cart.
+   */
+  createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date; lines?: GrantLine[] }): Promise<{ checkoutUrl: string; kind?: "code" | "draft_order"; ref?: string }>;
   /** Withdraw an unused grant once it has expired (codes expire on their own; draft orders don't). */
   revoke?(input: { store: Store; ref: string }): Promise<void>;
+}
+
+/** A cart line in a multi-item grant; `discountInr` is this line's share of the cart discount. */
+export interface GrantLine {
+  product: Product;
+  quantity: number;
+  discountInr: number;
 }
 
 export const GRANT_PLATFORMS = new Set(["shopify", "woocommerce"]);

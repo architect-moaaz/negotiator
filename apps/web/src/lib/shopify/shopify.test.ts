@@ -116,6 +116,24 @@ describe("Shopify install → haggle → code → order", () => {
     expect(await balance(await getDb(), accounts.sellerFeesDue(storeId))).toBeGreaterThan(0);
   });
 
+  it("issues one code for a whole Privilege cart, with a cart link carrying every item", async () => {
+    const { shop, storeId } = await installAndConnect();
+    await updateStore(storeId, { status: "live" });
+    const { setRecovery } = await import("../privilege/settings");
+    const { captureCart, getCart } = await import("../privilege/carts");
+    const { startCartNegotiation } = await import("../privilege/negotiation");
+    await setRecovery(storeId, { enabled: true, maxDiscountPct: 15, autoApprovePct: 10 });
+    const cart = await captureCart({ storeId, source: "widget", items: [{ ref: "shopify-9001", quantity: 1 }, { ref: "shopify-9002", quantity: 2 }] });
+    let deal = await startCartNegotiation(cart.id, `shopify-cart-buyer-${n}`);
+    deal = await acceptOffer(deal);
+    expect(deal.status).toBe("granted");
+    expect(deal.grant!.checkoutUrl).toBe(`https://${shop}/cart/7001:1,7002:2?discount=${deal.grant!.code}`);
+    const created = (await kv.kvGet<{ customerGets: { items: { products: { productsToAdd: string[] } } } }>(`mockshopify:${shop}:discount:${deal.grant!.code}`))!;
+    expect(created.customerGets.items.products.productsToAdd.sort()).toEqual(["gid://shopify/Product/9001", "gid://shopify/Product/9002"]);
+    await webhooks.POST(signedWebhook("orders/create", shop, { id: 3, name: "#1003", discount_codes: [{ code: deal.grant!.code }] }));
+    expect((await getCart(cart.id))?.status).toBe("recovered");
+  });
+
   it("falls back to a draft order when Shopify won't create the code, redeems it, and deletes it once expired", async () => {
     const { shop, storeId } = await installAndConnect("zz-nodiscount");
     await updateStore(storeId, { status: "live" });

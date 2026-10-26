@@ -4,11 +4,13 @@ import { getDb } from "../db";
 
 const { consents } = schema;
 
-export type ConsentPurpose = "deal_contact" | "marketing";
+export type ConsentPurpose = "deal_contact" | "marketing" | "recovery_offers";
 export type Consent = typeof consents.$inferSelect;
 
 /** The exact words shown next to the signup checkbox. Change them here and in the form together. */
 export const DEAL_CONTACT_WORDING = "GhostCart and this seller can contact me on this number about this deal. No marketing.";
+/** Shown next to the checkout box that lets a store's GhostCart send a private offer on an unfinished cart. */
+export const RECOVERY_OFFER_WORDING = "If I don't finish checking out, this store can send me one private offer on my cart through GhostCart (email, WhatsApp or a call). I can stop it any time.";
 /** Chat shoppers write to the seller first; that message is the request to be answered about the deal. */
 export const CHAT_CONTACT_WORDING = "Started a haggle by messaging the seller, asking to be answered about the deal in this chat.";
 

@@ -42,6 +42,12 @@ export interface PriceGrant {
   platformOrderRef?: string;
 }
 
+/** A cart negotiated as one bundle. Prices are per unit, in INR, at the time the haggle started. */
+export interface DealCart {
+  cartId: string;
+  lines: { productId: string; title: string; quantity: number; unitPrice: number; image?: string }[];
+}
+
 /** Where the shopper is: our web/app, a chat app, or a seller's own system through /api/v1/sessions. */
 export type Channel = "web" | "whatsapp" | "instagram" | "api";
 
@@ -113,6 +119,8 @@ export interface Deal extends Offer {
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
   shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string; platform?: string };
   grant?: PriceGrant;
+  /** GhostCart Privilege: the haggle is on a whole cart (a bundle), not one product. */
+  cart?: DealCart;
   /** Set when the haggle happens in a chat app, so decisions made elsewhere are messaged back. */
   chat?: { channel: "whatsapp" | "instagram"; threadKey: string; storeId: string };
   /**
@@ -227,7 +235,13 @@ export type ActivityType =
   | "staff_login"
   | "staff_action"
   | "staff_denied"
-  | "seller_action";
+  | "seller_action"
+  | "cart_captured"
+  | "cart_abandoned"
+  | "privilege_invited"
+  | "privilege_opened"
+  | "cart_recovered"
+  | "privilege_opt_out";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
 export interface Activity {
