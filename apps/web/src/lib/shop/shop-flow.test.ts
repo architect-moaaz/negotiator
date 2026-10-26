@@ -48,7 +48,7 @@ describe("shop negotiations", () => {
     expect(deal.dealPrice).toBeGreaterThanOrEqual(9500);
 
     deal = await markPaid(deal, "pinelabs");
-    deal = await saveAddress(deal, { name: "ZZ Shopper", phone: "+919000000999", line1: "1 Test Street", city: "Bengaluru", state: "Karnataka", pincode: "560038" });
+    deal = await saveAddress(deal, { name: "ZZ Shopper", phone: "+919000000999", line1: `${Math.random().toString(36).slice(2, 8)} Test Street`, city: "Bengaluru", state: "Karnataka", pincode: "560038" });
     deal = await placeOrder(deal, "pinelabs");
     expect(deal.checkout?.status).toBe("ordered");
     expect((await getProduct(product.id))?.stock).toBe(1);

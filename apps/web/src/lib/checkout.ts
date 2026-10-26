@@ -1,5 +1,6 @@
 import { inr } from "./format";
 import { BALANCE_REF_SUFFIX, createBalancePayment, PaymentsUnavailableError } from "./payments";
+import { createOrderFromDeal } from "./orders/service";
 import { takeStock } from "./shop/products";
 import { store } from "./store";
 import { normalizePhone } from "./users";
@@ -103,7 +104,16 @@ export async function placeOrder(deal: Deal, source: string) {
     tracking: [{ stage: "placed", at: now }],
   });
   await store.saveDeal(deal);
-  if (deal.shop) await takeStock(deal.shop.productId);
+  if (deal.shop) {
+    await takeStock(deal.shop.productId);
+    try {
+      await createOrderFromDeal(deal);
+    } catch (err) {
+      // The buyer has paid; never fail their checkout over this. Staff see it in the log and fix it.
+      console.error("shop order record failed", err);
+      await log(deal, "order_status", `ATTENTION: paid shop deal has no order record yet: ${String(err).slice(0, 200)}`);
+    }
+  }
   await log(
     deal,
     "order_placed",

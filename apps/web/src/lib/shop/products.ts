@@ -19,6 +19,7 @@ export const productInput = z.object({
   category: z.string().trim().max(60).optional(),
   sku: z.string().trim().max(60).optional(),
   images: z.array(z.string().url()).max(8).default([]),
+  countryOfOrigin: z.string().trim().max(60).optional(),
   status: z.enum(["active", "draft", "archived"]).default("active"),
 });
 export type ProductInput = z.input<typeof productInput>;
@@ -52,18 +53,19 @@ export async function createProduct(storeId: string, input: ProductInput, source
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .insert(products)
-    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, status: p.status, source })
+    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, countryOfOrigin: p.countryOfOrigin || null, status: p.status, source })
     .returning();
   return row;
 }
 
+/** Fields left out keep their value only where a sync can't know them (country of origin); the rest are replaced. */
 export async function updateProduct(storeId: string, id: string, input: ProductInput) {
   const db = await getDb();
   const p = parse(input);
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .update(products)
-    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, status: p.status, updatedAt: new Date() })
+    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, ...(p.countryOfOrigin !== undefined && { countryOfOrigin: p.countryOfOrigin || null }), status: p.status, updatedAt: new Date() })
     .where(and(eq(products.id, id), eq(products.storeId, storeId)))
     .returning();
   return row as Product | undefined;
@@ -115,7 +117,42 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-export const CSV_COLUMNS = ["title", "price", "mrp", "stock", "category", "sku", "description", "image_url"] as const;
+export const CSV_COLUMNS = ["title", "price", "mrp", "stock", "category", "sku", "description", "image_url", "country_of_origin"] as const;
+
+/**
+ * Other names for our columns, so a marketplace's own listing export imports as-is: Amazon's inventory
+ * report (item-name, seller-sku, price, quantity) and Flipkart's listing export (Seller SKU Id, Product
+ * Title, Your Selling Price, MRP, System Stock). Matched after lowercasing and collapsing separators.
+ */
+const COLUMN_ALIASES: Record<string, (typeof CSV_COLUMNS)[number]> = {
+  item_name: "title",
+  product_title: "title",
+  product_name: "title",
+  listing_title: "title",
+  name: "title",
+  seller_sku: "sku",
+  seller_sku_id: "sku",
+  sku_id: "sku",
+  your_selling_price: "price",
+  selling_price: "price",
+  sale_price: "price",
+  maximum_retail_price: "mrp",
+  list_price: "mrp",
+  quantity: "stock",
+  system_stock: "stock",
+  stock_count: "stock",
+  inventory: "stock",
+  available_quantity: "stock",
+  item_description: "description",
+  product_description: "description",
+  image: "image_url",
+  main_image_url: "image_url",
+  image_link: "image_url",
+  product_category: "category",
+  vertical: "category",
+  origin: "country_of_origin",
+  country: "country_of_origin",
+};
 
 /**
  * Import a catalogue CSV (header row required; columns in any order, see CSV_COLUMNS). Valid rows are
@@ -124,7 +161,10 @@ export const CSV_COLUMNS = ["title", "price", "mrp", "stock", "category", "sku",
 export async function importProductsCsv(storeId: string, text: string, source = "csv") {
   const [header, ...rows] = parseCsv(text.replace(/^﻿/, ""));
   if (!header) return { created: 0, errors: ["The file is empty."] };
-  const cols = header.map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  const cols: string[] = header.map((h) => {
+    const key = h.trim().toLowerCase().replace(/[\s\-()]+/g, "_").replace(/_+$/, "");
+    return COLUMN_ALIASES[key] ?? key;
+  });
   if (!cols.includes("title") || !cols.includes("price")) return { created: 0, errors: ["The header row needs at least title and price columns."] };
   if (rows.length > 5000) return { created: 0, errors: ["Import up to 5,000 products at a time."] };
 
@@ -136,8 +176,8 @@ export async function importProductsCsv(storeId: string, text: string, source = 
       return v ? v : undefined;
     };
     try {
-      await createProduct(
-        storeId,
+      const save = get("sku") ? (input: ProductInput) => upsertProductBySku(storeId, { ...input, sku: get("sku") }) : (input: ProductInput) => createProduct(storeId, input, source);
+      await save(
         {
           title: get("title") ?? "",
           price: Number(get("price")?.replace(/[₹,\s]/g, "")),
@@ -147,8 +187,8 @@ export async function importProductsCsv(storeId: string, text: string, source = 
           sku: get("sku"),
           description: get("description") ?? "",
           images: get("image_url") ? [get("image_url")!] : [],
+          countryOfOrigin: get("country_of_origin"),
         },
-        source,
       );
       created++;
     } catch (err) {
@@ -167,4 +207,21 @@ export async function takeStock(productId: string) {
     .where(and(eq(products.id, productId), gt(products.stock, 0)))
     .returning({ id: products.id });
   return rows.length > 0;
+}
+
+/** A product by the seller's SKU, or by GhostCart product id. */
+export async function getProductByRef(storeId: string, ref: string) {
+  const db = await getDb();
+  const [bySku] = await db.select().from(products).where(and(eq(products.storeId, storeId), eq(products.sku, ref)));
+  if (bySku) return bySku;
+  const [byId] = await db.select().from(products).where(and(eq(products.storeId, storeId), eq(products.id, ref)));
+  return byId as Product | undefined;
+}
+
+/** Catalogue sync: create or update by SKU (the SKU is required here). */
+export async function upsertProductBySku(storeId: string, input: ProductInput & { sku?: string }) {
+  if (!input.sku?.trim()) throw new ProductError("Each product needs a sku.");
+  const existing = await getProductByRef(storeId, input.sku.trim());
+  if (existing && existing.sku === input.sku.trim()) return { product: (await updateProduct(storeId, existing.id, input))!, created: false };
+  return { product: await createProduct(storeId, input, "api"), created: true };
 }
