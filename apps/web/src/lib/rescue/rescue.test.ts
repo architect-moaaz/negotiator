@@ -31,7 +31,7 @@ describe("pasted links", () => {
 });
 
 let n = 0;
-async function shop(name: string, opts: { live?: boolean; haggle?: boolean; platform?: string } = {}) {
+async function shop(name: string, opts: { live?: boolean; haggle?: boolean; platform?: Parameters<typeof createStore>[0]["platform"] } = {}) {
   n++;
   const org = await createOrg({ name: `ZZ Rescue ${name}`, ownerPhone: `+9190000025${String(n).padStart(2, "0")}`, ownerName: "ZZ" });
   const s = await createStore({ orgId: org.id, name: `ZZ Rescue ${name}`, platform: opts.platform ?? "ghostcart_shop" });
