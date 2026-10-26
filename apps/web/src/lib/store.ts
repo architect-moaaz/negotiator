@@ -39,7 +39,7 @@ const g = globalThis as typeof globalThis & { __ghostcartMem?: ReturnType<typeof
 const mem = (g.__ghostcartMem ??= createMem());
 
 function withExpiry(deal: Deal | null | undefined) {
-  const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval";
+  const live = deal?.status === "pending" || deal?.status === "negotiating" || deal?.status === "awaiting_approval" || deal?.status === "granted";
   if (deal && live && Date.now() > deal.expiresAt) deal.status = "expired";
   return deal ?? undefined;
 }
@@ -278,6 +278,12 @@ export const legacyStore = {
   async updateUser(user: User) {
     if (redis) await redis.set(`user:${user.id}`, user);
     else mem.users.set(user.id, user);
+  },
+
+  /** Free a phone number's sign-in index (after the account behind it is erased). Postgres keys on the row itself. */
+  async releasePhone(phone: string) {
+    if (redis) await redis.del(`phone:${phone}`);
+    else mem.phones.delete(phone);
   },
 
   async sellerIdForPhone(phone: string) {

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { sessionSubject, sessionTokenFromRequest } from "./session";
 import { store } from "./store";
-import type { ListingSeller, Seller } from "./types";
+import type { Seller } from "./types";
 
 const NOISE = new Set(["private", "pvt", "limited", "ltd", "llp", "inc", "co", "company", "the", "official", "store", "india", "online"]);
 
@@ -45,13 +45,4 @@ export async function sellerFromRequest(request: Request) {
   if (!token) return undefined;
   const tokenOwner = await store.sellerIdForToken(hashToken(token));
   return tokenOwner ? store.getSeller(tokenOwner) : undefined;
-}
-
-/** Find the GhostCart seller behind a marketplace listing, and count the demand either way. */
-export async function matchListingSeller(soldBy: ListingSeller) {
-  const key = normalizeSellerName(soldBy.name);
-  if (!key) return undefined;
-  await store.recordDemand(key, soldBy.name, soldBy.marketplace);
-  const id = await store.sellerIdForAlias(key);
-  return id ? store.getSeller(id) : undefined;
 }

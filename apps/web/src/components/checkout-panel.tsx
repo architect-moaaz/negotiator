@@ -413,7 +413,7 @@ export function CheckoutPanel({
           </div>
         )}
         {step === "ordered" && <Tracking c={c} />}
-        {step === "ordered" && deal.shop && <ShopOrderStatus dealId={deal.id} storeName={deal.shop.storeName} />}
+        {step === "ordered" && deal.shop && <ShopOrderStatus dealId={deal.id} storeName={deal.shop.storeName} returnUrl={deal.shop.returnUrl} />}
 
         {step === "lapsed" && (
           <div className="mt-8">

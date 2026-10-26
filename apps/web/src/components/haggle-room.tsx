@@ -226,8 +226,10 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
         </p>
         <div className="receipt-rule my-4" />
         <p className="text-center text-paper-muted">
-          {n.fundedBy === "seller" ? `${n.sellerName} funds this discount from their own margin.` : "GhostCart pays the difference from its own commission."} Once you agree, you get 180 seconds to lock the price with a{" "}
-          {inr(deal.lockFee)} UPI payment.
+          {n.fundedBy === "seller" ? `${n.sellerName} funds this discount from their own margin.` : "GhostCart pays the difference from its own commission."}{" "}
+          {deal.shop?.platform === "shopify" || deal.shop?.platform === "woocommerce"
+            ? `Once you agree, you get a one-time code for this price to use at ${deal.shop.storeName}'s checkout.`
+            : `Once you agree, you get 180 seconds to lock the price with a ${inr(deal.lockFee)} UPI payment.`}
         </p>
       </section>
     </div>

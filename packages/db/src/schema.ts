@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * v1 schema: mirrors what the Redis store holds today so the app can dual-write and then switch
@@ -176,6 +176,20 @@ export const stores = pgTable(
     /** Random token the seller publishes in DNS or a meta tag to prove they control `domain`. */
     verificationToken: text("verification_token"),
     reviewNote: text("review_note"),
+    /**
+     * What the Consumer Protection (E-Commerce) Rules 2020 make us show buyers: the seller's address,
+     * customer care contact, and return policy. Legal name and GSTIN come from verification.
+     */
+    disclosure: jsonb("disclosure").$type<{
+      address: string;
+      city: string;
+      state: string;
+      pincode: string;
+      supportPhone: string;
+      supportEmail?: string;
+      returnDays: number;
+      returnPolicy: string;
+    }>(),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("stores_org_idx").on(t.orgId)],
@@ -209,6 +223,8 @@ export const products = pgTable(
     mrp: integer("mrp"),
     stock: integer("stock").notNull().default(0),
     images: jsonb("images").$type<string[]>().notNull().default([]),
+    /** Shown on the product page (Legal Metrology (Packaged Commodities) Rules, for e-commerce). */
+    countryOfOrigin: text("country_of_origin"),
     sku: text("sku"),
     /** active | draft | archived */
     status: text("status").notNull().default("active"),
@@ -217,7 +233,12 @@ export const products = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("products_store_idx").on(t.storeId), index("products_category_idx").on(t.categoryId)],
+  (t) => [
+    index("products_store_idx").on(t.storeId),
+    index("products_category_idx").on(t.categoryId),
+    // Catalogue sync (/api/v1/products) upserts by SKU, so a SKU is unique within a store.
+    uniqueIndex("products_store_sku_idx").on(t.storeId, t.sku).where(sql`sku is not null`),
+  ],
 );
 
 /** Discount rules. One row per level: the store default, a category, or a product. */
@@ -311,6 +332,8 @@ export const orders = pgTable(
     deliveredAt: ts("delivered_at"),
     /** Delivery address, needed by the seller to ship. */
     address: jsonb("address").$type<Record<string, string>>().notNull(),
+    /** Set when a fraud check flags the order: the payout stays held until staff clear it. */
+    flagged: text("flagged"),
     createdAt: ts("created_at").notNull().defaultNow(),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
@@ -412,4 +435,236 @@ export const disputes = pgTable(
     resolvedAt: ts("resolved_at"),
   },
   (t) => [index("disputes_order_idx").on(t.orderId), index("disputes_status_idx").on(t.status)],
+);
+
+/* ---------- Fraud signals ---------- */
+
+/** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */
+export const deviceLinks = pgTable(
+  "device_links",
+  {
+    deviceHash: text("device_hash").notNull(),
+    /** buyer (user id) | member (phone) */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    firstSeen: ts("first_seen").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.deviceHash, t.actorType, t.actorId] }), index("device_links_actor_idx").on(t.actorType, t.actorId)],
+);
+
+/** Something a fraud check noticed or blocked, for the staff fraud dashboard. */
+export const riskEvents = pgTable(
+  "risk_events",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    /** self_dealing | velocity | buyer_risk | multi_account | order_flagged | tier_promoted */
+    kind: text("kind").notNull(),
+    /** blocked | flagged | info */
+    action: text("action").notNull(),
+    subjectType: text("subject_type").notNull(),
+    subjectId: text("subject_id").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    reviewedBy: text("reviewed_by"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("risk_events_created_idx").on(t.createdAt.desc()), index("risk_events_subject_idx").on(t.subjectType, t.subjectId)],
+);
+
+/* ---------- Integrations: API keys and outbound webhooks ---------- */
+
+/**
+ * Seller API keys. Publishable keys (gc_pk_) go in the widget on the seller's site and only work from
+ * its allowed origins; secret keys (gc_sk_) are for the seller's servers. Only a hash is stored.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    /** publishable | secret */
+    kind: text("kind").notNull(),
+    keyHash: text("key_hash").notNull().unique(),
+    /** First characters, to tell keys apart in the dashboard. */
+    prefix: text("prefix").notNull(),
+    allowedOrigins: jsonb("allowed_origins").$type<string[]>().notNull().default([]),
+    createdBy: text("created_by").notNull(),
+    lastUsedAt: ts("last_used_at"),
+    revokedAt: ts("revoked_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("api_keys_store_idx").on(t.storeId)],
+);
+
+/** Where GhostCart sends order events for a store, signed with a per-endpoint secret (stored encrypted). */
+export const webhookEndpoints = pgTable(
+  "webhook_endpoints",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    secretEncrypted: text("secret_encrypted").notNull(),
+    events: jsonb("events").$type<string[]>().notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("webhook_endpoints_store_idx").on(t.storeId)],
+);
+
+/** Every delivery attempt, for the seller's "recent deliveries" view and retries. */
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: text("id").primaryKey(),
+    endpointId: text("endpoint_id")
+      .notNull()
+      .references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    /** pending | delivered | failed */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    responseCode: integer("response_code"),
+    nextAttemptAt: ts("next_attempt_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId), index("webhook_deliveries_retry_idx").on(t.status, t.nextAttemptAt)],
+);
+
+/** A seller's connection to their own commerce platform (Shopify today, WooCommerce next). Tokens encrypted. */
+export const platformConnections = pgTable(
+  "platform_connections",
+  {
+    id: text("id").primaryKey(),
+    /** Null until the installing merchant signs in to GhostCart and picks or creates the store. */
+    storeId: text("store_id").references(() => stores.id, { onDelete: "set null" }),
+    platform: text("platform").notNull(),
+    /** e.g. zz-shop.myshopify.com, or the WooCommerce site URL. */
+    externalId: text("external_id").notNull(),
+    accessTokenEncrypted: text("access_token_encrypted").notNull(),
+    scopes: text("scopes"),
+    /** Platform-specific settings: billing subscription id, primary domain, … */
+    meta: jsonb("meta").$type<Record<string, unknown>>().notNull().default({}),
+    installedAt: ts("installed_at").notNull().defaultNow(),
+    uninstalledAt: ts("uninstalled_at"),
+  },
+  (t) => [uniqueIndex("platform_connections_external_idx").on(t.platform, t.externalId), index("platform_connections_store_idx").on(t.storeId)],
+);
+
+/* ---------- Data protection (DPDP Act 2023) ---------- */
+
+/** Every consent a person gives or withdraws, with the exact wording they saw. Append-only. */
+export const consents = pgTable(
+  "consents",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    /** The shopper's user id (or phone for people without an account). */
+    subject: text("subject").notNull(),
+    /** deal_contact | marketing */
+    purpose: text("purpose").notNull(),
+    /** granted | withdrawn */
+    action: text("action").notNull(),
+    wording: text("wording").notNull(),
+    source: text("source").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("consents_subject_idx").on(t.subject)],
+);
+
+/**
+ * Complaints to the grievance officer (DPDP and Consumer Protection (E-Commerce) Rules): acknowledge
+ * within 48 hours, resolve within a month.
+ */
+export const grievances = pgTable(
+  "grievances",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    contact: text("contact").notNull(),
+    /** order | data_privacy | seller | payment | other */
+    category: text("category").notNull(),
+    reference: text("reference"),
+    message: text("message").notNull(),
+    /** open → acknowledged → resolved */
+    status: text("status").notNull().default("open"),
+    response: text("response"),
+    handledBy: text("handled_by"),
+    acknowledgeBy: ts("acknowledge_by").notNull(),
+    resolveBy: ts("resolve_by").notNull(),
+    acknowledgedAt: ts("acknowledged_at"),
+    resolvedAt: ts("resolved_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("grievances_status_idx").on(t.status)],
+);
+
+/**
+ * Analytics warehouse: one row per store per IST day, rolled up nightly from negotiations (which leave
+ * Redis after a week) and orders. Money in paise. Idempotent: a re-run replaces the day's row.
+ */
+export const storeDailyMetrics = pgTable(
+  "store_daily_metrics",
+  {
+    day: date("day").notNull(),
+    storeId: text("store_id").notNull(),
+    orgId: text("org_id").notNull(),
+    negotiations: integer("negotiations").notNull().default(0),
+    agreed: integer("agreed").notNull().default(0),
+    escalated: integer("escalated").notNull().default(0),
+    humanApproved: integer("human_approved").notNull().default(0),
+    humanRejected: integer("human_rejected").notNull().default(0),
+    /** Sum of list prices and agreed prices over agreed deals: average discount = 1 - agreed / list. */
+    listValue: bigint("list_value", { mode: "number" }).notNull().default(0),
+    agreedValue: bigint("agreed_value", { mode: "number" }).notNull().default(0),
+    totalRounds: integer("total_rounds").notNull().default(0),
+    orders: integer("orders").notNull().default(0),
+    gmv: bigint("gmv", { mode: "number" }).notNull().default(0),
+    fees: bigint("fees", { mode: "number" }).notNull().default(0),
+    refunds: bigint("refunds", { mode: "number" }).notNull().default(0),
+    disputes: integer("disputes").notNull().default(0),
+    computedAt: ts("computed_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.storeId] }), index("store_daily_metrics_org_idx").on(t.orgId, t.day)],
+);
+
+/**
+ * Every ONDC message we send or receive, as sent: the buyer app's working state (search results, quotes,
+ * orders are read back from here) and the log ONDC asks for in certification.
+ */
+export const ondcMessages = pgTable(
+  "ondc_messages",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    transactionId: text("transaction_id").notNull(),
+    messageId: text("message_id").notNull(),
+    /** search | on_search | select | on_select | init | on_init | confirm | on_confirm | status | on_status | … */
+    action: text("action").notNull(),
+    direction: text("direction").notNull(), // out | in
+    /** The other side: the gateway for search, otherwise the seller app's subscriber id. */
+    counterparty: text("counterparty").notNull(),
+    /** The GhostCart shopper who started it (user id), when known. */
+    userId: text("user_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("ondc_messages_txn_idx").on(t.transactionId, t.action), index("ondc_messages_created_idx").on(t.createdAt)],
+);
+
+/** Expo push tokens from the mobile app, per signed-in shopper (buyer) or seller member (phone). */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").notNull(),
+    /** buyer (user id) | member (phone). A phone signed in as both gets both kinds of notification. */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    platform: text("platform").notNull(), // ios | android
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.token, t.actorType] }), index("push_tokens_actor_idx").on(t.actorType, t.actorId)],
 );

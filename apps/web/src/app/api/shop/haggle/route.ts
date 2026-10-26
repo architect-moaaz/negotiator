@@ -12,10 +12,10 @@ export async function POST(request: Request) {
     { name: "shop-haggle:ip", id: clientIp(request), max: 60, windowSeconds: 60 * 60 },
   );
   if (limited) return limited;
-  const { productId } = (await request.json().catch(() => ({}))) as { productId?: string };
+  const { productId, returnUrl } = (await request.json().catch(() => ({}))) as { productId?: string; returnUrl?: string };
   if (!productId) return Response.json({ error: "Pick a product." }, { status: 400 });
   try {
-    const deal = await startShopNegotiation(productId, user.id, { city: requestCity(request) ?? user.city });
+    const deal = await startShopNegotiation(productId, user.id, { city: requestCity(request) ?? user.city, request, returnUrl });
     return Response.json({ id: deal.id });
   } catch (err) {
     if (err instanceof ShopError) return Response.json({ error: err.message }, { status: err.status });
