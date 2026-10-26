@@ -4,6 +4,7 @@ import { markPaid, toPublic } from "@/lib/negotiate";
 import { getOrderStatus, PAID_STATUSES } from "@ghostcart/payments";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/store";
+import { traced } from "@/lib/telemetry";
 
 /** Deal status for the countdown terminal; checks Pine Labs while the lock fee or the balance is unpaid. */
 export async function GET(request: Request) {
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
   const recentlyLive = Date.now() < deal.expiresAt + 30_000;
   if (deal.status !== "paid" && deal.pinelabsOrderId && recentlyLive) {
     try {
-      if (PAID_STATUSES.has(await getOrderStatus(deal.pinelabsOrderId))) deal = await markPaid(deal, "pinelabs");
+      if (PAID_STATUSES.has(await traced("pinelabs.order_status", { "deal.id": deal.id }, () => getOrderStatus(deal!.pinelabsOrderId!)))) deal = await markPaid(deal, "pinelabs");
     } catch (err) {
       console.warn("Pine Labs status check failed", err);
     }
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
   const c = deal.checkout;
   if (c?.status === "awaiting" && c.pinelabsOrderId && Date.now() < c.dueAt + CHECKOUT_GRACE_MS) {
     try {
-      if (PAID_STATUSES.has(await getOrderStatus(c.pinelabsOrderId))) deal = await placeOrder(deal, "pinelabs");
+      if (PAID_STATUSES.has(await traced("pinelabs.order_status", { "deal.id": deal.id }, () => getOrderStatus(c.pinelabsOrderId!)))) deal = await placeOrder(deal, "pinelabs");
     } catch (err) {
       console.warn("Pine Labs balance check failed", err);
     }

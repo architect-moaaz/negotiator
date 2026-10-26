@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { createUpiOrder, pinelabsConfigured } from "@ghostcart/payments";
 import { pinelabsMockConfigured, pinelabsMockEnabled } from "./pinelabs-mock";
+import { traced } from "./telemetry";
 
 export const LOCK_FEE_INR = Number(process.env.DEAL_LOCK_FEE_INR ?? 9);
 
@@ -16,7 +17,7 @@ export class PaymentsUnavailableError extends Error {}
 async function createUpiPayment({ dealId, reference, amountInr, note }: { dealId: string; reference: string; amountInr: number; note: string }) {
   if (!paymentsAvailable) throw new PaymentsUnavailableError("payments are not configured for this deployment");
   try {
-    const { orderId, upiIntent } = await createUpiOrder({ reference, amountInr, note, returnTo: `/deal/${dealId}` });
+    const { orderId, upiIntent } = await traced("pinelabs.create_order", { "deal.id": dealId, amount_inr: amountInr }, () => createUpiOrder({ reference, amountInr, note, returnTo: `/deal/${dealId}` }));
     return { pinelabsOrderId: orderId, upiIntent, qrDataUrl: await QRCode.toDataURL(upiIntent, { margin: 1 }) };
   } catch (err) {
     console.error("Pine Labs order failed", err);

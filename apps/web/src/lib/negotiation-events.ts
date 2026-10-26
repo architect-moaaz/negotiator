@@ -1,6 +1,7 @@
 import { schema } from "@ghostcart/db";
 import { and, asc, eq, gt } from "drizzle-orm";
 import { getDb } from "./db";
+import { track } from "./telemetry";
 import type { Deal } from "./types";
 
 const { negotiationEvents } = schema;
@@ -19,6 +20,8 @@ export async function recordEvent(deal: Deal, type: EventType, actor: "shopper" 
   } catch (err) {
     console.error("negotiation event write failed", err);
   }
+  // The product funnel: started → offer → escalated → agreed → paid → ordered.
+  await track(`negotiation_${type}`, deal.userId ?? deal.id, { actor, channel: deal.channel, store: deal.shop?.storeId ?? null, price: detail.price ?? null, list_price: deal.originalPrice });
 }
 
 /** A deal's events after `afterId` (0 for all), oldest first. */

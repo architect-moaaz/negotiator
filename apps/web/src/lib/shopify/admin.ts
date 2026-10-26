@@ -1,9 +1,15 @@
 import { adminBase, shopifyConfig } from "@ghostcart/channels";
+import { traced } from "../telemetry";
 
 export class ShopifyError extends Error {}
 
 /** Admin GraphQL. Throws on transport errors, GraphQL errors and mutation userErrors. */
-export async function shopifyGraphql<T>(shop: string, token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+export function shopifyGraphql<T>(shop: string, token: string, query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const operation = query.match(/^\s*(query|mutation)\s+(\w+)/)?.[2] ?? "anonymous";
+  return traced("shopify.graphql", { "shopify.shop": shop, "graphql.operation": operation }, () => run<T>(shop, token, query, variables));
+}
+
+async function run<T>(shop: string, token: string, query: string, variables: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${adminBase(shop)}/admin/api/${shopifyConfig().apiVersion}/graphql.json`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },

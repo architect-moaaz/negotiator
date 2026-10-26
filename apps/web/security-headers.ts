@@ -14,7 +14,8 @@ export function contentSecurityPolicy(dev = process.env.NODE_ENV === "developmen
     // Product photos come from sellers' own hosts (Shopify CDN, Vercel Blob, marketplaces); UPI QR codes are data: URLs.
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'"],
-    "connect-src": ["'self'", "https://*.facebook.com", "https://connect.facebook.net", ...(dev ? ["ws:"] : [])],
+    // Meta for WhatsApp signup; Sentry's ingest for browser error reports (only sent when configured).
+    "connect-src": ["'self'", "https://*.facebook.com", "https://connect.facebook.net", "https://*.ingest.sentry.io", "https://*.ingest.de.sentry.io", ...(dev ? ["ws:"] : [])],
     // Embedded Signup opens Meta's dialog in a frame.
     "frame-src": ["https://www.facebook.com", "https://web.facebook.com"],
     "object-src": ["'none'"],
