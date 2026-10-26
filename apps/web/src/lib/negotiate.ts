@@ -121,6 +121,7 @@ export async function submitOffer(deal: Deal, offer: number) {
       "agent",
     );
     await startApprovalCall(deal);
+    await pushApprovalRequest(deal, move.price);
   } else {
     n.currentOffer = move.price;
     n.rounds += 1;
@@ -149,6 +150,21 @@ async function shopApproverPhone(storeId: string) {
   const { approverPhones } = await import("./shop/orgs");
   const s = await getStore(storeId);
   return s ? (await approverPhones(s.orgId))[0]?.phone : undefined;
+}
+
+/** A shop's approvers get a push on their phones (the app opens the offer to approve or reject). */
+async function pushApprovalRequest(deal: Deal, price: number) {
+  if (!deal.shop) return;
+  const { getStore } = await import("./shop/stores");
+  const { notifyApprovers } = await import("./push");
+  const s = await getStore(deal.shop.storeId);
+  if (s) await notifyApprovers(s.orgId, { title: `Offer: ${inr(price)}`, body: `A shopper offered ${inr(price)} for ${deal.product.title} (list ${inr(deal.originalPrice)}). Approve or reject.`, data: { type: "approval", storeId: s.id, dealId: deal.id } });
+}
+
+/** Tell the shopper the seller decided, by push, if they use the app. */
+async function pushDecision(deal: Deal, text: string) {
+  const { notifyBuyer } = await import("./push");
+  await notifyBuyer(deal.userId, { title: deal.shop?.storeName ?? "Your deal", body: text, data: { type: "deal", dealId: deal.id } });
 }
 
 async function startApprovalCall(deal: Deal) {
@@ -186,6 +202,7 @@ export async function counterFromApprover(deal: Deal, price: number, decidedBy: 
   Object.assign(deal, { status: "negotiating", dealPrice: price, saved: deal.originalPrice - price, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   await store.saveDeal(deal);
   await notifyChat(deal);
+  await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
 }
 
@@ -219,6 +236,7 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
   }
   await store.saveDeal(deal);
   await notifyChat(deal);
+  await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
 }
 
