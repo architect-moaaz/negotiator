@@ -113,6 +113,10 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
             )}
             <p className="mt-3 text-sm text-muted">Then, on each product page, where the button should appear (use the product&apos;s SKU from your GhostCart catalogue):</p>
             <Snippet text={`<div data-ghostcart-product="YOUR-SKU"></div>`} />
+            <p className="mt-3 text-sm text-muted">
+              Does your site set a Content-Security-Policy? Add <span className="font-receipt">{origin}</span> to its <span className="font-receipt">script-src</span> and{" "}
+              <span className="font-receipt">connect-src</span>. Nothing else is needed.
+            </p>
           </>
         ) : (
           <p className="mt-4 text-sm text-muted">Create a widget key first. Your install code will appear here.</p>

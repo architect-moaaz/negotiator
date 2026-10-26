@@ -27,3 +27,7 @@ jobs:
       - run: pnpm turbo run typecheck lint test build
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+      - name: Widget on seller pages (plain HTML, strict CSP, Shopify-like), in Chromium
+        run: |
+          pnpm --filter @ghostcart/widget exec playwright install --with-deps chromium
+          pnpm --filter @ghostcart/widget test:browser
