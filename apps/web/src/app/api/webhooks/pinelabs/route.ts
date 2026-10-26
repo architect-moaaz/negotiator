@@ -1,7 +1,7 @@
 import { placeOrder } from "@/lib/checkout";
 import { markPaid } from "@/lib/negotiate";
 import { BALANCE_REF_SUFFIX } from "@/lib/payments";
-import { verifyWebhook } from "@/lib/pinelabs";
+import { verifyWebhook } from "@ghostcart/payments";
 import { store } from "@/lib/store";
 
 interface PinelabsEvent {

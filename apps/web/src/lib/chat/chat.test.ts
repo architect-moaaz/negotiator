@@ -2,9 +2,9 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 const webhook = await import("@/app/api/meta/webhook/route");
-const { metaConfig } = await import("../meta/config");
+const { metaConfig } = await import("@ghostcart/channels");
 const { connectWhatsApp } = await import("../meta/whatsapp");
-const { parseAmount, readIntent } = await import("./intent");
+const { parseAmount, readIntent } = await import("@ghostcart/agent");
 const { createOrg } = await import("../shop/orgs");
 const { setPolicy } = await import("../shop/policies");
 const { createProduct } = await import("../shop/products");

@@ -1,10 +1,11 @@
-import { readIntent } from "./chat/intent";
+import { readIntent } from "@ghostcart/agent";
 import { bearer, storeForKey } from "./integrations/keys";
 import { acceptOffer, counterFromApprover, decideApproval, HaggleError, submitOffer } from "./negotiate";
 import { ShopError, startShopNegotiation } from "./shop/negotiation";
 import { getProductByRef } from "./shop/products";
 import { store as kv } from "./store";
 import type { Deal } from "./types";
+import { traced } from "./telemetry";
 
 /**
  * The one negotiation API every channel can use (plan: "/api/v1/sessions"). A seller's own system, a
@@ -81,7 +82,7 @@ export async function makeOffer(deal: Deal, body: { amount?: number; text?: stri
     if (body.amount !== undefined) return await submitOffer(deal, Number(body.amount));
     const text = String(body.text ?? "").slice(0, 500);
     if (!text.trim()) throw new SessionError("Send amount (rupees) or text (the shopper's words).");
-    const intent = await readIntent(text, { listPrice: deal.originalPrice, currentOffer: deal.negotiation?.currentOffer });
+    const intent = await traced("agent.read_intent", { "deal.id": deal.id, channel: "api" }, () => readIntent(text, { listPrice: deal.originalPrice, currentOffer: deal.negotiation?.currentOffer }));
     if (intent.kind === "accept") return await acceptOffer(deal);
     if (intent.kind === "offer") return await submitOffer(deal, intent.amount);
     throw new SessionError("Couldn't find a price or a yes in that. Send amount, or text with a number.", 422);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { Turnstile, turnstileRequired } from "./turnstile";
 
 const field = "rounded-xl border border-line bg-panel px-4 py-3 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60";
 
@@ -12,6 +13,9 @@ export function PhoneLogin({ role, onDone }: { role: "buyer" | "seller" | "staff
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [captcha, setCaptcha] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const onToken = useCallback((t: string) => setCaptcha(t), []);
 
   async function post(path: string, body: Record<string, string>) {
     setBusy(true);
@@ -27,7 +31,10 @@ export function PhoneLogin({ role, onDone }: { role: "buyer" | "seller" | "staff
   }
 
   async function sendCode() {
-    const data = await post("/api/auth/code", { phone });
+    const data = await post("/api/auth/code", { phone, turnstile: captcha });
+    // Each token works once: get a fresh one for a retry or a second call.
+    setCaptcha("");
+    setCaptchaReset((n) => n + 1);
     if (!data) return;
     setStep("code");
     setNote(
@@ -84,8 +91,9 @@ export function PhoneLogin({ role, onDone }: { role: "buyer" | "seller" | "staff
           />
         </>
       )}
+      {step === "phone" && <Turnstile onToken={onToken} resetKey={captchaReset} />}
       <button
-        disabled={busy || (step === "phone" ? phone.replace(/\D/g, "").length < 10 : code.length !== 6)}
+        disabled={busy || (step === "phone" ? phone.replace(/\D/g, "").length < 10 || (turnstileRequired && !captcha) : code.length !== 6)}
         className="rounded-xl bg-saffron px-6 py-3.5 text-lg font-semibold text-paper-ink disabled:opacity-50"
       >
         {busy ? "One moment…" : step === "phone" ? "Call me with a code" : "Log in"}

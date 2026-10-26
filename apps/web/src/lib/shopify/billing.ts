@@ -1,5 +1,5 @@
 import { shopifyGraphql } from "./admin";
-import { shopifyConfig } from "./config";
+import { shopifyConfig } from "@ghostcart/channels";
 import { tokenOf, updateConnection, type Connection } from "./connections";
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTerms } from "./haggle";
+import { computeTerms } from "@ghostcart/agent";
 import { normalizeSellerName } from "./sellers";
 import type { Product, Seller } from "./types";
 

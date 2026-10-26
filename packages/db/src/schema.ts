@@ -691,3 +691,85 @@ export const negotiationEvents = pgTable(
   },
   (t) => [index("negotiation_events_deal_idx").on(t.dealId, t.id)],
 );
+
+/** Browser push subscriptions for seller members using the web dashboard (offers to approve). */
+export const webPushSubscriptions = pgTable(
+  "web_push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    /** The member's verified phone. */
+    phone: text("phone").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("web_push_phone_idx").on(t.phone)],
+);
+
+/**
+ * GhostCart's monthly tax invoice to each seller for its platform fee (fees are earned when a payout is
+ * released or a price grant is redeemed, so an issued invoice never needs reversing). Money in paise.
+ */
+export const feeInvoices = pgTable(
+  "fee_invoices",
+  {
+    /** GC/2026-27/000001: sequential per financial year. */
+    number: text("number").primaryKey(),
+    fy: text("fy").notNull(),
+    serial: integer("serial").notNull(),
+    orgId: text("org_id").notNull(),
+    storeId: text("store_id").notNull(),
+    /** YYYY-MM (IST) the fees were earned in. */
+    period: text("period").notNull(),
+    sellerName: text("seller_name").notNull(),
+    sellerGstin: text("seller_gstin"),
+    sellerAddress: text("seller_address"),
+    /** Two-digit GST state code of the place of supply (the seller's state). */
+    placeOfSupply: text("place_of_supply"),
+    taxable: bigint("taxable", { mode: "number" }).notNull(),
+    cgst: bigint("cgst", { mode: "number" }).notNull(),
+    sgst: bigint("sgst", { mode: "number" }).notNull(),
+    igst: bigint("igst", { mode: "number" }).notNull(),
+    total: bigint("total", { mode: "number" }).notNull(),
+    lines: jsonb("lines").$type<{ ref: string; at: string; fee: number; gst: number }[]>().notNull(),
+    issuedAt: ts("issued_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fee_invoices_store_period_idx").on(t.storeId, t.period), uniqueIndex("fee_invoices_fy_serial_idx").on(t.fy, t.serial), index("fee_invoices_org_idx").on(t.orgId)],
+);
+
+/** One run of matching the payment aggregator's settlement report against the ledger for an IST day. */
+export const reconciliationRuns = pgTable(
+  "reconciliation_runs",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    day: date("day").notNull(),
+    gateway: text("gateway").notNull(),
+    reportLines: integer("report_lines").notNull(),
+    ledgerLines: integer("ledger_lines").notNull(),
+    matched: integer("matched").notNull(),
+    issues: integer("issues").notNull(),
+    ranAt: ts("ran_at").notNull().defaultNow(),
+  },
+  (t) => [index("reconciliation_runs_day_idx").on(t.day)],
+);
+
+/** A difference between the report and the ledger; open until staff resolve it with a note. Paise. */
+export const reconciliationIssues = pgTable(
+  "reconciliation_issues",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    runId: bigint("run_id", { mode: "number" }).notNull(),
+    day: date("day").notNull(),
+    orderId: text("order_id").notNull(),
+    /** hold | release | refund */
+    kind: text("kind").notNull(),
+    ledgerAmount: bigint("ledger_amount", { mode: "number" }).notNull(),
+    gatewayAmount: bigint("gateway_amount", { mode: "number" }).notNull(),
+    /** open | resolved */
+    status: text("status").notNull().default("open"),
+    note: text("note"),
+    resolvedBy: text("resolved_by"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("reconciliation_issues_status_idx").on(t.status), uniqueIndex("reconciliation_issues_key_idx").on(t.day, t.orderId, t.kind)],
+);

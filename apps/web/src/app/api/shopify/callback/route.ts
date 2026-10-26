@@ -1,5 +1,5 @@
-import { exchangeCode, verifyQueryHmac } from "@/lib/shopify/auth";
-import { isShopDomain } from "@/lib/shopify/config";
+import { exchangeCode, verifyQueryHmac } from "@ghostcart/channels";
+import { isShopDomain } from "@ghostcart/channels";
 import { saveShopifyConnection } from "@/lib/shopify/connections";
 import { store as kv } from "@/lib/store";
 

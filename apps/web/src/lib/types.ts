@@ -31,6 +31,11 @@ export type DealStatus = "negotiating" | "awaiting_approval" | "pending" | "paid
 export interface PriceGrant {
   platform: string;
   code: string;
+  /** "code": a discount code for the seller's checkout; "draft_order": a Shopify invoice at the agreed price. */
+  kind?: "code" | "draft_order";
+  /** Platform id to withdraw it later (the draft order's gid). */
+  ref?: string;
+  revokedAt?: number;
   checkoutUrl: string;
   expiresAt: number;
   redeemedAt?: number;

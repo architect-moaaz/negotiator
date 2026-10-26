@@ -6,7 +6,8 @@ import { getProduct, listProducts } from "../shop/products";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
-import { readIntent } from "./intent";
+import { readIntent } from "@ghostcart/agent";
+import { traced } from "../telemetry";
 
 /**
  * Haggling in a chat app, the same engine for WhatsApp and Instagram: the shopper picks a product,
@@ -89,7 +90,7 @@ export async function handleIncomingChat(msg: IncomingChat, send: Send) {
   if (deal.status === "awaiting_approval") return send(`I've asked ${deal.shop?.storeName ?? "the seller"} about ${inr(deal.negotiation?.approval?.price ?? deal.dealPrice)}. I'll message you here as soon as they reply.`);
   if (deal.status === "pending" || deal.status === "granted") return send(afterAgreement(deal));
 
-  const intent = await readIntent(msg.text, { listPrice: deal.product.price, currentOffer: deal.negotiation?.currentOffer });
+  const intent = await traced("agent.read_intent", { "deal.id": deal.id, channel: msg.channel }, () => readIntent(msg.text, { listPrice: deal.product.price, currentOffer: deal.negotiation?.currentOffer }));
   try {
     if (intent.kind === "stop") {
       await kv.kvDel(stateKey(msg.channel, msg.threadKey));

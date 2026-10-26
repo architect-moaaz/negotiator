@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     return [{ source: "/(.*)", headers: securityHeaders() }];
   },
   // Workspace packages ship TypeScript source.
-  transpilePackages: ["@ghostcart/core", "@ghostcart/db"],
+  transpilePackages: ["@ghostcart/core", "@ghostcart/db", "@ghostcart/agent", "@ghostcart/payments", "@ghostcart/channels"],
   // Embedded Postgres for local development loads its WebAssembly from node_modules.
   serverExternalPackages: ["@electric-sql/pglite"],
   partialPrefetching: true,

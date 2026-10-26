@@ -1,0 +1,36 @@
+# Playwright smoke tests against every Vercel preview, as soon as it's deployed (see apps/e2e).
+name: Preview smoke tests
+on:
+  deployment_status:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    if: github.event.deployment_status.state == 'success' && contains(github.event.deployment_status.environment, 'Preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @ghostcart/e2e
+      - run: pnpm --filter @ghostcart/e2e exec playwright install --with-deps chromium
+      - name: Smoke tests
+        run: pnpm --filter @ghostcart/e2e e2e
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          # Vercel → Project → Deployment Protection → Protection Bypass for Automation
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          # Optional: a ZZ test store on the preview database for the negotiate → approve flow
+          E2E_SECRET_KEY: ${{ secrets.E2E_SECRET_KEY }}
+          E2E_SKU: ${{ vars.E2E_SKU }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/e2e/playwright-report

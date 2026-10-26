@@ -2,16 +2,18 @@ import { OtpError, sendLoginCode, type LoginRole } from "@/lib/otp";
 import { codeLimits, rateLimit } from "@/lib/rate-limit";
 import { staffRoster } from "@/lib/staff";
 import { store } from "@/lib/store";
+import { turnstileFailed, verifyTurnstile } from "@/lib/turnstile";
 import { maskPhone, normalizePhone } from "@/lib/users";
 
 /** Step 1 of phone login: we call the number and read out a 6-digit code. */
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { phone?: string; role?: LoginRole };
+  const body = (await request.json().catch(() => ({}))) as { phone?: string; role?: LoginRole; turnstile?: string; client?: string };
   const role: LoginRole = body.role === "seller" || body.role === "staff" || body.role === "member" ? body.role : "buyer";
   const phone = body.phone ? normalizePhone(body.phone) : null;
   if (!phone) return Response.json({ error: "Enter a 10-digit Indian mobile number." }, { status: 400 });
   const limited = await rateLimit(...codeLimits(request, phone));
   if (limited) return limited;
+  if (body.client !== "mobile" && !(await verifyTurnstile(body.turnstile, request))) return turnstileFailed();
 
   // Seller members can start fresh: the code proves the number, then onboarding creates the business.
   const accountId =

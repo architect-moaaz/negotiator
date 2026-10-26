@@ -1,6 +1,6 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { model } from "../agent";
+import { model } from "./model";
 
 /**
  * What a shopper means in a chat message. Rules first (fast, predictable); the model only for messages

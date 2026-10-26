@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { instagramLoginUrl } from "@/lib/meta/instagram";
-import { metaConfigured } from "@/lib/meta/config";
+import { metaConfigured } from "@ghostcart/channels";
 import { requireStoreAccess } from "@/lib/shop/access";
 import { store as kv } from "@/lib/store";
 

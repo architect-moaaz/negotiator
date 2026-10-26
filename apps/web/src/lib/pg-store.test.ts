@@ -1,6 +1,6 @@
 import { createTestDb } from "@ghostcart/db/testing";
 import { beforeEach, describe, expect, it } from "vitest";
-import { computeTerms } from "./haggle";
+import { computeTerms } from "@ghostcart/agent";
 import { createPgStore, type PgStore } from "./pg-store";
 import { composeStore, legacyStore } from "./store";
 import type { Deal, Product, Seller, User } from "./types";
