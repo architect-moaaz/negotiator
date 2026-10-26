@@ -1,0 +1,24 @@
+# GhostCart Shopify app. Deploy config and the theme extension with the Shopify CLI:
+#   cd apps/shopify && shopify app deploy
+# Replace client_id and the URLs with the values from the Shopify Partner dashboard.
+client_id = "REPLACE_WITH_SHOPIFY_API_KEY"
+name = "GhostCart"
+application_url = "https://ghostcart.app/api/shopify/install"
+embedded = false
+
+[access_scopes]
+scopes = "read_products,write_discounts,read_orders"
+
+[auth]
+redirect_urls = ["https://ghostcart.app/api/shopify/callback"]
+
+[webhooks]
+api_version = "2026-07"
+
+  # Mandatory privacy webhooks for public apps.
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "https://ghostcart.app/api/shopify/webhooks"
+
+[pos]
+embedded = false

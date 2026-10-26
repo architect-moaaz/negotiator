@@ -3,7 +3,9 @@
 Durable data is moving from Redis to Postgres. Redis keeps short-lived keys: OTP codes, sessions, rate limits and locks, the live ticker, and mock gateway orders.
 
 ## Layout
-- `packages/db/src/schema.ts`: Drizzle schema. v1 mirrors what Redis holds today (users, sellers, seller aliases and tokens, deals, activity, visits, counters, seller demand). Orgs, policies, payments and the ledger come in later migrations.
+- `packages/db/src/schema.ts`: Drizzle schema.
+  - `0000_init` mirrors what Redis held (users, sellers, seller aliases and tokens, deals, activity, visits, counters, seller demand).
+  - `0001_seller_catalogue` adds Wave 1 seller data: orgs and members, stores, categories, products and discount policies (one row per store, category or product level). These tables live only in Postgres.
 - `packages/db/drizzle/`: generated SQL migrations. Commit them; never edit an applied one.
 - `apps/web/src/lib/pg-store.ts`: Postgres implementation of the store's durable methods.
 - `apps/web/src/lib/store.ts`: `STORE_MODE` picks the backend (below).
@@ -26,4 +28,8 @@ Durable data is moving from Redis to Postgres. Redis keeps short-lived keys: OTP
 Rolling back from step 5 to `redis` loses writes made since the switch, so do it only within minutes, or re-sync first.
 
 ## Local development
-Without `DATABASE_URL` everything runs on Redis or the in-memory fallback, as before. To work against Postgres locally, create a Neon dev branch and put its URL in `apps/web/.env.local` with `STORE_MODE=postgres`.
+Without `DATABASE_URL`, seller data (`apps/web/src/lib/db.ts`) uses an embedded Postgres (PGlite) persisted in `apps/web/.pglite/` (gitignored), with every migration applied on startup. Delete the folder to start fresh. Tests use an in-memory one. Production refuses to start seller features without `DATABASE_URL`.
+
+Durable hackathon data (deals, users) still follows `STORE_MODE` and stays on Redis or memory unless you point `DATABASE_URL` at a Neon dev branch and set `STORE_MODE=postgres`.
+
+`GET /api/health` reports whether Postgres and the key-value store are reachable.

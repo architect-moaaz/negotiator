@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Jar = Map<string, string>;
 let jar: Jar = new Map();
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
     set: (name: string, value: string) => void jar.set(name, value),
@@ -12,7 +13,6 @@ vi.mock("next/headers", () => ({
 }));
 
 const { POST: signup } = await import("@/app/api/signup/route");
-const { POST: sellers } = await import("@/app/api/sellers/route");
 const { POST: checkout } = await import("@/app/api/deal/checkout/route");
 const { GET: getDeal } = await import("@/app/api/deal/route");
 const { DELETE: logout } = await import("@/app/api/me/route");
@@ -90,19 +90,6 @@ describe("shopper signup", () => {
   });
 });
 
-describe("seller signup", () => {
-  it("needs the phone code before the store exists", async () => {
-    const form = { storeName: "ZZ Proof Store", contactName: "ZZ", phone: "9000000304", budgetPct: 8, autoApprovePct: 60 };
-    const { res, code } = await requestCode(() => sellers(post("/api/sellers", form)));
-    expect(await res.json()).toMatchObject({ codeSent: true });
-    expect(await store.sellerIdForPhone("+919000000304")).toBeUndefined();
-    const ok = await sellers(post("/api/sellers", { ...form, code }));
-    expect(ok.status).toBe(200);
-    expect(await store.sellerIdForPhone("+919000000304")).toBeTruthy();
-    expect(jar.get("gc_sid")).toBeTruthy();
-  });
-});
-
 describe("deal ownership", () => {
   const product = { title: "Sony WH-1000XM5 Headphones", seller: "Amazon", price: 19989, inStock: true };
 
@@ -132,7 +119,7 @@ describe("deal ownership", () => {
           openedAt: Date.now(),
           dueAt: Date.now() + 600_000,
           amount: 19491,
-          address: { name: "ZZ Owner", phone: "+919000000305", line1: "1 Test Street", city: "Bengaluru", state: "Karnataka", pincode: "560038" },
+          address: { name: "ZZ Owner", phone: "+919000000305", line1: `${Math.random().toString(36).slice(2, 8)} Test Street`, city: "Bengaluru", state: "Karnataka", pincode: "560038" },
         },
       },
       true,

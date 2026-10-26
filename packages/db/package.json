@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./local": "./src/local.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",
@@ -15,11 +16,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@neondatabase/serverless": "1.2.0",
     "drizzle-orm": "0.45.4"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.8",
     "@types/node": "^20",
     "drizzle-kit": "0.31.11",
     "typescript": "^5",

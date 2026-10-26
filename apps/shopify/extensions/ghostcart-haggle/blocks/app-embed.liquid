@@ -1,0 +1,18 @@
+{%- comment -%}
+  Loads the GhostCart widget once per page. The publishable key is written to this app's metafield
+  when the merchant connects the store in GhostCart, so there's nothing to paste.
+{%- endcomment -%}
+{%- assign ghostcart_key = app.metafields.ghostcart.publishable_key.value -%}
+{%- if ghostcart_key != blank -%}
+  <script src="{{ block.settings.ghostcart_url }}/widget/v1.js" data-key="{{ ghostcart_key | escape }}" async></script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "GhostCart widget",
+  "target": "body",
+  "settings": [
+    { "type": "url", "id": "ghostcart_url", "label": "GhostCart address", "default": "https://ghostcart.app" }
+  ]
+}
+{% endschema %}

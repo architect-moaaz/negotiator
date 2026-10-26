@@ -46,6 +46,10 @@ export interface NegotiationTerms {
   floor: number; // benchmark - budget: below this we lose money
   autoLimit: number; // the agent may agree down to here on its own; lower needs human approval
   opening: number;
+  /** Rounds before the agent's last offer; defaults to MAX_ROUNDS. */
+  maxRounds?: number;
+  /** "list" when the benchmark is the seller's own list price (shop products), not a market comparison. */
+  benchmarkKind?: "market" | "list";
 }
 
 export interface NegotiationMessage {

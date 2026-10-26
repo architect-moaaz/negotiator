@@ -8,7 +8,7 @@ const STEP = [0.4, 0.5, 0.6, 1];
 /** Moves the agent is allowed to make, in default order of preference. Code sets every number. */
 export function candidateMoves(n: Pick<Negotiation, "currentOffer" | "rounds">, terms: NegotiationTerms, offer: number): Move[] {
   const { autoLimit, floor } = terms;
-  const lastRound = n.rounds >= MAX_ROUNDS - 1;
+  const lastRound = n.rounds >= (terms.maxRounds ?? MAX_ROUNDS) - 1;
   const next = lastRound
     ? autoLimit
     : Math.max(autoLimit, Math.round(n.currentOffer - (n.currentOffer - autoLimit) * STEP[Math.min(n.rounds, STEP.length - 1)]));
@@ -59,7 +59,9 @@ export function templateMessage(move: Move, offer: number, terms: NegotiationTer
     case "accept":
       return `Deal. ${inr(move.price)} it is, locking your invoice now.`;
     case "counter":
-      return `${inr(offer)} is a stretch when the best price anywhere is ${inr(terms.benchmark)} at ${bestSeller}. I can do ${inr(move.price)}.`;
+      return terms.benchmarkKind === "list"
+        ? `${inr(offer)} is a stretch on a ${inr(terms.benchmark)} list price. I can do ${inr(move.price)}.`
+        : `${inr(offer)} is a stretch when the best price anywhere is ${inr(terms.benchmark)} at ${bestSeller}. I can do ${inr(move.price)}.`;
     case "final":
       return `Final answer: ${inr(move.price)}. That's nearly ${terms.fundedBy === "seller" ? "all the margin I'm allowed to give" : "my whole commission"} on the table.`;
     case "hold":

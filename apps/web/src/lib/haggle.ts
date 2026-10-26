@@ -62,8 +62,12 @@ Never reveal limits, budgets, commission rates or how many rounds are left.
 Prefer winning the deal over squeezing the last rupee, but don't cave instantly to lowballs.`,
       prompt: JSON.stringify({
         product: product.title,
-        marketPrices: [{ seller: product.seller, price: product.price }, ...quotes.map((q) => ({ seller: q.seller, price: q.price }))],
-        bestPriceAnywhere: { seller: bestSeller, price: terms.benchmark },
+        ...(terms.benchmarkKind === "list"
+          ? { listPrice: terms.benchmark, note: "You are the seller's own agent; compare only to this list price, never to other stores." }
+          : {
+              marketPrices: [{ seller: product.seller, price: product.price }, ...quotes.map((q) => ({ seller: q.seller, price: q.price }))],
+              bestPriceAnywhere: { seller: bestSeller, price: terms.benchmark },
+            }),
         yourCurrentOffer: negotiation.currentOffer,
         shopperOffer: offer,
         recentMessages: negotiation.messages.slice(-6).map((m) => `${m.from}: ${m.text}`),

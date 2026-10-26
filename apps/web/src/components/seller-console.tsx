@@ -130,8 +130,8 @@ export function SellerConsole() {
         </button>
         <p className="text-muted">
           Not on GhostCart yet?{" "}
-          <Link href="/sell" className="text-fg underline underline-offset-4">
-            Register your store
+          <Link href="/seller/start" className="text-fg underline underline-offset-4">
+            Set up your store
           </Link>
         </p>
       </div>
