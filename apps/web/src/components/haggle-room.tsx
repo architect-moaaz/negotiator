@@ -69,11 +69,11 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
         </p>
         <h1 className="mt-6 max-w-xl text-xl font-semibold leading-snug sm:text-2xl">{deal.product.title}</h1>
         <p className="mt-1 text-muted">
-          Best price anywhere: {inr(n.benchmark)} at {deal.bestSeller}
+          {deal.shop ? `List price: ${inr(n.benchmark)} at ${deal.shop.storeName}` : `Best price anywhere: ${inr(n.benchmark)} at ${deal.bestSeller}`}
         </p>
         {!waiting && offMarket > 0 && (
           <p className="mt-3 max-w-xl">
-            You&apos;ve already got <span className="text-saffron">{inr(offMarket)} off</span> the best market price
+            You&apos;ve already got <span className="text-saffron">{inr(offMarket)} off</span> {deal.shop ? "the list price" : "the best market price"}
             {gap > 0 ? (
               <>
                 , and you&apos;re just <span className="text-fg">{inr(gap)}</span> away from a deal.
@@ -200,29 +200,36 @@ export function HaggleRoom({ deal, onUpdate }: { deal: PublicDeal; onUpdate: (d:
           <span>{deal.product.seller} list price</span>
           <s>{inr(deal.originalPrice)}</s>
         </div>
-        {deal.alternatives.map((q) => (
-          <div key={q.url} className="flex justify-between text-paper-muted">
-            <span>{q.seller}</span>
-            <span>{inr(q.price)}</span>
-          </div>
-        ))}
-        <div className="flex justify-between">
-          <span>Best price anywhere</span>
-          <span>{inr(n.benchmark)}</span>
-        </div>
-        <p className="mt-1 text-paper-muted">Found on {deal.alternatives.length + 1} of the 8 stores we checked, live when you pasted the link.</p>
+        {!deal.shop && (
+          <>
+            {deal.alternatives.map((q) => (
+              <div key={q.url} className="flex justify-between text-paper-muted">
+                <span>{q.seller}</span>
+                <span>{inr(q.price)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>Best price anywhere</span>
+              <span>{inr(n.benchmark)}</span>
+            </div>
+            <p className="mt-1 text-paper-muted">Found on {deal.alternatives.length + 1} of the 8 stores we checked, live when you pasted the link.</p>
+          </>
+        )}
+        {deal.shop && <p className="mt-1 text-paper-muted">You&apos;re haggling with {deal.shop.storeName}&apos;s own agent. The seller ships your order.</p>}
         <div className="receipt-rule my-4" />
         <div className="flex items-baseline justify-between">
           <span>{waiting ? "Your offer" : "On the table"}</span>
           <span className="text-3xl font-semibold">{inr(waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer)}</span>
         </div>
         <p className="mt-1 text-right text-paper-muted">
-          {inr(n.benchmark - (waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer))} under the best market price
+          {inr(n.benchmark - (waiting && n.approvalPrice ? n.approvalPrice : n.currentOffer))} under {deal.shop ? "the list price" : "the best market price"}
         </p>
         <div className="receipt-rule my-4" />
         <p className="text-center text-paper-muted">
-          {n.fundedBy === "seller" ? `${n.sellerName} funds this discount from their own margin.` : "GhostCart pays the difference from its own commission."} Once you agree, you get 180 seconds to lock the price with a{" "}
-          {inr(deal.lockFee)} UPI payment.
+          {n.fundedBy === "seller" ? `${n.sellerName} funds this discount from their own margin.` : "GhostCart pays the difference from its own commission."}{" "}
+          {deal.shop?.platform === "shopify" || deal.shop?.platform === "woocommerce"
+            ? `Once you agree, you get a one-time code for this price to use at ${deal.shop.storeName}'s checkout.`
+            : `Once you agree, you get 180 seconds to lock the price with a ${inr(deal.lockFee)} UPI payment.`}
         </p>
       </section>
     </div>

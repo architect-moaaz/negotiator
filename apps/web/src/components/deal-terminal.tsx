@@ -9,6 +9,7 @@ import { CheckoutPanel } from "./checkout-panel";
 import { HaggleRoom } from "./haggle-room";
 import { SocialProof } from "./social-proof";
 import { shortTitle } from "@/lib/format";
+import { GrantPanel } from "./grant-panel";
 
 function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
@@ -32,7 +33,8 @@ export function DealTerminal({ id }: { id: string }) {
 
   const pending = deal?.status === "pending";
   const checkingOut = deal?.status === "paid" && deal.checkout?.status === "awaiting";
-  const now = useNow(pending || checkingOut);
+  const granted = deal?.status === "granted";
+  const now = useNow(pending || checkingOut || granted);
   const remaining = deal ? Math.max(0, deal.expiresAt - now) : 0;
   const expired = deal?.status === "expired" || (pending && remaining === 0);
 
@@ -58,7 +60,9 @@ export function DealTerminal({ id }: { id: string }) {
             ? 3000
             : checkout === "ordered" && !delivered
               ? 8000
-              : 0;
+              : status === "granted" && Date.now() < expiresAt + 30_000
+                ? 10000 // to show when the store reports the order
+                : 0;
     if (!every) return;
     const t = setInterval(load, every);
     return () => clearInterval(t);
@@ -78,6 +82,7 @@ export function DealTerminal({ id }: { id: string }) {
   if (!deal) return <p className="text-center text-muted">Loading your deal…</p>;
   if (deal.status === "negotiating" || deal.status === "awaiting_approval") return <HaggleRoom deal={deal} onUpdate={setDeal} />;
   if (deal.status === "paid" && deal.checkout) return <CheckoutPanel deal={deal} now={now} onUpdate={setDeal} />;
+  if ((deal.status === "granted" || deal.grant?.redeemedAt) && deal.grant) return <GrantPanel deal={deal} now={now} />;
 
   const total = deal.expiresAt - deal.createdAt;
   const secs = Math.ceil(remaining / 1000);
@@ -115,7 +120,12 @@ export function DealTerminal({ id }: { id: string }) {
         )}
         <h1 className="mt-10 max-w-xl text-2xl font-semibold leading-snug sm:text-3xl">{deal.product.title}</h1>
         <p className="mt-2 text-muted">
-          {deal.negotiation ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}` : `Best price at ${deal.bestSeller}`} · {deal.perk}
+          {deal.shop && deal.negotiation
+            ? `List price ${inr(deal.negotiation.benchmark)} at ${deal.shop.storeName}`
+            : deal.negotiation
+              ? `Best price anywhere ${inr(deal.negotiation.benchmark)} at ${deal.bestSeller}`
+              : `Best price at ${deal.bestSeller}`}{" "}
+          · {deal.perk}
         </p>
 
         {paid && (

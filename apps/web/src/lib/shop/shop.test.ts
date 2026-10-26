@@ -90,6 +90,13 @@ describe("discount policies", () => {
     await expect(setPolicy(store.id, "store", null, { floorPrice: 100 })).rejects.toThrow("A price floor can only be set on a product.");
   });
 
+  it("only apply to categories and products in the same store", async () => {
+    const mine = await shop();
+    const theirs = await shop();
+    const theirProduct = await createProduct(theirs.store.id, { title: "Their item", price: 1000 });
+    await expect(setPolicy(mine.store.id, "product", theirProduct.id, { maxDiscountPct: 50 })).rejects.toThrow("That product isn't in this store.");
+  });
+
   it("can turn haggling off for one product", async () => {
     const { store } = await shop();
     const p = await createProduct(store.id, { title: "Fixed price item", price: 500 });

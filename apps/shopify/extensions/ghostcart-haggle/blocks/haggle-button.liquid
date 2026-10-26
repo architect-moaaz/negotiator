@@ -1,0 +1,22 @@
+{%- comment -%}
+  "Make an offer" on product pages. Renders nothing for products GhostCart can't haggle on
+  (not synced, out of stock, or haggling switched off by the seller). Needs the GhostCart app embed on.
+{%- endcomment -%}
+<div
+  data-ghostcart-product="shopify-{{ product.id }}"
+  data-label="{{ block.settings.label | escape }}"
+  data-color="{{ block.settings.color }}"
+  style="margin: 12px 0;"
+></div>
+
+{% schema %}
+{
+  "name": "GhostCart: Make an offer",
+  "target": "section",
+  "enabled_on": { "templates": ["product"] },
+  "settings": [
+    { "type": "text", "id": "label", "label": "Button text", "default": "Make an offer" },
+    { "type": "color", "id": "color", "label": "Button colour", "default": "#f4b740" }
+  ]
+}
+{% endschema %}

@@ -7,14 +7,17 @@ import { maskPhone, normalizePhone } from "@/lib/users";
 /** Step 1 of phone login: we call the number and read out a 6-digit code. */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { phone?: string; role?: LoginRole };
-  const role: LoginRole = body.role === "seller" || body.role === "staff" ? body.role : "buyer";
+  const role: LoginRole = body.role === "seller" || body.role === "staff" || body.role === "member" ? body.role : "buyer";
   const phone = body.phone ? normalizePhone(body.phone) : null;
   if (!phone) return Response.json({ error: "Enter a 10-digit Indian mobile number." }, { status: 400 });
   const limited = await rateLimit(...codeLimits(request, phone));
   if (limited) return limited;
 
+  // Seller members can start fresh: the code proves the number, then onboarding creates the business.
   const accountId =
-    role === "staff" ? (staffRoster().has(phone) ? phone : undefined) : role === "seller" ? await store.sellerIdForPhone(phone) : await store.userIdForPhone(phone);
+    role === "member"
+      ? phone
+      : role === "staff" ? (staffRoster().has(phone) ? phone : undefined) : role === "seller" ? await store.sellerIdForPhone(phone) : await store.userIdForPhone(phone);
   if (!accountId && role === "staff") return Response.json({ error: "This number isn't on the GhostCart staff list." }, { status: 404 });
   if (!accountId) {
     return Response.json(
