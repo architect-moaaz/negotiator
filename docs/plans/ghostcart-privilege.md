@@ -74,6 +74,14 @@ cart captured ─┬─ on-site: shopper clicks "Make an offer on your cart" (wi
 - **One offer per cart.** Channels are tried in the seller's order and only where the shopper gave that
   contact and the store can send on it; a failed send is recorded, not retried.
 
+## Status (feat/cart-privilege)
+
+Phases 1–3 are built and tested; each wave is its own commit. Known gaps:
+- GhostCart Shop carts can be haggled only as one item × 1 until shop checkout takes several items.
+- WooCommerce block checkout doesn't show the opt-in box yet (classic checkout hooks only).
+- Not yet run against a real Shopify development store, a real WooCommerce site in CI (Docker suite),
+  Resend, an approved WhatsApp template, or Vobiz invite calls.
+
 ## Open items for the team
 
 - Shopify: confirm `read_orders` covers checkout webhooks on API 2026-07, and request Protected Customer

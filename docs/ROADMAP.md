@@ -11,6 +11,7 @@ Direction: **seller negotiation agent first, consumer app second.** The full pla
 | **2. Marketplace sellers + Shopify + Woo** | Amazon/Flipkart sellers connect via official seller APIs (import listings, prove ownership); Shopify app (discount-code grants, billing); WooCommerce plugin | 3–4 wks |
 | **3. WhatsApp + Instagram** | Each seller's own WhatsApp number (Meta Embedded Signup); Instagram DMs; BSP fallback while Meta verification is pending | ~3 wks |
 | **4. Consumer app + mobile** | Shoppers haggle across GhostCart sellers; Amazon/Flipkart price comparison via affiliate APIs (no cashback); Expo apps for shoppers and seller approvals | 4–6 wks |
+| **Privilege + Rescue** | GhostCart Privilege: abandoned carts on Shopify, Woo and GhostCart Shop become one private, consented haggle on the whole cart (email, seller's WhatsApp, Vobiz call), paid from the seller's margin. Rescue my cart: shoppers bring a marketplace cart (links or a screenshot) and haggle with GhostCart sellers on the same items. [Plan](plans/ghostcart-privilege.md) | built on `feat/cart-privilege` |
 | **5. ONDC + scale** | ONDC buyer app certification; load tests; data export; analytics warehouse | ongoing |
 
 ## Long-lead items: start now (lead)
