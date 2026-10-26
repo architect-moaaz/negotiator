@@ -20,6 +20,26 @@ export interface SettlementGateway {
   refund(input: { orderId: string; amount: number; reason: string }): Promise<{ ref: string }>;
   /** What the gateway says it settled, for reconciliation. */
   settlements(orderId: string): Promise<{ held: number; released: number; refunded: number }>;
+  /** The settlement report for an IST day (YYYY-MM-DD): every hold, release and refund it processed. */
+  report(day: string): Promise<SettlementLine[]>;
+}
+
+/** One line of the aggregator's daily settlement report. Paise. */
+export interface SettlementLine {
+  orderId: string;
+  kind: "hold" | "release" | "refund";
+  amount: number;
+  ref: string;
+  at: string;
+}
+
+const istDay = (at: number) => new Date(at + 330 * 60 * 1000).toISOString().slice(0, 10);
+/** The mock's report: an append-only list per day, like the CSV/API report Pine Labs sends. */
+async function logLine(line: Omit<SettlementLine, "at">) {
+  const now = Date.now();
+  const key = `settle:report:${istDay(now)}`;
+  const lines = (await kv.kvGet<SettlementLine[]>(key)) ?? [];
+  await kv.kvSet(key, [...lines, { ...line, at: new Date(now).toISOString() }], 400 * 24 * 60 * 60);
 }
 
 interface MockSettlement {
@@ -35,18 +55,22 @@ const mock: SettlementGateway = {
     const ref = `mockhold_${randomBytes(6).toString("hex")}`;
     await kv.kvSet<MockSettlement>(`settle:${ref}`, { orderId, amount, state: "held", refunded: 0 }, 400 * 24 * 60 * 60);
     await kv.kvSet(`settle:order:${orderId}`, ref, 400 * 24 * 60 * 60);
+    await logLine({ orderId, kind: "hold", amount, ref });
     return { ref };
   },
   async release(ref) {
     const s = await kv.kvGet<MockSettlement>(`settle:${ref}`);
     if (!s) throw new Error(`unknown hold ${ref}`);
     await kv.kvSet(`settle:${ref}`, { ...s, state: "released" }, 400 * 24 * 60 * 60);
+    await logLine({ orderId: s.orderId, kind: "release", amount: Math.max(0, s.amount - s.refunded), ref });
   },
   async refund({ orderId, amount }) {
     const ref = await kv.kvGet<string>(`settle:order:${orderId}`);
     const s = ref ? await kv.kvGet<MockSettlement>(`settle:${ref}`) : undefined;
     if (ref && s) await kv.kvSet(`settle:${ref}`, { ...s, refunded: s.refunded + amount }, 400 * 24 * 60 * 60);
-    return { ref: `mockrefund_${randomBytes(6).toString("hex")}` };
+    const refundRef = `mockrefund_${randomBytes(6).toString("hex")}`;
+    await logLine({ orderId, kind: "refund", amount, ref: refundRef });
+    return { ref: refundRef };
   },
   async settlements(orderId) {
     const ref = await kv.kvGet<string>(`settle:order:${orderId}`);
@@ -55,6 +79,9 @@ const mock: SettlementGateway = {
     // Refunds come out of the seller's held share first, as in the ledger.
     const held = Math.max(0, s.amount - s.refunded);
     return { held: s.state === "held" ? held : 0, released: s.state === "released" ? held : 0, refunded: s.refunded };
+  },
+  async report(day) {
+    return (await kv.kvGet<SettlementLine[]>(`settle:report:${day}`)) ?? [];
   },
 };
 

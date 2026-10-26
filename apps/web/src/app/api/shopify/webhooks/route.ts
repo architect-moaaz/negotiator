@@ -37,9 +37,14 @@ export async function POST(request: Request) {
   } else if (topic === "products/delete") {
     await archiveShopifyProduct(conn.storeId, body.id);
   } else if (topic === "orders/create") {
-    for (const d of (body.discount_codes ?? []) as { code: string }[]) {
-      if (!/^GC-/i.test(d.code)) continue;
-      const deal = await redeemGrant({ storeId: conn.storeId, code: d.code.toUpperCase(), platformOrderRef: String(body.name ?? body.id) });
+    // A discount code at checkout, or a GhostCart draft order (its code travels as a note attribute).
+    const codes = new Set([
+      ...((body.discount_codes ?? []) as { code: string }[]).map((d) => d.code),
+      ...((body.note_attributes ?? []) as { name: string; value: string }[]).filter((a) => a.name === "ghostcart_code").map((a) => a.value),
+    ]);
+    for (const code of codes) {
+      if (!/^GC-/i.test(code)) continue;
+      const deal = await redeemGrant({ storeId: conn.storeId, code: code.toUpperCase(), platformOrderRef: String(body.name ?? body.id) });
       if (!deal) continue;
       const m = orderMoney({ priceInr: deal.dealPrice, lockFeeInr: 0, feeBps: Number(process.env.PLATFORM_FEE_BPS ?? 200) });
       // Charged through Shopify Billing: move the fee from "owed by the seller" to "billed via Shopify".

@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import { mayContact } from "./privacy/consent";
 import { approverPhones } from "./shop/orgs";
 import { store as kv } from "./store";
+import { sendWebPush } from "./web-push";
 
 const { pushTokens } = schema;
 
@@ -61,7 +62,11 @@ async function send(actorType: PushActor, actorIds: string[], msg: PushMessage) 
 
 /** The store's owner, admins and approvers: an offer needs their decision. */
 export async function notifyApprovers(orgId: string, msg: PushMessage) {
-  return send("member", (await approverPhones(orgId)).map((p) => p.phone), msg);
+  const phones = (await approverPhones(orgId)).map((p) => p.phone);
+  // Phones (the app) and browsers (the web dashboard), whichever they use.
+  const url = msg.data.type === "approval" ? `/seller?store=${msg.data.storeId}&tab=approvals` : "/seller";
+  const [app, web] = await Promise.all([send("member", phones, msg), sendWebPush(phones, { title: msg.title, body: msg.body, url, tag: `deal-${msg.data.dealId}` })]);
+  return app + web;
 }
 
 /** The shopper, if they still allow contact about their deals. */

@@ -9,15 +9,15 @@
 export function contentSecurityPolicy(dev = process.env.NODE_ENV === "development") {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
-    "script-src": ["'self'", "'unsafe-inline'", "https://connect.facebook.net", ...(dev ? ["'unsafe-eval'"] : [])],
+    "script-src": ["'self'", "'unsafe-inline'", "https://connect.facebook.net", "https://challenges.cloudflare.com", ...(dev ? ["'unsafe-eval'"] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     // Product photos come from sellers' own hosts (Shopify CDN, Vercel Blob, marketplaces); UPI QR codes are data: URLs.
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'"],
-    // Meta for WhatsApp signup; Sentry's ingest for browser error reports (only sent when configured).
-    "connect-src": ["'self'", "https://*.facebook.com", "https://connect.facebook.net", "https://*.ingest.sentry.io", "https://*.ingest.de.sentry.io", ...(dev ? ["ws:"] : [])],
-    // Embedded Signup opens Meta's dialog in a frame.
-    "frame-src": ["https://www.facebook.com", "https://web.facebook.com"],
+    // Meta for WhatsApp signup; Turnstile; Sentry's ingest for browser error reports (only sent when configured).
+    "connect-src": ["'self'", "https://*.facebook.com", "https://connect.facebook.net", "https://challenges.cloudflare.com", "https://*.ingest.sentry.io", "https://*.ingest.de.sentry.io", ...(dev ? ["ws:"] : [])],
+    // Embedded Signup opens Meta's dialog in a frame; Turnstile's check runs in one.
+    "frame-src": ["https://www.facebook.com", "https://web.facebook.com", "https://challenges.cloudflare.com"],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     // The hosted payment page redirects back to us; nothing else should receive a form post.
