@@ -12,6 +12,7 @@ import { IntegrationsTab } from "./integrations";
 import { OrdersTab } from "./orders";
 import { ProductsTab } from "./products";
 import { VerificationTab } from "./verification";
+import { SellerStats } from "./stats";
 import { api } from "./ui";
 
 export interface StoreSummary {
@@ -199,6 +200,7 @@ export function SellerDashboard() {
               {data.policies.store.maxDiscountPct ?? 10}% off
               {data.products[0] ? ` · e.g. ${data.products[0].title} at ${inr(data.products[0].price)}` : ""}
             </p>
+            <SellerStats storeId={data.store.id} />
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
