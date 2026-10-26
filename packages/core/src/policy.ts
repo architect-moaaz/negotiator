@@ -107,5 +107,6 @@ export function termsFromPolicy(
     autoLimit,
     opening,
     maxRounds: policy.maxRounds,
+    benchmarkKind: "list",
   };
 }

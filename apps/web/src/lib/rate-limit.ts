@@ -5,6 +5,16 @@ export function clientIp(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
 }
 
+/**
+ * Load tests on staging come from a few IPs and would trip every limit. RATE_LIMIT_ALLOWLIST (comma-separated
+ * IPs) exempts them; it is ignored on Vercel production so a stray setting can't switch limits off.
+ */
+function allowlisted(id: string) {
+  if (process.env.VERCEL_ENV === "production") return false;
+  const list = process.env.RATE_LIMIT_ALLOWLIST;
+  return !!list && list.split(",").some((ip) => ip.trim() === id);
+}
+
 export interface Limit {
   /** Bucket name, e.g. "code:phone". */
   name: string;
@@ -19,6 +29,7 @@ export interface Limit {
  * request may proceed. Every listed limit counts the hit, so one noisy key can't hide behind another.
  */
 export async function rateLimit(...limits: Limit[]): Promise<Response | null> {
+  if (limits.some((l) => allowlisted(l.id))) return null;
   let blocked: { resetIn: number } | null = null;
   for (const l of limits) {
     try {

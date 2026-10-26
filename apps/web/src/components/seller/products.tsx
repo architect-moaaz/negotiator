@@ -5,7 +5,7 @@ import { inr } from "@/lib/format";
 import type { ProductRow, StoreData } from "./dashboard";
 import { api, ErrorText, field, primary, secondary } from "./ui";
 
-const empty = { title: "", price: "", mrp: "", stock: "1", category: "", sku: "", description: "", image: "" };
+const empty = { title: "", price: "", mrp: "", stock: "1", category: "", sku: "", description: "", image: "", countryOfOrigin: "India" };
 
 export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdit: boolean; reload: () => void }) {
   const [editing, setEditing] = useState<ProductRow | "new" | null>(null);
@@ -36,7 +36,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
     setForm(
       p === "new"
         ? empty
-        : { title: p.title, price: String(p.price), mrp: p.mrp ? String(p.mrp) : "", stock: String(p.stock), category: categoryName(p.categoryId), sku: p.sku ?? "", description: p.description, image: p.images[0] ?? "" },
+        : { title: p.title, price: String(p.price), mrp: p.mrp ? String(p.mrp) : "", stock: String(p.stock), category: categoryName(p.categoryId), sku: p.sku ?? "", description: p.description, image: p.images[0] ?? "", countryOfOrigin: p.countryOfOrigin ?? "" },
     );
   }
 
@@ -52,6 +52,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
       sku: form.sku || undefined,
       description: form.description,
       images: form.image ? [form.image] : [],
+      countryOfOrigin: form.countryOfOrigin || undefined,
       status: editing !== "new" && editing ? editing.status : "active",
     };
     const r = editing === "new" ? await api(`/api/seller/stores/${data.store.id}/products`, { body }) : await api(`/api/seller/stores/${data.store.id}/products/${editing!.id}`, { method: "PUT", body });
@@ -64,7 +65,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
   async function setStatus(p: ProductRow, status: string) {
     await api(`/api/seller/stores/${data.store.id}/products/${p.id}`, {
       method: "PUT",
-      body: { title: p.title, price: p.price, mrp: p.mrp ?? undefined, stock: p.stock, category: categoryName(p.categoryId) || undefined, sku: p.sku ?? undefined, description: p.description, images: p.images, status },
+      body: { title: p.title, price: p.price, mrp: p.mrp ?? undefined, stock: p.stock, category: categoryName(p.categoryId) || undefined, sku: p.sku ?? undefined, description: p.description, images: p.images, countryOfOrigin: p.countryOfOrigin ?? undefined, status },
     });
     reload();
   }
@@ -90,7 +91,7 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
             Import a CSV
             <input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(e) => importCsv(e.target.files?.[0])} />
           </label>
-          <a href="data:text/csv;charset=utf-8,title,price,mrp,stock,category,sku,description,image_url%0ARedmi 13C 4GB,7999,9999,5,Phones,RD13,,%0A" download="ghostcart-catalogue-template.csv" className="text-sm text-muted underline underline-offset-4 hover:text-fg">
+          <a href="data:text/csv;charset=utf-8,title,price,mrp,stock,category,sku,description,image_url,country_of_origin%0ARedmi 13C 4GB,7999,9999,5,Phones,RD13,,,India%0A" download="ghostcart-catalogue-template.csv" className="text-sm text-muted underline underline-offset-4 hover:text-fg">
             Download the CSV template
           </a>
         </div>
@@ -145,6 +146,10 @@ export function ProductsTab({ data, canEdit, reload }: { data: StoreData; canEdi
               </datalist>
             </label>
           </div>
+          <label className="grid gap-2 sm:max-w-xs">
+            <span className="text-muted">Country of origin</span>
+            <input value={form.countryOfOrigin} onChange={set("countryOfOrigin")} className={field} />
+          </label>
           <div className="grid gap-2">
             <span className="text-muted">Photo</span>
             <div className="flex items-center gap-4">
