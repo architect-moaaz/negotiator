@@ -31,3 +31,24 @@ jobs:
         run: |
           pnpm --filter @ghostcart/widget exec playwright install --with-deps chromium
           pnpm --filter @ghostcart/widget test:browser
+
+  woocommerce:
+    name: WooCommerce plugin on real WordPress
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start WordPress + WooCommerce with the GhostCart plugin
+        run: plugins/woocommerce/e2e/setup.sh
+      - run: pnpm --filter @ghostcart/web exec playwright install --with-deps chromium
+      - name: Plugin ↔ GhostCart end to end (connect, button, coupon checkout, order report, signatures, sync)
+        run: pnpm --filter @ghostcart/web test:woo
+      - name: WordPress logs on failure
+        if: failure()
+        run: docker compose -f plugins/woocommerce/e2e/docker-compose.yml logs --tail=200 wordpress

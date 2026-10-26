@@ -12,7 +12,8 @@
     "db:backfill": "tsx --env-file-if-exists=.env.local scripts/backfill-postgres.mts",
     "db:seed-load": "tsx --env-file-if-exists=.env.local scripts/seed-load-test.mts",
     "db:rotate-secrets": "tsx --env-file-if-exists=.env.local scripts/rotate-secrets.mts",
-    "db:ledger-gate": "tsx --env-file-if-exists=.env.local scripts/ledger-gate.mts"
+    "db:ledger-gate": "tsx --env-file-if-exists=.env.local scripts/ledger-gate.mts",
+    "test:woo": "WOO_E2E_URL=${WOO_E2E_URL:-http://localhost:8080} vitest run src/lib/woocommerce/woocommerce.docker.test.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.87",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@ghostcart/sdk": "workspace:*",
     "@ghostcart/widget": "workspace:*",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",

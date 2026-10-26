@@ -14,3 +14,5 @@ BASE_URL=http://localhost:3000 pnpm --filter @ghostcart/e2e e2e
 - Add the `VERCEL_AUTOMATION_BYPASS_SECRET` secret, from Vercel → Deployment Protection → Protection Bypass for Automation.
 - Optionally add `E2E_SECRET_KEY` and the `E2E_SKU` variable.
 - For a database per PR: add `NEON_PROJECT_ID` (variable) and `NEON_API_KEY` (secret). `neon-branch.yml` then creates and migrates `preview/pr-<n>` branches.
+
+The WooCommerce plugin has its own end-to-end test on a real WordPress: see [plugins/woocommerce/e2e](../../plugins/woocommerce/e2e/README.md).
