@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
+import { securityHeaders } from "./security-headers";
 
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/(.*)", headers: securityHeaders() }];
+  },
   // Workspace packages ship TypeScript source.
   transpilePackages: ["@ghostcart/core", "@ghostcart/db"],
   // Embedded Postgres for local development loads its WebAssembly from node_modules.

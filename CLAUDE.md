@@ -11,6 +11,7 @@ Team: `architect-moaaz` (Moaaz), `rajathc93`, `lakshmie6x`, `ginger205`, and Cla
 ```bash
 pnpm install
 pnpm dev          # apps/web on http://localhost:3000; without Redis env vars data is in memory
+pnpm --filter @ghostcart/mobile start   # the Expo app (see apps/mobile/README.md)
 pnpm check        # typecheck, lint, test, build across the workspace (what CI runs)
 pnpm test         # vitest in every package
 pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforces prerender rules
@@ -33,6 +34,13 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
 | Storage: Redis (short-lived keys; in-memory in dev) and Postgres via `STORE_MODE` | `apps/web/src/lib/store.ts`, `pg-store.ts`, `packages/db` (Drizzle schema, migrations), [docs/database.md](docs/database.md) |
+| Shopper data rights (consent records, export, erasure) and the grievance officer | `apps/web/src/lib/privacy/*`, `apps/web/src/app/grievance` |
+| Seller disclosures (E-Commerce Rules), draft legal pages | `apps/web/src/lib/shop/disclosure.ts`, `apps/web/src/app/legal` |
+| Security headers (CSP, HSTS) and controls | `apps/web/security-headers.ts`, [docs/security.md](docs/security.md) |
+| Per-org data export, analytics warehouse (nightly daily metrics) | `apps/web/src/lib/shop/export.ts`, `apps/web/src/lib/warehouse.ts` |
+| ONDC buyer app (signing, registry, callbacks, mock network) | `apps/web/src/lib/ondc/*`, [docs/ondc.md](docs/ondc.md) |
+| Mobile app (Expo: shopper + seller approvals with push) | `apps/mobile`, push in `apps/web/src/lib/push.ts`, app sessions via `x-gc-*` headers in `apps/web/src/lib/session.ts` |
+| Load tests (k6) | `load/`, [load/README.md](load/README.md) |
 | UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 
 ## Rules we learned the hard way

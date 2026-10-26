@@ -33,7 +33,7 @@ export default function Home() {
               id="q"
               name="q"
               type="search"
-              placeholder="Kurta, earbuds, steel bottle…"
+              placeholder="Search, or paste an Amazon or Flipkart link"
               className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-4 py-4 text-lg text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none"
             />
             <button className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink">Search</button>
@@ -58,6 +58,17 @@ export default function Home() {
             <p className="mt-1 text-muted">UPI through Pine Labs. The seller is paid only after your order is delivered.</p>
           </div>
         </section>
+        <footer className="mt-16 flex flex-wrap gap-6 border-t border-line pt-6 text-sm text-muted">
+          <Link href="/account" className="hover:text-fg">
+            Your account and data
+          </Link>
+          <Link href="/grievance" className="hover:text-fg">
+            Make a complaint
+          </Link>
+          <Link href="/legal" className="hover:text-fg">
+            Terms and policies
+          </Link>
+        </footer>
       </main>
       <Ticker />
     </>

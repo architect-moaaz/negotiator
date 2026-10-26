@@ -8,6 +8,7 @@ import { AnalyticsPanel } from "./analytics-panel";
 import { StaffLogin, staffLogout } from "./staff-login";
 import { RecommendationCard, recommendationButtonLabel } from "./recommendation-card";
 import { DisputesPanel } from "./disputes-panel";
+import { GrievancesPanel } from "./grievances-panel";
 import { FinancePanel } from "./finance-panel";
 import { FraudPanel } from "./fraud-panel";
 import { ReviewsPanel } from "./reviews-panel";
@@ -34,7 +35,7 @@ interface AdminData {
   sellers: Seller[];
   demand: SellerDemand[];
 }
-type Tab = "analytics" | "approvals" | "reviews" | "disputes" | "fraud" | "money" | "users" | "activity" | "deals" | "sellers";
+type Tab = "analytics" | "approvals" | "reviews" | "disputes" | "grievances" | "fraud" | "money" | "users" | "activity" | "deals" | "sellers";
 
 const ist = (at: number) =>
   new Date(at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, dateStyle: "medium", timeStyle: "medium" });
@@ -168,6 +169,7 @@ export function AdminConsole() {
     ["approvals", "Approvals", approvals.length],
     ["reviews", "Seller reviews", null],
     ["disputes", "Disputes", null],
+    ["grievances", "Complaints", null],
     ["fraud", "Fraud", null],
     ...(data.me.role === "owner" ? ([["money", "Money", null]] as [Tab, string, null][]) : []),
     ["users", "Signups", data.users.length],
@@ -197,7 +199,7 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        {!["approvals", "reviews", "disputes", "fraud", "money", "sellers", "analytics"].includes(tab) && (
+        {!["approvals", "reviews", "disputes", "grievances", "fraud", "money", "sellers", "analytics"].includes(tab) && (
           <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
             Download CSV
           </button>
@@ -222,6 +224,7 @@ export function AdminConsole() {
       {tab === "reviews" && <ReviewsPanel />}
       {tab === "money" && <FinancePanel />}
       {tab === "disputes" && <DisputesPanel />}
+      {tab === "grievances" && <GrievancesPanel />}
       {tab === "fraud" && <FraudPanel />}
 
       {tab === "approvals" && (
