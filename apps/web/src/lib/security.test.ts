@@ -20,7 +20,7 @@ const { rateLimit } = await import("./rate-limit");
 const { currentSubject, startSession, endSession } = await import("./session");
 const { currentUser } = await import("./users");
 const { store } = await import("./store");
-const { computeTerms } = await import("./haggle");
+const { computeTerms } = await import("@ghostcart/agent");
 
 let ipCounter = 0;
 const post = (path: string, body: unknown, ip = `10.0.0.${++ipCounter}`) =>

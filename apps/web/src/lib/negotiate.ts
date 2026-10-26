@@ -1,5 +1,5 @@
 import { openCheckout, toPublicCheckout } from "./checkout";
-import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "@ghostcart/agent";
 import { notifyChat } from "./chat/engine";
 import { HaggleError } from "./errors";
 import { recordEvent } from "./negotiation-events";
@@ -11,6 +11,7 @@ import { maskPhone, normalizePhone } from "./users";
 import { placeCall, vobizConfigured } from "./vobiz";
 import { store } from "./store";
 import type { Activity, ActivityType, Deal, PublicDeal } from "./types";
+import { traced } from "./telemetry";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
 const NEGOTIATION_WINDOW_MS = 15 * 60 * 1000;
@@ -24,6 +25,7 @@ export function toPublic(deal: Deal): PublicDeal {
   delete pub.userId;
   delete pub.negotiation;
   delete pub.checkout;
+  if (pub.grant) pub.grant = { ...pub.grant, ref: undefined }; // the platform's internal id stays server-side
   const n = deal.negotiation;
   return {
     ...(pub as Omit<PublicDeal, "negotiation" | "checkout">),
@@ -98,14 +100,14 @@ export async function submitOffer(deal: Deal, offer: number) {
   n.messages.push({ from: "shopper", text: `How about ${inr(offer)}?`, price: offer, at: Date.now() });
   await log("offer_received", `Shopper offered ${inr(offer)} (agent at ${inr(n.currentOffer)}, round ${n.rounds + 1})`, "user");
 
-  const chosen = await chooseMove({
+  const chosen = await traced("agent.choose_move", { "deal.id": deal.id, round: n.rounds }, () => chooseMove({
     product: deal.product,
     terms: n.terms,
     bestSeller: deal.bestSeller,
     quotes: deal.alternatives,
     negotiation: n,
     offer,
-  });
+  }));
   const { move, message } = overrideAfterRejection(chosen.move, n) ?? chosen;
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });
   await log("agent_move", `${move.action} at ${inr(move.price)}: "${message}"`, "agent");

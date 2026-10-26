@@ -16,7 +16,7 @@ async function underEnv(vars: Record<string, string | undefined>) {
     mock: await import("./pinelabs-mock"),
     payments: await import("./payments"),
     negotiate: await import("./negotiate"),
-    haggle: await import("./haggle"),
+    haggle: await import("@ghostcart/agent"),
     store: (await import("./store")).store,
     gateway: await import("@/app/api/mock-pinelabs-pay/route"),
   };

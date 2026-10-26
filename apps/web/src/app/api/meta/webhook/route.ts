@@ -1,5 +1,5 @@
 import { handleIncomingChat } from "@/lib/chat/engine";
-import { metaConfig, verifyMetaSignature } from "@/lib/meta/config";
+import { metaConfig, verifyMetaSignature } from "@ghostcart/channels";
 import { handleInstagramWebhook, instagramSender, sendInstagramText } from "@/lib/meta/instagram";
 import { handleWhatsAppWebhook, sendWhatsAppText, whatsappShopper } from "@/lib/meta/whatsapp";
 

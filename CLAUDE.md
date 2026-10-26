@@ -23,13 +23,13 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | --- | --- |
 | Negotiation state (offers, approvals, lock payment or price grant) | `apps/web/src/lib/negotiate.ts`; shop haggles start in `apps/web/src/lib/shop/negotiation.ts` |
 | Consumer catalogue (search across live sellers) | `apps/web/src/lib/shop/catalogue.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/app/search` |
-| Money rules: budget, floor, auto-approve limit, allowed moves | `packages/core` (`terms.ts`, `moves.ts`; pure, property-tested). `apps/web/src/lib/haggle.ts` wraps it |
-| Agent wording (Claude via Vercel AI SDK 7) | `apps/web/src/lib/agent.ts`, `chooseMove` in `apps/web/src/lib/haggle.ts` |
+| Money rules: budget, floor, auto-approve limit, allowed moves | `packages/core` (`terms.ts`, `moves.ts`; pure, property-tested). `packages/agent` wraps it |
+| Agent wording and free-text reading (Claude via Vercel AI SDK 7) | `packages/agent` (`chooseMove`, `readIntent`) |
 | Human approvals: deal desk, sellers, AgenticOrg recommendations | `apps/web/src/lib/deal-desk.ts`, `apps/web/src/app/api/admin/*`, `apps/web/src/app/api/seller/*` |
 | Staff access: roster (`STAFF`), roles, audit trail | `apps/web/src/lib/staff.ts` (`requireStaff` on every admin route) |
 | AgenticOrg agent tools (MCP server) and trigger | `apps/web/src/app/api/mcp/route.ts`, `apps/web/src/lib/agenticorg.ts`, [docs/agenticorg-setup.md](docs/agenticorg-setup.md) |
 | Voice approvals and login codes (Vobiz) | `apps/web/src/lib/vobiz.ts`, `apps/web/src/lib/voice-*.ts`, `apps/web/src/lib/otp.ts`, `apps/web/src/app/api/voice/*` |
-| Payments (Pine Labs; test gateway off in production unless `ALLOW_TEST_PAYMENTS=1`) and checkout | `apps/web/src/lib/pinelabs*.ts`, `apps/web/src/lib/payments.ts`, `apps/web/src/lib/checkout.ts` |
+| Payments (Pine Labs; test gateway off in production unless `ALLOW_TEST_PAYMENTS=1`) and checkout | `packages/payments` (Pine Labs client, webhook verification), `apps/web/src/lib/pinelabs-mock.ts`, `payments.ts`, `checkout.ts` |
 | Accounts, sellers, sessions | `apps/web/src/lib/session.ts` (server-side, revocable), `users.ts`, `sellers.ts`, `deal-access.ts`, `apps/web/src/app/api/auth/*`; OTP-verified signup in `api/signup` and `api/sellers` |
 | Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
@@ -40,6 +40,8 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Per-org data export, analytics warehouse (nightly daily metrics) | `apps/web/src/lib/shop/export.ts`, `apps/web/src/lib/warehouse.ts` |
 | ONDC buyer app (signing, registry, callbacks, mock network) | `apps/web/src/lib/ondc/*`, [docs/ondc.md](docs/ondc.md) |
 | Mobile app (Expo: shopper + seller approvals with push) | `apps/mobile`, push in `apps/web/src/lib/push.ts`, app sessions via `x-gc-*` headers in `apps/web/src/lib/session.ts` |
+| Channel plumbing (common message shape, Meta and Shopify signatures and OAuth) | `packages/channels` |
+| Negotiation API for every channel, typed client | `apps/web/src/app/api/v1/sessions`, `packages/sdk`, [docs/api.md](docs/api.md) |
 | Load tests (k6) | `load/`, [load/README.md](load/README.md) |
 | UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 

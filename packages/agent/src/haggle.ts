@@ -11,7 +11,7 @@ import {
   type SellerQuote,
   type SellerTerms,
 } from "@ghostcart/core";
-import { model } from "./agent";
+import { model } from "./model";
 
 export { candidateMoves, commissionFor, MAX_ROUNDS, overrideAfterRejection, type Move } from "@ghostcart/core";
 

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { Turnstile, turnstileRequired } from "./turnstile";
 
 const field = "rounded-xl border border-line bg-panel px-4 py-3 text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60";
 
@@ -11,6 +12,9 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [captcha, setCaptcha] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const onToken = useCallback((t: string) => setCaptcha(t), []);
 
   async function submit() {
     setBusy(true);
@@ -18,8 +22,12 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, phone: form.phone, consent: form.consent, code: note ? form.code : undefined, source: "shop" }),
+      body: JSON.stringify({ name: form.name, phone: form.phone, consent: form.consent, code: note ? form.code : undefined, source: "shop", turnstile: note ? undefined : captcha }),
     });
+    if (!note) {
+      setCaptcha("");
+      setCaptchaReset((n) => n + 1);
+    }
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(data.error || "Couldn't sign you up. Try again.");
@@ -85,7 +93,8 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
           {error}
         </p>
       )}
-      <button disabled={busy || (!!note && form.code.length !== 6)} className="rounded-xl bg-saffron px-6 py-3.5 text-lg font-semibold text-paper-ink disabled:opacity-50">
+      {!note && <Turnstile onToken={onToken} resetKey={captchaReset} />}
+      <button disabled={busy || (!!note && form.code.length !== 6) || (!note && turnstileRequired && !captcha)} className="rounded-xl bg-saffron px-6 py-3.5 text-lg font-semibold text-paper-ink disabled:opacity-50">
         {busy ? "One moment…" : note ? "Verify and start haggling" : "Call me with a code"}
       </button>
     </form>

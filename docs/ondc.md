@@ -29,7 +29,7 @@ GhostCart only takes orders where the **seller app collects payment** (`collecte
 
 ## Known gaps before certification
 
-- `cancel`, `update`, `track`, `support` and IGM (issue and grievance) aren't sent yet. Their callbacks are accepted and logged.
+- After the order, shoppers can refresh status, track, contact the seller's support, cancel with a network reason code, request an item return (`update`), and raise and follow an IGM 1.0 issue (`issue`, `issue_status`). Partial cancellation and the seller-initiated side of returns (pickup scheduling, QC) still come from the seller app's own callbacks.
 - Fulfillment GPS is a city centre. A pincode-to-GPS lookup would be more accurate.
 - Search runs on the shopper's query only, with no category or location filters yet.
 - Real BPPs answer `on_search` in pages. We keep everything that arrives within the polling window.

@@ -6,7 +6,7 @@ import { setPolicy } from "../shop/policies";
 import { createStore, getStore, type Store } from "../shop/stores";
 import { shopifyGraphql } from "./admin";
 import { ensureBillingSubscription } from "./billing";
-import { shopifyConfig } from "./config";
+import { shopifyConfig } from "@ghostcart/channels";
 import { connectionForShop, tokenOf, updateConnection } from "./connections";
 import { importShopifyProducts } from "./sync";
 

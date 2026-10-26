@@ -5,7 +5,7 @@ import { registerChatTransport } from "../chat/engine";
 import { decryptSecret, encryptSecret } from "../crypto";
 import { getDb } from "../db";
 import { store as kv } from "../store";
-import { graph, metaConfig } from "./config";
+import { graph, metaConfig } from "@ghostcart/channels";
 
 const { platformConnections } = schema;
 

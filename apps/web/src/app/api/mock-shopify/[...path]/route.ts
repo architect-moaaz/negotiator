@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { shopifyConfig } from "@/lib/shopify/config";
+import { shopifyConfig } from "@ghostcart/channels";
 import { store as kv } from "@/lib/store";
 
 /**
@@ -78,8 +78,20 @@ export async function POST(request: Request, ctx: Ctx) {
         });
       case "GhostCartGrant": {
         const input = variables.input as { code: string };
+        // A shop installed without write_discounts (or on a plan without discount APIs) refuses codes.
+        if (shop.startsWith("zz-nodiscount")) return Response.json({ data: { discountCodeBasicCreate: { codeDiscountNode: null, userErrors: [{ field: ["basicCodeDiscount"], message: "Access denied for discountCodeBasicCreate field." }] } } });
         await kv.kvSet(`mockshopify:${shop}:discount:${input.code}`, input);
         return Response.json({ data: { discountCodeBasicCreate: { codeDiscountNode: { id: `gid://shopify/DiscountCodeNode/${Date.now()}` }, ...ok } } });
+      }
+      case "GhostCartDraft": {
+        const id = `gid://shopify/DraftOrder/${Date.now()}`;
+        await kv.kvSet(`mockshopify:${shop}:draft:${id}`, variables.input);
+        return Response.json({ data: { draftOrderCreate: { draftOrder: { id, invoiceUrl: `https://${shop}/invoices/${id.split("/").pop()}` }, ...ok } } });
+      }
+      case "GhostCartDraftDelete": {
+        const id = (variables.input as { id: string }).id;
+        await kv.kvDel(`mockshopify:${shop}:draft:${id}`);
+        return Response.json({ data: { draftOrderDelete: { deletedId: id, ...ok } } });
       }
       case "GhostCartBilling":
         return Response.json({ data: { appSubscriptionCreate: { confirmationUrl: `https://${shop}/admin/charges/confirm`, appSubscription: { id: "gid://shopify/AppSubscription/1", lineItems: [{ id: "gid://shopify/AppSubscriptionLineItem/1" }] }, ...ok } } });
