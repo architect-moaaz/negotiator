@@ -15,8 +15,11 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.87",
     "@electric-sql/pglite": "0.5.8",
+    "@ghostcart/agent": "workspace:*",
+    "@ghostcart/channels": "workspace:*",
     "@ghostcart/core": "workspace:*",
     "@ghostcart/db": "workspace:*",
+    "@ghostcart/payments": "workspace:*",
     "@modelcontextprotocol/server": "2.3.1",
     "@upstash/redis": "^1.39.0",
     "@vercel/blob": "2.8.1",

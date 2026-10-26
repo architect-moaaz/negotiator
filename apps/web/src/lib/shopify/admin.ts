@@ -1,4 +1,4 @@
-import { adminBase, shopifyConfig } from "./config";
+import { adminBase, shopifyConfig } from "@ghostcart/channels";
 
 export class ShopifyError extends Error {}
 

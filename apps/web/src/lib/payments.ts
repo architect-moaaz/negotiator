@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { createUpiOrder, pinelabsConfigured } from "./pinelabs";
+import { createUpiOrder, pinelabsConfigured } from "@ghostcart/payments";
 import { pinelabsMockConfigured, pinelabsMockEnabled } from "./pinelabs-mock";
 
 export const LOCK_FEE_INR = Number(process.env.DEAL_LOCK_FEE_INR ?? 9);

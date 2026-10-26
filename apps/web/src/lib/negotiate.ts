@@ -1,5 +1,5 @@
 import { openCheckout, toPublicCheckout } from "./checkout";
-import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "@ghostcart/agent";
 import { notifyChat } from "./chat/engine";
 import { HaggleError } from "./errors";
 import { recordEvent } from "./negotiation-events";

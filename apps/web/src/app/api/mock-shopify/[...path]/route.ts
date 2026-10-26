@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { shopifyConfig } from "@/lib/shopify/config";
+import { shopifyConfig } from "@ghostcart/channels";
 import { store as kv } from "@/lib/store";
 
 /**

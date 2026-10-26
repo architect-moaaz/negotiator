@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { verifyWebhook } from "./pinelabs";
+import { verifyWebhook } from "@ghostcart/payments";
 
 // Worked example from Pine Labs' webhook signature verification docs.
 const headers = {

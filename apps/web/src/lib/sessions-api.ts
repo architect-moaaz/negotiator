@@ -1,4 +1,4 @@
-import { readIntent } from "./chat/intent";
+import { readIntent } from "@ghostcart/agent";
 import { bearer, storeForKey } from "./integrations/keys";
 import { acceptOffer, counterFromApprover, decideApproval, HaggleError, submitOffer } from "./negotiate";
 import { ShopError, startShopNegotiation } from "./shop/negotiation";

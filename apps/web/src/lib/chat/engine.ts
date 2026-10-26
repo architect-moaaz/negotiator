@@ -6,7 +6,7 @@ import { getProduct, listProducts } from "../shop/products";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
-import { readIntent } from "./intent";
+import { readIntent } from "@ghostcart/agent";
 
 /**
  * Haggling in a chat app, the same engine for WhatsApp and Instagram: the shopper picks a product,

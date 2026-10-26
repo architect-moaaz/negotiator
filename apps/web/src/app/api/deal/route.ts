@@ -1,7 +1,7 @@
 import { CHECKOUT_GRACE_MS, placeOrder, syncCheckout } from "@/lib/checkout";
 import { canActAsShopper } from "@/lib/deal-access";
 import { markPaid, toPublic } from "@/lib/negotiate";
-import { getOrderStatus, PAID_STATUSES } from "@/lib/pinelabs";
+import { getOrderStatus, PAID_STATUSES } from "@ghostcart/payments";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/store";
 

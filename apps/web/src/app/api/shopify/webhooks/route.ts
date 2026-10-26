@@ -2,7 +2,7 @@ import { accounts, assertBalanced, orderMoney } from "@ghostcart/core";
 import { getDb } from "@/lib/db";
 import { redeemGrant } from "@/lib/grants/service";
 import { post } from "@/lib/orders/ledger";
-import { verifyWebhookHmac } from "@/lib/shopify/auth";
+import { verifyWebhookHmac } from "@ghostcart/channels";
 import { recordShopifyUsage } from "@/lib/shopify/billing";
 import { connectionForShop, updateConnection } from "@/lib/shopify/connections";
 import { archiveShopifyProduct, syncShopifyProductWebhook } from "@/lib/shopify/sync";

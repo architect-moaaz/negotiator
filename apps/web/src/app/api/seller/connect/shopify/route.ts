@@ -1,7 +1,7 @@
 import { memberPhone } from "@/lib/shop/access";
 import { createOrg, memberRole, roleCan } from "@/lib/shop/orgs";
 import { connectShopifyStore } from "@/lib/shopify/connect";
-import { isShopDomain } from "@/lib/shopify/config";
+import { isShopDomain } from "@ghostcart/channels";
 import { store as kv } from "@/lib/store";
 
 /** Body: { shop, orgId?, storeId?, businessName?, ownerName? }. Connects an installed shop to a GhostCart store. */

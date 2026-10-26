@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyRecommendation, dealBrief, recordRecommendation } from "./deal-desk";
-import { computeTerms } from "./haggle";
+import { computeTerms } from "@ghostcart/agent";
 import { store } from "./store";
 import type { Deal, Product } from "./types";
 

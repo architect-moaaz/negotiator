@@ -7,7 +7,7 @@ import { getDb } from "../db";
 import { CHAT_CONTACT_WORDING, recordConsent } from "../privacy/consent";
 import { normalizePhone } from "../users";
 import { store as kv } from "../store";
-import { graph, metaConfig } from "./config";
+import { graph, metaConfig } from "@ghostcart/channels";
 
 const { platformConnections } = schema;
 
