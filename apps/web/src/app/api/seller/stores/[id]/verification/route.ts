@@ -17,6 +17,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/seller/store
       steps,
       canSubmit,
       org,
+      disclosure: store.disclosure,
       ownership: token ? { txt: ownershipValue(token), meta: `<meta name="ghostcart-verification" content="${token}">` } : null,
       checks: checks.map((c) => ({ type: c.type, status: c.status, masked: c.masked, reason: c.details.reason ?? null, createdAt: c.createdAt })),
     },

@@ -1,5 +1,6 @@
 import { inr } from "@ghostcart/core";
 import { acceptOffer, HaggleError, submitOffer } from "../negotiate";
+import { mayContact } from "../privacy/consent";
 import { ShopError, startShopNegotiation } from "../shop/negotiation";
 import { getProduct, listProducts } from "../shop/products";
 import { getStore } from "../shop/stores";
@@ -120,6 +121,8 @@ export const registerChatTransport = (channel: ChatChannel, t: Transport) => tra
 export async function notifyChat(deal: Deal) {
   if (!deal.chat) return;
   try {
+    const user = deal.userId ? await kv.getUser(deal.userId) : undefined;
+    if (user && !(await mayContact(user))) return; // they withdrew consent to deal contact
     await import("./transports");
     const transport = transports.get(deal.chat.channel);
     const agreed = afterAgreement(deal);

@@ -4,6 +4,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { registerChatTransport } from "../chat/engine";
 import { decryptSecret, encryptSecret } from "../crypto";
 import { getDb } from "../db";
+import { CHAT_CONTACT_WORDING, recordConsent } from "../privacy/consent";
 import { normalizePhone } from "../users";
 import { store as kv } from "../store";
 import { graph, metaConfig } from "./config";
@@ -92,6 +93,7 @@ export async function handleWhatsAppWebhook(body: WaWebhook, handle: (msg: { pho
 export async function whatsappShopper(from: string, name?: string) {
   const phone = normalizePhone(from);
   if (!phone) return null;
-  const { user } = await kv.upsertUser({ id: crypto.randomUUID(), name: name?.slice(0, 80) || "WhatsApp shopper", phone, channel: "whatsapp", createdAt: Date.now(), consentAt: Date.now() });
+  const { user, created } = await kv.upsertUser({ id: crypto.randomUUID(), name: name?.slice(0, 80) || "WhatsApp shopper", phone, channel: "whatsapp", createdAt: Date.now(), consentAt: Date.now() });
+  if (created) await recordConsent(user.id, "deal_contact", "granted", CHAT_CONTACT_WORDING, "whatsapp");
   return user;
 }

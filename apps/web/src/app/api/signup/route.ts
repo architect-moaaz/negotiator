@@ -2,7 +2,7 @@ import { demographicsFrom } from "@/lib/demographics";
 import { linkDevice } from "@/lib/fraud/signals";
 import { OtpError, sendLoginCode, verifyLoginCode } from "@/lib/otp";
 import { codeLimits, rateLimit, verifyLimits } from "@/lib/rate-limit";
-import { startSession } from "@/lib/session";
+import { issueSessionToken, startSession } from "@/lib/session";
 import { store } from "@/lib/store";
 import { maskPhone, normalizePhone, publicUser, signUp } from "@/lib/users";
 
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     referrer?: string;
     source?: string;
     code?: string;
+    client?: string;
   };
   const name = body.name?.trim();
   const phone = body.phone ? normalizePhone(body.phone) : null;
@@ -47,8 +48,10 @@ export async function POST(request: Request) {
 
   // The number is proven, so an existing account for it simply signs back in.
   const demographics = demographicsFrom(request, { referrer: body.referrer, source: body.source });
-  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics });
-  await startSession("buyer", user.id);
+  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics, source: body.source?.slice(0, 40) });
   await linkDevice(request, "buyer", user.id);
+  // The mobile app keeps the session token itself; browsers get a cookie.
+  if (body.client === "mobile") return Response.json({ ...publicUser(user), token: await issueSessionToken("buyer", user.id) });
+  await startSession("buyer", user.id);
   return Response.json(publicUser(user));
 }

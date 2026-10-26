@@ -12,6 +12,8 @@ export const metaConfig = () => ({
   waConfigId: process.env.META_WA_CONFIG_ID ?? "",
   version: process.env.META_GRAPH_VERSION ?? "v24.0",
   graphBase: (process.env.META_GRAPH_BASE && process.env.VERCEL_ENV !== "production" ? process.env.META_GRAPH_BASE : "https://graph.facebook.com").replace(/\/$/, ""),
+  /** Where the Facebook Login dialog lives (the mock in development). */
+  dialogBase: (process.env.META_GRAPH_BASE && process.env.VERCEL_ENV !== "production" ? process.env.META_GRAPH_BASE : "https://www.facebook.com").replace(/\/$/, ""),
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
 });
 

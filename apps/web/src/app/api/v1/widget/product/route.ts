@@ -1,6 +1,7 @@
 import { policyForProduct } from "@/lib/shop/policies";
 import { getProductByRef } from "@/lib/shop/products";
 import { storeForKey } from "@/lib/integrations/keys";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 /** CORS for the widget: only the store's allowed origins get an answer they can read. */
 function cors(origin: string | null): Record<string, string> {
@@ -15,6 +16,9 @@ export function OPTIONS(request: Request) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = request.headers.get("origin");
+  // Called from sellers' product pages by every visitor: generous, but enough to stop catalogue scraping.
+  const limited = await rateLimit({ name: "widget:ip", id: clientIp(request), max: 300, windowSeconds: 10 * 60 });
+  if (limited) return new Response(limited.body, { status: 429, headers: { ...Object.fromEntries(limited.headers), ...cors(origin) } });
   const found = await storeForKey(url.searchParams.get("key"), "publishable", origin);
   if (!found) return Response.json({ error: "This key doesn't work on this site." }, { status: 403 });
   const headers = { ...cors(origin), "Cache-Control": "no-store" };

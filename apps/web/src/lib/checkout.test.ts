@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { advanceOrder, CHECKOUT_WINDOW_MS, parseAddress, placeOrder, saveAddress, syncCheckout } from "./checkout";
-import { failureMessage, HaggleError, markPaid, toPublic } from "./negotiate";
+import { markPaid, toPublic } from "./negotiate";
 import { store } from "./store";
 import type { Deal, Product } from "./types";
 
@@ -67,14 +67,5 @@ describe("checkout after the deal is locked", () => {
     expect(await syncCheckout(deal)).toBe(true);
     expect(deal.checkout!.status).toBe("lapsed");
     await expect(saveAddress(deal, parseAddress(address))).rejects.toThrow(/ran out/);
-  });
-});
-
-describe("failureMessage", () => {
-  it("tells the shopper why the item couldn't be read", () => {
-    expect(failureMessage(new DOMException("The operation timed out.", "TimeoutError"))).toMatch(/too long/);
-    expect(failureMessage(new Error("Request failed with status code 403"))).toMatch(/blocked/);
-    expect(failureMessage(new HaggleError("Couldn't find a product"))).toBe("Couldn't find a product");
-    expect(failureMessage(new Error("boom"))).toMatch(/Couldn't read that item/);
   });
 });

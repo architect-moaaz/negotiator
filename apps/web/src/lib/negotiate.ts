@@ -1,22 +1,18 @@
-import { extractProductFromImage, streamHaggle } from "./agent";
 import { openCheckout, toPublicCheckout } from "./checkout";
-import { chooseMove, computeTerms, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
+import { chooseMove, MAX_ROUNDS, overrideAfterRejection } from "./haggle";
 import { notifyChat } from "./chat/engine";
 import { GRANT_PLATFORMS } from "./grants/adapters";
 import { GrantError, issueGrant } from "./grants/service";
-import { createDealPayment, LOCK_FEE_INR, PaymentsUnavailableError, testPayments } from "./payments";
+import { createDealPayment, PaymentsUnavailableError, testPayments } from "./payments";
 import { inr, shortTitle } from "./format";
-import { matchListingSeller } from "./sellers";
 import { maskPhone, normalizePhone } from "./users";
 import { placeCall, vobizConfigured } from "./vobiz";
-import { findAlternatives, queryFromUrl, sameProductQuotes, scrapeProduct } from "./scrape";
 import { store } from "./store";
-import type { Activity, ActivityType, Channel, Deal, DealInput, NegotiationEvent, Offer, Product, PublicDeal, Seller, SellerQuote } from "./types";
+import type { Activity, ActivityType, Deal, PublicDeal } from "./types";
 
 const TTL_MS = Number(process.env.DEAL_TTL_SECONDS ?? 180) * 1000;
 const NEGOTIATION_WINDOW_MS = 15 * 60 * 1000;
 const APPROVAL_WINDOW_MS = 30 * 60 * 1000;
-const PERK = "Free instant shipping";
 
 export { inr };
 
@@ -43,115 +39,6 @@ export function toPublic(deal: Deal): PublicDeal {
       reviewedByAgent: deal.status === "awaiting_approval" ? !!n.recommendation : undefined,
     },
   };
-}
-
-export async function runNegotiation(
-  input: DealInput,
-  ctx: { city?: string; channel: Channel; userId?: string },
-  emit: (e: NegotiationEvent) => void = () => {},
-): Promise<Deal> {
-  let product: Product;
-  let searchQuery: string;
-  const { userId } = ctx;
-  const log = (type: ActivityType, detail: string, actor: Activity["actor"] = "agent", dealId?: string) =>
-    store.log({ type, actor, userId, dealId, detail });
-
-  await log("negotiation_started", input.kind === "url" ? `Submitted ${input.url}` : "Submitted a screenshot", "user");
-
-  // For URLs whose slug names the product, look up other sellers while the page is still being scraped.
-  let earlyQuotes: Promise<SellerQuote[]> | undefined;
-  if (input.kind === "url") {
-    emit({ type: "step", text: "Scraping the product page" });
-    await log("agent_step", `Scraping ${input.url}`);
-    const slugQuery = queryFromUrl(input.url);
-    if (slugQuery) earlyQuotes = findAlternatives(slugQuery, input.url);
-    product = await scrapeProduct(input.url);
-    searchQuery = [product.brand, product.title].filter(Boolean).join(" ");
-  } else {
-    emit({ type: "step", text: "Reading your screenshot" });
-    await log("agent_step", "Reading screenshot with vision model");
-    ({ product, searchQuery } = await extractProductFromImage(input.imageBase64, input.mediaType));
-  }
-  if (!product.title || !(product.price > 0))
-    throw new HaggleError("Couldn't find a product with a price there. Try a single product's page, or a screenshot of it.");
-  emit({ type: "product", product });
-  await log("product_identified", `${product.title} at ${product.seller} for ${inr(product.price)}${product.inStock ? "" : " (out of stock)"}`);
-
-  // Who actually sells this listing, and are they on GhostCart?
-  let seller: Seller | undefined;
-  if (product.soldBy) {
-    emit({ type: "step", text: `Identifying the seller: ${product.soldBy.name}` });
-    seller = await matchListingSeller(product.soldBy);
-    emit({ type: "seller", soldBy: product.soldBy, onGhostCart: !!seller, sellerName: seller?.storeName });
-    const { name, marketplace, marketplaceSellerId, rating } = product.soldBy;
-    await log(
-      "seller_identified",
-      `Sold by ${name} on ${marketplace}${marketplaceSellerId ? ` (id ${marketplaceSellerId})` : ""}${rating ? `, rated ${rating}` : ""}: ${
-        seller ? `on GhostCart as ${seller.storeName}, negotiating against their margin` : "not on GhostCart yet, demand recorded; GhostCart commission funds the discount"
-      }`,
-    );
-  }
-
-  emit({ type: "step", text: "Checking prices across other sellers" });
-  const quotes = sameProductQuotes(product, await (earlyQuotes ?? findAlternatives(searchQuery, product.sourceUrl)));
-  emit({ type: "quotes", quotes });
-  await log(
-    "sellers_compared",
-    quotes.length ? quotes.map((q) => `${q.seller} ${inr(q.price)}${q.inStock ? "" : " (oos)"}`).join(", ") : "No other sellers found",
-  );
-
-  const { terms, bestSeller, originalPrice } = computeTerms(product, quotes, seller);
-  const opening: Offer = {
-    originalPrice,
-    dealPrice: terms.opening,
-    saved: originalPrice - terms.opening,
-    perk: PERK,
-    bestSeller,
-  };
-  await log(
-    "offer_computed",
-    `Best price ${bestSeller} ${inr(terms.benchmark)}; ${
-      seller ? `${seller.storeName} funds up to ${(seller.budgetPct * 100).toFixed(0)}%` : `${terms.category} commission ~${(terms.commissionRate * 100).toFixed(1)}%`
-    } → budget ${inr(terms.budget)}, auto-approve to ${inr(terms.autoLimit)}, floor ${inr(terms.floor)}; opening ${inr(terms.opening)}`,
-  );
-
-  emit({ type: "step", text: seller ? `${seller.storeName}'s agent is making an opening offer` : "Seller agent is making an opening offer" });
-  let haggle = "";
-  for await (const chunk of streamHaggle(product, quotes, opening, seller?.storeName)) {
-    haggle += chunk;
-    emit({ type: "haggle", text: chunk });
-  }
-  emit({ type: "offer", offer: opening });
-
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
-  const now = Date.now();
-  const deal: Deal = {
-    id,
-    product,
-    alternatives: quotes,
-    ...opening,
-    haggle: haggle.trim(),
-    negotiation: {
-      terms,
-      currentOffer: terms.opening,
-      rounds: 0,
-      messages: [{ from: "agent", text: haggle.trim(), price: terms.opening, at: now }],
-    },
-    lockFee: LOCK_FEE_INR,
-    testPayments,
-    createdAt: now,
-    expiresAt: now + NEGOTIATION_WINDOW_MS,
-    status: "negotiating",
-    city: ctx.city,
-    channel: ctx.channel,
-    userId,
-  };
-
-  await store.saveDeal(deal, true);
-  await store.incrStats({ deals: 1 });
-  await log("agent_move", `Opening offer ${inr(terms.opening)} for ${product.title}`, "agent", id);
-  emit({ type: "deal", deal: toPublic(deal) });
-  return deal;
 }
 
 const logFor = (deal: Deal) => (type: ActivityType, detail: string, actor: Activity["actor"]) =>
@@ -198,15 +85,6 @@ async function issueInvoice(deal: Deal, price: number, agreedBy: string) {
 
 export class HaggleError extends Error {}
 
-/** Shopper-facing reason a negotiation failed; the raw error still goes to the logs. */
-export function failureMessage(err: unknown) {
-  if (err instanceof HaggleError) return err.message;
-  const text = `${err instanceof Error ? err.name : ""} ${String(err)}`;
-  if (/timeout|timed out|abort/i.test(text)) return "That page took too long to load. Try again, or send a screenshot instead.";
-  if (/\b403\b|blocked|forbidden|captcha|access denied/i.test(text)) return "That store blocked us from reading the page. Send a screenshot of it instead.";
-  return "Couldn't read that item. Try another link or a clearer screenshot.";
-}
-
 /** Shopper makes a counter-offer; the seller agent responds within code-enforced limits. */
 export async function submitOffer(deal: Deal, offer: number) {
   const n = deal.negotiation;
@@ -243,6 +121,7 @@ export async function submitOffer(deal: Deal, offer: number) {
       "agent",
     );
     await startApprovalCall(deal);
+    await pushApprovalRequest(deal, move.price);
   } else {
     n.currentOffer = move.price;
     n.rounds += 1;
@@ -271,6 +150,21 @@ async function shopApproverPhone(storeId: string) {
   const { approverPhones } = await import("./shop/orgs");
   const s = await getStore(storeId);
   return s ? (await approverPhones(s.orgId))[0]?.phone : undefined;
+}
+
+/** A shop's approvers get a push on their phones (the app opens the offer to approve or reject). */
+async function pushApprovalRequest(deal: Deal, price: number) {
+  if (!deal.shop) return;
+  const { getStore } = await import("./shop/stores");
+  const { notifyApprovers } = await import("./push");
+  const s = await getStore(deal.shop.storeId);
+  if (s) await notifyApprovers(s.orgId, { title: `Offer: ${inr(price)}`, body: `A shopper offered ${inr(price)} for ${deal.product.title} (list ${inr(deal.originalPrice)}). Approve or reject.`, data: { type: "approval", storeId: s.id, dealId: deal.id } });
+}
+
+/** Tell the shopper the seller decided, by push, if they use the app. */
+async function pushDecision(deal: Deal, text: string) {
+  const { notifyBuyer } = await import("./push");
+  await notifyBuyer(deal.userId, { title: deal.shop?.storeName ?? "Your deal", body: text, data: { type: "deal", dealId: deal.id } });
 }
 
 async function startApprovalCall(deal: Deal) {
@@ -308,6 +202,7 @@ export async function counterFromApprover(deal: Deal, price: number, decidedBy: 
   Object.assign(deal, { status: "negotiating", dealPrice: price, saved: deal.originalPrice - price, expiresAt: Date.now() + NEGOTIATION_WINDOW_MS });
   await store.saveDeal(deal);
   await notifyChat(deal);
+  await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
 }
 
@@ -341,6 +236,7 @@ export async function decideApproval(deal: Deal, decision: "approved" | "rejecte
   }
   await store.saveDeal(deal);
   await notifyChat(deal);
+  await pushDecision(deal, n.messages.at(-1)!.text);
   return deal;
 }
 
