@@ -81,7 +81,7 @@ export async function startShopNegotiation(
     expiresAt: now + policy.expiryMinutes * 60 * 1000,
     status: "negotiating",
     city: opts.city,
-    channel: opts.chat?.channel ?? "web",
+    channel: opts.chat?.channel ?? (opts.channel === "api" ? "api" : "web"),
     chat: opts.chat,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },

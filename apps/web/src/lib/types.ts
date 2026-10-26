@@ -37,8 +37,8 @@ export interface PriceGrant {
   platformOrderRef?: string;
 }
 
-/** Where the shopper haggles: the web (GhostCart pages and the widget) or a chat app with the seller. */
-export type Channel = "web" | "whatsapp" | "instagram";
+/** Where the shopper is: our web/app, a chat app, or a seller's own system through /api/v1/sessions. */
+export type Channel = "web" | "whatsapp" | "instagram" | "api";
 
 export interface DeliveryAddress {
   name: string;
