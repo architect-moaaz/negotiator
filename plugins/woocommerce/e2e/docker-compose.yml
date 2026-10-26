@@ -1,0 +1,49 @@
+# A real WordPress + WooCommerce with the GhostCart plugin mounted, for the end-to-end test in
+# apps/web/src/lib/woocommerce/woocommerce.docker.test.ts. Start it with ./setup.sh; stop with
+# `docker compose down -v`. The site is http://localhost:8080; GhostCart (the test) is reached from
+# the container as host.docker.internal.
+name: ghostcart-woo-e2e
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: zz-root
+      MARIADB_DATABASE: wp
+      MARIADB_USER: wp
+      MARIADB_PASSWORD: zz-wp
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      retries: 60
+    tmpfs: /var/lib/mysql
+  wordpress:
+    image: wordpress:6.8-php8.3-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8080:80"]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: zz-wp
+      WORDPRESS_DB_NAME: wp
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - wp:/var/www/html
+      - ../ghostcart:/var/www/html/wp-content/plugins/ghostcart:ro
+  cli:
+    image: wordpress:cli-2.12-php8.3
+    profiles: [cli]
+    user: "33:33"
+    depends_on: [wordpress]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: zz-wp
+      WORDPRESS_DB_NAME: wp
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - wp:/var/www/html
+      - ../ghostcart:/var/www/html/wp-content/plugins/ghostcart:ro
+volumes:
+  wp:
