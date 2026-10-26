@@ -50,6 +50,48 @@
       "when": 1792953396111,
       "tag": "0006_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792954236147,
+      "tag": "0007_platform_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792957114015,
+      "tag": "0008_dpdp",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792957870467,
+      "tag": "0009_disclosures",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792958901094,
+      "tag": "0010_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792959574071,
+      "tag": "0011_ondc",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792989203697,
+      "tag": "0012_push",
+      "breakpoints": true
     }
   ]
 }

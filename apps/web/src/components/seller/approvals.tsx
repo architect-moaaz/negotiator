@@ -8,7 +8,7 @@ import { api, ErrorText, field, secondary } from "./ui";
 
 type Row = PublicDeal & { terms?: NegotiationTerms; recommendation: AgentRecommendation | null };
 
-const STATUS: Record<string, string> = { negotiating: "Haggling", pending: "Agreed, awaiting ₹9 lock", paid: "Locked", expired: "Expired" };
+const STATUS: Record<string, string> = { negotiating: "Haggling", pending: "Agreed, awaiting ₹9 lock", paid: "Locked", granted: "Code issued", expired: "Expired" };
 
 /** Offers below the agent's limit, waiting on the seller. Polls so a new one shows up within seconds. */
 export function ApprovalsTab({ storeId, canApprove, onCount }: { storeId: string; canApprove: boolean; onCount: (n: number) => void }) {

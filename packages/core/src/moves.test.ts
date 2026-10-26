@@ -99,3 +99,14 @@ describe("computeTerms options", () => {
     expect(terms).toMatchObject({ fundedBy: "seller", sellerId: "s1", sellerName: "Clicktech", budget: 2099, floor: 18891, autoLimit: 19940 });
   });
 });
+
+describe("templateMessage", () => {
+  it("talks about the list price for a seller's own products, never other stores", async () => {
+    const { templateMessage } = await import("./moves");
+    const { resolvePolicy, termsFromPolicy } = await import("./policy");
+    const t = termsFromPolicy(resolvePolicy({}), 1000, { sellerId: "s", sellerName: "ZZ", category: "x" })!;
+    const text = templateMessage({ action: "counter", price: 970 }, 900, t, "ZZ");
+    expect(text).toContain("₹1,000 list price");
+    expect(text).not.toContain("best price anywhere");
+  });
+});

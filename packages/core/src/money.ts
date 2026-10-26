@@ -43,6 +43,8 @@ export const accounts = {
   gateway: "gateway:receivable",
   sellerHeld: (storeId: string) => `seller:${storeId}:held`,
   sellerPayable: (storeId: string) => `seller:${storeId}:payable`,
+  /** Fees a seller owes GhostCart for orders paid on their own platform (Shopify/Woo price grants). */
+  sellerFeesDue: (storeId: string) => `seller:${storeId}:fees_due`,
   feeHeld: "ghostcart:fee:held",
   fee: "ghostcart:fee",
   gstHeld: "ghostcart:gst:held",

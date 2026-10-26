@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 type Jar = Map<string, string>;
 let jar: Jar = new Map();
 vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
   cookies: async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
     set: (name: string, value: string) => void jar.set(name, value),
