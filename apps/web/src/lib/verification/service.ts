@@ -178,6 +178,7 @@ export async function verificationChecklist(store: Store) {
     gstin: gstin ? state(gstin) : NEEDS_GSTIN.has(org?.businessType as BusinessType) ? ("missing" as StepState) : ("done" as StepState),
     bank: state(latest(["bank"])),
     ownership: state(latest(OWNERSHIP[store.platform] ?? [])),
+    details: (store.disclosure?.address && store.disclosure.returnPolicy ? "done" : "missing") as StepState, // shown to buyers; see shop/disclosure.ts
   };
   const canSubmit = store.status === "draft" && Object.values(steps).every((s) => s === "done" || s === "in_review");
   const allAutomated = Object.values(steps).every((s) => s === "done");

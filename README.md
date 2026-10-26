@@ -7,7 +7,7 @@ anything past its limit, and the agreed price is locked with a Pine Labs UPI pay
 ## Local
 ```bash
 pnpm install
-cp .env.example apps/web/.env.local   # fill in ANTHROPIC_API_KEY, FIRECRAWL_API_KEY, PINELABS_* (or PINELABS_MODE=mock)
+cp .env.example apps/web/.env.local   # fill in ANTHROPIC_API_KEY, PINELABS_* (or PINELABS_MODE=mock)
 pnpm dev
 pnpm test
 ```
