@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HaggleButton } from "@/components/shop/haggle-button";
+import { SellerDetailsBlock } from "@/components/shop/seller-details";
+import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
 import { getProduct } from "@/lib/shop/products";
 import { policyForProduct } from "@/lib/shop/policies";
@@ -29,7 +31,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
   const product = shop && (await getProduct(productId));
   if (!shop || !product || product.storeId !== shop.store.id || product.status !== "active") notFound();
   const { store, preview } = shop;
-  const policy = await policyForProduct(product);
+  const [policy, seller] = await Promise.all([policyForProduct(product), sellerDetails(store)]);
   const raw = (await searchParams).return;
   const back = await allowedReturnUrl(store.id, typeof raw === "string" ? raw : undefined);
 
@@ -69,8 +71,10 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
             )}
           </div>
           {product.description && <p className="mt-8 whitespace-pre-line text-muted">{product.description}</p>}
+          {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">Country of origin: {product.countryOfOrigin}</p>}
         </div>
       </div>
+      <SellerDetailsBlock seller={seller} />
     </>
   );
 }

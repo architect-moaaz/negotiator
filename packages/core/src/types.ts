@@ -48,6 +48,8 @@ export interface NegotiationTerms {
   opening: number;
   /** Rounds before the agent's last offer; defaults to MAX_ROUNDS. */
   maxRounds?: number;
+  /** "list" when the benchmark is the seller's own list price (shop products), not a market comparison. */
+  benchmarkKind?: "market" | "list";
 }
 
 export interface NegotiationMessage {

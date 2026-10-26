@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ErrorText, field, secondary } from "./ui";
+import { WhatsAppConnect } from "./whatsapp-connect";
 
 interface Key {
   id: string;
@@ -24,7 +25,7 @@ function Snippet({ text }: { text: string }) {
 }
 
 /** Widget keys, server API keys and webhooks for sellers with their own site or systems. */
-export function IntegrationsTab({ storeId, domain }: { storeId: string; domain: string | null }) {
+export function IntegrationsTab({ storeId, domain, platform }: { storeId: string; domain: string | null; platform?: string }) {
   const [keys, setKeys] = useState<Key[]>([]);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [origins, setOrigins] = useState(domain ? `https://${domain}` : "");
@@ -69,6 +70,34 @@ export function IntegrationsTab({ storeId, domain }: { storeId: string; domain: 
   return (
     <div className="mt-6 max-w-3xl space-y-10">
       <ErrorText>{error}</ErrorText>
+      {platform === "woocommerce" && (
+        <section>
+          <h2 className="text-xl font-semibold">WooCommerce plugin</h2>
+          <p className="mt-1 text-muted">
+            Install it from WordPress → Plugins → Add New → Upload, then paste a widget key and a secret key (below) under WooCommerce → GhostCart and click Connect.
+          </p>
+          <a href="/api/plugins/woocommerce" className={`${secondary} mt-3 inline-block`}>
+            Download the plugin (.zip)
+          </a>
+        </section>
+      )}
+      <ChatChannels storeId={storeId} />
+      {platform === "amazon" && <AmazonSection storeId={storeId} />}
+      {platform === "flipkart" && (
+        <section>
+          <h2 className="text-xl font-semibold">Flipkart listings</h2>
+          <p className="mt-1 text-muted">
+            In Flipkart Seller Hub, open Listings, download your listings file and save it as CSV. Then use &quot;Import a CSV&quot; on the Products tab: we read
+            Flipkart&apos;s own columns (Seller SKU Id, Product Title, Your Selling Price, MRP, Stock). Re-importing updates products by SKU.
+          </p>
+        </section>
+      )}
+      {platform === "shopify" && (
+        <section>
+          <h2 className="text-xl font-semibold">Shopify</h2>
+          <p className="mt-1 text-muted">Your Shopify app manages the widget key and webhooks for you. In your theme editor, turn on the GhostCart app embed and add the &quot;Make an offer&quot; block to product pages.</p>
+        </section>
+      )}
       <section>
         <h2 className="text-xl font-semibold">Haggle button for your website</h2>
         <p className="mt-1 text-muted">Shoppers tap it on your product page and bargain with your agent on GhostCart. Payment is held until delivery, like your GhostCart shop.</p>
@@ -166,5 +195,86 @@ export function IntegrationsTab({ storeId, domain }: { storeId: string; domain: 
           ))}
       </section>
     </div>
+  );
+}
+
+interface ConnectionRow {
+  platform: string;
+  externalId: string;
+  imported: number | null;
+  importedAt: string | null;
+  importing: boolean;
+  lastError: string | null;
+}
+
+/** Amazon Seller Central: connect with SP-API, then listings import in the background. */
+function AmazonSection({ storeId }: { storeId: string }) {
+  const [conn, setConn] = useState<ConnectionRow | null | undefined>(undefined);
+  useEffect(() => {
+    const load = async () => {
+      const r = await api<{ connections: ConnectionRow[] }>(`/api/seller/stores/${storeId}/connections`);
+      if (r.ok) setConn(r.data.connections.find((c) => c.platform === "amazon") ?? null);
+    };
+    const first = setTimeout(load, 0);
+    const t = setInterval(load, 15000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [storeId]);
+  return (
+    <section>
+      <h2 className="text-xl font-semibold">Amazon Seller Central</h2>
+      <p className="mt-1 text-muted">Authorise GhostCart to read your own listings. It also proves the Amazon account is yours. We never change anything on Amazon.</p>
+      {conn === undefined ? null : conn ? (
+        <p className="mt-3">
+          Connected ({conn.externalId}).{" "}
+          {conn.importing
+            ? "Amazon is preparing your listings report; this can take a few minutes."
+            : conn.importedAt
+              ? `${conn.imported} listings imported ${new Date(conn.importedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.`
+              : ""}
+          {conn.lastError && <span className="block text-alarm">Last import problem: {conn.lastError}</span>}
+        </p>
+      ) : (
+        <a href={`/api/amazon/connect?storeId=${storeId}`} className={`${secondary} mt-3 inline-block`}>
+          Connect Amazon Seller Central
+        </a>
+      )}
+      <p className="mt-3 text-sm text-muted">No access to Seller Central? Download your inventory report as a file and use &quot;Import a CSV&quot; on the Products tab instead.</p>
+    </section>
+  );
+}
+
+/** Shoppers haggle with your agent in chat: WhatsApp and Instagram. */
+function ChatChannels({ storeId }: { storeId: string }) {
+  const [conns, setConns] = useState<ConnectionRow[] | null>(null);
+  const load = useCallback(async () => {
+    const r = await api<{ connections: ConnectionRow[] }>(`/api/seller/stores/${storeId}/connections`);
+    if (r.ok) setConns(r.data.connections);
+  }, [storeId]);
+  useEffect(() => {
+    const t = setTimeout(load, 0);
+    return () => clearTimeout(t);
+  }, [load]);
+  const wa = conns?.find((c) => c.platform === "whatsapp");
+  const ig = conns?.find((c) => c.platform === "instagram");
+  return (
+    <section>
+      <h2 className="text-xl font-semibold">WhatsApp</h2>
+      <p className="mt-1 text-muted">Shoppers message your WhatsApp Business number, pick a product and bargain with your agent there. It uses your own number and your discount rules.</p>
+      {wa ? <p className="mt-3">Connected: shoppers can message {wa.externalId === "1099000000001" ? "your test number" : "your number"} to haggle.</p> : conns && <WhatsAppConnect storeId={storeId} onConnected={load} />}
+      <h2 className="mt-8 text-xl font-semibold">Instagram</h2>
+      <p className="mt-1 text-muted">Shoppers DM your Instagram professional account and bargain with your agent there. Your account must be linked to a Facebook Page.</p>
+      {ig ? (
+        <p className="mt-3">Connected: shoppers can DM your Instagram to haggle.</p>
+      ) : (
+        conns && (
+          <a href={`/api/instagram/connect?storeId=${storeId}`} className={`${secondary} mt-3 inline-block`}>
+            Connect Instagram
+          </a>
+        )
+      )}
+    </section>
   );
 }

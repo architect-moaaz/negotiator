@@ -1,5 +1,5 @@
 import { accounts } from "@ghostcart/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getDb } from "../db";
 import { acceptOffer } from "../negotiate";
 import { balance, trialBalance } from "../orders/ledger";
@@ -9,7 +9,19 @@ import { setPolicy } from "../shop/policies";
 import { createProduct } from "../shop/products";
 import { createStore, updateStore } from "../shop/stores";
 import { store as kv } from "../store";
-import { grantCode } from "./adapters";
+import { grantCode, registerGrantAdapter } from "./adapters";
+
+// Framework tests use a fake platform adapter (the real Shopify one is covered in shopify.test.ts).
+await import("./registry");
+registerGrantAdapter("shopify", {
+  platform: "test",
+  async ready(store) {
+    return process.env.VERCEL_ENV !== "production" || store.domain !== "offline";
+  },
+  async createGrant({ store, code }) {
+    return { checkoutUrl: `https://${store.domain}/cart?discount=${code}` };
+  },
+});
 import { redeemGrant } from "./service";
 
 let n = 0;
@@ -32,7 +44,7 @@ describe("price grants", () => {
     let deal = await startShopNegotiation(product.id, "grant-buyer-1");
     deal = await acceptOffer(deal);
     expect(deal.status).toBe("granted");
-    expect(deal.grant).toMatchObject({ platform: "mock", code: expect.stringMatching(/^GC-[2-9A-HJ-NP-Z]{8}$/) });
+    expect(deal.grant).toMatchObject({ platform: "test", code: expect.stringMatching(/^GC-[2-9A-HJ-NP-Z]{8}$/) });
     expect(deal.grant!.checkoutUrl).toContain(store.domain);
     expect(deal.pinelabsOrderId).toBeUndefined();
     expect((await kv.getDeal(deal.id))?.status).toBe("granted");
@@ -60,12 +72,11 @@ describe("price grants", () => {
     expect(await redeemGrant({ storeId: b.store.id, code: deal.grant!.code, platformOrderRef: "#9" })).toBeNull();
   });
 
-  it("refuse to start when the store's platform isn't connected in production", async () => {
-    const { product } = await shopifyStore();
-    vi.resetModules();
+  it("refuse to start when the store's platform isn't connected", async () => {
+    const { store, product } = await shopifyStore();
+    await updateStore(store.id, { domain: "offline" });
     process.env.VERCEL_ENV = "production";
-    const { startShopNegotiation: start } = await import("../shop/negotiation");
-    await expect(start(product.id, "grant-buyer-4")).rejects.toThrow("isn't connected");
+    await expect(startShopNegotiation(product.id, "grant-buyer-4")).rejects.toThrow("isn't connected");
   });
 
   it("make readable, unambiguous codes", () => {
