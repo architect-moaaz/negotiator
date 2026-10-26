@@ -1,0 +1,36 @@
+# Manual load test against staging (see load/README.md). Never points at production.
+name: Load test
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Staging base URL (https://…)
+        required: true
+      script:
+        description: Which scenario
+        required: true
+        default: browse
+        type: choice
+        options: [browse, widget, haggle]
+permissions:
+  contents: read
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write the seed file
+        env:
+          LOAD_SEED_JSON: ${{ secrets.LOAD_SEED_JSON }}
+        run: |
+          test -n "$LOAD_SEED_JSON" || { echo "Add the LOAD_SEED_JSON secret (output of db:seed-load)"; exit 1; }
+          printf '%s' "$LOAD_SEED_JSON" > load/k6/.seed.json
+      - uses: grafana/setup-k6-action@v1
+      - name: Run
+        run: k6 run -e BASE_URL="${{ inputs.base_url }}" --summary-export=summary.json "load/k6/${{ inputs.script }}.js"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-${{ inputs.script }}-summary
+          path: summary.json
