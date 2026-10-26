@@ -20,7 +20,7 @@ async function paidShopOrder(price = 10000, tier: "new" | "verified" = "new") {
   let deal = await startShopNegotiation(product.id, `buyer-${n}`);
   deal = await acceptOffer(deal);
   deal = await markPaid(deal, "pinelabs");
-  deal = await saveAddress(deal, { name: "ZZ Buyer", phone: "+919000001299", line1: "1 Test Street", city: "Bengaluru", state: "Karnataka", pincode: "560038" });
+  deal = await saveAddress(deal, { name: "ZZ Buyer", phone: "+919000001299", line1: `${Math.random().toString(36).slice(2, 8)} Test Street`, city: "Bengaluru", state: "Karnataka", pincode: "560038" });
   deal = await placeOrder(deal, "pinelabs");
   return { store: s, deal, order: (await orderForDeal(deal.id))! };
 }
@@ -55,6 +55,20 @@ describe("orders and the ledger", () => {
     expect(await storeMoney(store.id)).toMatchObject({ held: 0, released: order.sellerShare });
     await expect(releaseOrder(order.id)).rejects.toThrow("released");
     expect((await trialBalance(await getDb())).total).toBe(0);
+  });
+
+  it("hand the hold back for a retry when the gateway fails to release", async () => {
+    const { order } = await paidShopOrder(10000, "verified");
+    await markDelivered(order.id, "test", new Date(Date.now() - 4 * 24 * 60 * 60 * 1000));
+    const gateway = settlementGateway()!;
+    const original = gateway.release;
+    gateway.release = async () => {
+      throw new Error("gateway down");
+    };
+    await expect(releaseOrder(order.id)).rejects.toThrow("gateway down");
+    gateway.release = original;
+    expect((await getOrder(order.id))?.status).toBe("delivered");
+    expect((await runOrderJobs()).released).toContain(order.id); // retried and released
   });
 
   it("keep the payout held during the dispute window", async () => {

@@ -1,6 +1,6 @@
 import { accounts, orderMoney, paidPostings, refundPostings, releasePostings, TIER_LIMITS, type Held, type SellerTier } from "@ghostcart/core";
 import { schema } from "@ghostcart/db";
-import { and, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../db";
 import { getStore } from "../shop/stores";
@@ -19,6 +19,32 @@ export class OrderError extends Error {
   ) {
     super(message);
   }
+}
+
+/** What sellers' systems receive about an order (webhooks, /api/v1/orders). Money in paise. */
+export function orderPayload(o: Order, { withAddress = false } = {}) {
+  return {
+    id: o.id,
+    dealId: o.dealId,
+    status: o.status,
+    title: o.title,
+    productId: o.productId,
+    total: o.total,
+    sellerShare: o.sellerShare,
+    fee: o.fee,
+    gst: o.gst,
+    testPayments: o.testPayments,
+    shipBy: o.shipBy,
+    shippedAt: o.shippedAt,
+    deliveredAt: o.deliveredAt,
+    createdAt: o.createdAt,
+    address: withAddress ? o.address : undefined,
+  };
+}
+
+async function notifySeller(o: Order, event: "order.placed" | "order.shipped" | "order.delivered" | "order.completed" | "order.refunded" | "order.cancelled") {
+  const { emitWebhook } = await import("../integrations/webhooks");
+  await emitWebhook(o.storeId, event, orderPayload(o, { withAddress: event === "order.placed" }));
 }
 
 const FEE_BPS = () => Number(process.env.PLATFORM_FEE_BPS ?? 200);
@@ -82,7 +108,10 @@ export async function createOrderFromDeal(deal: Deal) {
   await db.insert(holds).values({ orderId: order.id, amount: m.sellerShare, gateway: gateway.name, gatewayRef: ref });
   await post(db, { orderId: order.id, kind: "paid", postings: paidPostings(m, shopStore.id), memo: `deal ${deal.id}` });
   await log(order, `placed; ₹${m.total / 100} paid, seller share ₹${m.sellerShare / 100} held (${gateway.name} ${ref}); ship by ${order.shipBy.toISOString()}`);
-  return order;
+  const { flagOrderIfRisky } = await import("../fraud/checks");
+  const checked = await flagOrderIfRisky(order);
+  await notifySeller(checked, "order.placed");
+  return checked;
 }
 
 /** What's still held for an order, read from the ledger. */
@@ -109,6 +138,7 @@ export async function markDelivered(orderId: string, via: string, at = new Date(
   const [updated] = await db.update(orders).set({ status: "delivered", deliveredAt: at, updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
   await db.update(holds).set({ releaseAt: new Date(at.getTime() + days * 24 * 60 * 60 * 1000), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   await log(order, `delivered (${via}); payout releases in ${days} days unless the buyer raises a problem`);
+  await notifySeller(updated, "order.delivered");
   return updated;
 }
 
@@ -120,16 +150,24 @@ export async function releaseOrder(orderId: string) {
   if (!order || !hold) throw new OrderError("Order not found.", 404);
   if (hold.state !== "held") throw new OrderError(`The payout is ${hold.state}.`, 409);
   if (order.status !== "delivered") throw new OrderError("Payouts release only after delivery.", 409);
+  if (order.flagged) throw new OrderError(`Held for a fraud review: ${order.flagged}`, 409);
   const gateway = settlementGateway();
   if (!gateway) throw new OrderError("No settlement gateway.", 503);
   // Claim the hold first so two runs can't release it twice.
   const claimed = await db.update(holds).set({ state: "releasing", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "held"))).returning();
   if (!claimed.length) return order;
-  await gateway.release(hold.gatewayRef!);
+  try {
+    await gateway.release(hold.gatewayRef!);
+  } catch (err) {
+    // Hand the hold back so the next run retries, instead of leaving it stuck mid-release.
+    await db.update(holds).set({ state: "held", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "releasing")));
+    throw err;
+  }
   await post(db, { orderId, kind: "released", postings: releasePostings(await heldFor(order), order.storeId) });
   await db.update(holds).set({ state: "released", releasedAt: new Date(), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   const [done] = await db.update(orders).set({ status: "completed", updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
   await log(order, `payout of ₹${hold.amount / 100} released to the seller`);
+  await notifySeller(done, "order.completed");
   return done;
 }
 
@@ -163,12 +201,16 @@ export async function refundOrder(orderId: string, amount: number, reason: strin
     await db.update(holds).set({ amount: remaining.sellerShare, updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   }
   await log(order, `refunded ₹${amount / 100} to the buyer (${reason}) by ${requestedBy}`, requestedBy === "system" ? "system" : "human");
-  return getOrder(orderId);
+  const after = (await getOrder(orderId))!;
+  await notifySeller(after, after.status === "cancelled" ? "order.cancelled" : "order.refunded");
+  return after;
 }
 
-/** Scheduled: cancel and refund orders the seller didn't ship in time; release payouts that are due. */
+/** Scheduled: poll courier tracking, cancel and refund orders not shipped in time, release payouts that are due. */
 export async function runOrderJobs(now = new Date()) {
   const db = await getDb();
+  const { pollTracking } = await import("./fulfilment");
+  const tracking = await pollTracking();
   const late = await db.select().from(orders).where(and(eq(orders.status, "placed"), lte(orders.shipBy, now)));
   const cancelled: string[] = [];
   for (const o of late) {
@@ -184,7 +226,7 @@ export async function runOrderJobs(now = new Date()) {
     .select({ orderId: holds.orderId })
     .from(holds)
     .innerJoin(orders, eq(orders.id, holds.orderId))
-    .where(and(eq(holds.state, "held"), isNotNull(holds.releaseAt), lte(holds.releaseAt, now), eq(orders.status, "delivered")));
+    .where(and(eq(holds.state, "held"), isNotNull(holds.releaseAt), lte(holds.releaseAt, now), eq(orders.status, "delivered"), isNull(orders.flagged)));
   const released: string[] = [];
   for (const { orderId } of due) {
     try {
@@ -194,7 +236,12 @@ export async function runOrderJobs(now = new Date()) {
       console.error(`couldn't release order ${orderId}`, err);
     }
   }
-  return { cancelled, released };
+  const promoted = await promoteStores();
+  const { retryWebhooks } = await import("../integrations/webhooks");
+  await retryWebhooks();
+  const { pollAmazonImports } = await import("../amazon/connect");
+  await pollAmazonImports();
+  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted };
 }
 
 /** Seller money at a glance: on hold until delivery, and released (on its way to the bank). */
@@ -212,4 +259,21 @@ export async function ordersForStore(storeId: string, statuses?: string[]) {
     .from(orders)
     .where(statuses ? and(eq(orders.storeId, storeId), inArray(orders.status, statuses)) : eq(orders.storeId, storeId))
     .orderBy(sql`${orders.createdAt} desc`);
+}
+
+/** Verified stores whose track record earns "trusted" move up (higher order cap, shorter payout hold). */
+async function promoteStores() {
+  const db = await getDb();
+  const candidates = await db.select({ id: schema.stores.id }).from(schema.stores).where(and(eq(schema.stores.status, "live"), eq(schema.stores.tier, "verified")));
+  const { storeTrackRecord } = await import("../fraud/checks");
+  const { recordRisk } = await import("../fraud/signals");
+  const { earnsTrusted } = await import("@ghostcart/core");
+  const promoted: string[] = [];
+  for (const r of await storeTrackRecord(candidates.map((c) => c.id))) {
+    if (!earnsTrusted(r)) continue;
+    await db.update(schema.stores).set({ tier: "trusted" }).where(eq(schema.stores.id, r.storeId));
+    await recordRisk("tier_promoted", "info", "store", r.storeId, r);
+    promoted.push(r.storeId);
+  }
+  return promoted;
 }

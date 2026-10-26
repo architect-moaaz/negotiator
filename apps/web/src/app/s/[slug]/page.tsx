@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { SellerDetailsBlock } from "@/components/shop/seller-details";
 import { inr } from "@/lib/format";
+import { sellerDetails } from "@/lib/shop/disclosure";
 import { loadStorefront, storefrontCatalogue } from "@/lib/shop/storefront";
 
 export const metadata = { title: "GhostCart Shop" };
@@ -24,7 +26,7 @@ async function Shop({ params }: { params: PageProps<"/s/[slug]">["params"] }) {
   const shop = await loadStorefront(slug);
   if (!shop) notFound();
   const { store, preview } = shop;
-  const { products, categories } = await storefrontCatalogue(store.id);
+  const [{ products, categories }, seller] = await Promise.all([storefrontCatalogue(store.id), sellerDetails(store)]);
 
   return (
     <>
@@ -86,9 +88,7 @@ async function Shop({ params }: { params: PageProps<"/s/[slug]">["params"] }) {
           })}
         </>
       )}
-      <footer className="mt-16 border-t border-line pt-6 text-sm text-muted">
-        Sold and shipped by {store.name}. Payments by UPI through Pine Labs. <Link href="/" className="underline underline-offset-4">GhostCart</Link>
-      </footer>
+      <SellerDetailsBlock seller={seller} />
     </>
   );
 }
