@@ -61,6 +61,8 @@ describe("GhostCart Privilege recovery job", () => {
     expect(mail.text).toContain("₹1,800");
     expect(mail.unsubscribeUrl).toMatch(/\/p\//);
     expect((await invitesForCart(yes.id)).map((i) => [i.channel, i.status])).toEqual([["email", "sent"]]);
+    const { recoveryStats } = await import("./stats");
+    expect(await recoveryStats(store.id, new Date(0))).toMatchObject({ captured: 2, withConsent: 1, abandoned: 2, invited: 1, invitesByChannel: { email: 1 }, recovered: 0 });
 
     // Back to abandoned (e.g. the shopper came back and left again): still no second offer.
     await updateCart(yes.id, { status: "abandoned" });

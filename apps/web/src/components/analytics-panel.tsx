@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Analytics, Bucket } from "@/lib/analytics";
+import type { RecoveryStats } from "@/lib/privilege/stats";
 import { inr } from "@/lib/format";
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -75,11 +76,11 @@ function HourChart({ title, data }: { title: string; data: Bucket[] }) {
   );
 }
 
-function Funnel({ data }: { data: Bucket[] }) {
+function Funnel({ data, title = "Conversion funnel" }: { data: Bucket[]; title?: string }) {
   const top = Math.max(1, data[0]?.value ?? 1);
   return (
     <section className="rounded-2xl border border-line p-4">
-      <h3 className="font-semibold">Conversion funnel</h3>
+      <h3 className="font-semibold">{title}</h3>
       <ol className="mt-3 space-y-3">
         {data.map((step, i) => {
           const prev = i ? data[i - 1].value : 0;
@@ -107,7 +108,7 @@ function Funnel({ data }: { data: Bucket[] }) {
 const secs = (s: number | null) => (s === null ? "—" : s < 90 ? `${s}s` : `${Math.round(s / 60)}m`);
 
 export function AnalyticsPanel() {
-  const [data, setData] = useState<Analytics | null>(null);
+  const [data, setData] = useState<(Analytics & { recovery?: RecoveryStats }) | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -197,6 +198,29 @@ export function AnalyticsPanel() {
           <HourChart title="Negotiations by hour (IST)" data={data.commerce.dealHour} />
         </div>
       </section>
+
+      {data.recovery && (
+        <section>
+          <h2 className="text-lg font-semibold">GhostCart Privilege (cart recovery, last 30 days)</h2>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Funnel
+              title="Recovery funnel"
+              data={[
+                { label: "Carts captured", value: data.recovery.captured },
+                { label: "Abandoned", value: data.recovery.abandoned },
+                { label: "Private offers sent", value: data.recovery.invited },
+                { label: "Offers opened", value: data.recovery.opened },
+                { label: "Recovered", value: data.recovery.recovered },
+              ]}
+            />
+            <div className="grid grid-cols-2 content-start gap-4">
+              <Tile label="Recovered sales" value={inr(data.recovery.recoveredValue)} sub={`from ${inr(data.recovery.listValue)} of carts at list`} />
+              <Tile label="Shoppers who opted in" value={String(data.recovery.withConsent)} sub={`${data.recovery.optedOut} stopped offers`} />
+              <BarList title="Offers sent by" data={Object.entries(data.recovery.invitesByChannel).map(([label, value]) => ({ label, value }))} />
+            </div>
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-lg font-semibold">Human approvals</h2>
