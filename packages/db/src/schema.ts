@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, boolean, date, doublePrecision, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * v1 schema: mirrors what the Redis store holds today so the app can dual-write and then switch
@@ -176,6 +176,20 @@ export const stores = pgTable(
     /** Random token the seller publishes in DNS or a meta tag to prove they control `domain`. */
     verificationToken: text("verification_token"),
     reviewNote: text("review_note"),
+    /**
+     * What the Consumer Protection (E-Commerce) Rules 2020 make us show buyers: the seller's address,
+     * customer care contact, and return policy. Legal name and GSTIN come from verification.
+     */
+    disclosure: jsonb("disclosure").$type<{
+      address: string;
+      city: string;
+      state: string;
+      pincode: string;
+      supportPhone: string;
+      supportEmail?: string;
+      returnDays: number;
+      returnPolicy: string;
+    }>(),
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("stores_org_idx").on(t.orgId)],
@@ -209,6 +223,8 @@ export const products = pgTable(
     mrp: integer("mrp"),
     stock: integer("stock").notNull().default(0),
     images: jsonb("images").$type<string[]>().notNull().default([]),
+    /** Shown on the product page (Legal Metrology (Packaged Commodities) Rules, for e-commerce). */
+    countryOfOrigin: text("country_of_origin"),
     sku: text("sku"),
     /** active | draft | archived */
     status: text("status").notNull().default("active"),
@@ -584,4 +600,71 @@ export const grievances = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("grievances_status_idx").on(t.status)],
+);
+
+/**
+ * Analytics warehouse: one row per store per IST day, rolled up nightly from negotiations (which leave
+ * Redis after a week) and orders. Money in paise. Idempotent: a re-run replaces the day's row.
+ */
+export const storeDailyMetrics = pgTable(
+  "store_daily_metrics",
+  {
+    day: date("day").notNull(),
+    storeId: text("store_id").notNull(),
+    orgId: text("org_id").notNull(),
+    negotiations: integer("negotiations").notNull().default(0),
+    agreed: integer("agreed").notNull().default(0),
+    escalated: integer("escalated").notNull().default(0),
+    humanApproved: integer("human_approved").notNull().default(0),
+    humanRejected: integer("human_rejected").notNull().default(0),
+    /** Sum of list prices and agreed prices over agreed deals: average discount = 1 - agreed / list. */
+    listValue: bigint("list_value", { mode: "number" }).notNull().default(0),
+    agreedValue: bigint("agreed_value", { mode: "number" }).notNull().default(0),
+    totalRounds: integer("total_rounds").notNull().default(0),
+    orders: integer("orders").notNull().default(0),
+    gmv: bigint("gmv", { mode: "number" }).notNull().default(0),
+    fees: bigint("fees", { mode: "number" }).notNull().default(0),
+    refunds: bigint("refunds", { mode: "number" }).notNull().default(0),
+    disputes: integer("disputes").notNull().default(0),
+    computedAt: ts("computed_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.storeId] }), index("store_daily_metrics_org_idx").on(t.orgId, t.day)],
+);
+
+/**
+ * Every ONDC message we send or receive, as sent: the buyer app's working state (search results, quotes,
+ * orders are read back from here) and the log ONDC asks for in certification.
+ */
+export const ondcMessages = pgTable(
+  "ondc_messages",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    transactionId: text("transaction_id").notNull(),
+    messageId: text("message_id").notNull(),
+    /** search | on_search | select | on_select | init | on_init | confirm | on_confirm | status | on_status | … */
+    action: text("action").notNull(),
+    direction: text("direction").notNull(), // out | in
+    /** The other side: the gateway for search, otherwise the seller app's subscriber id. */
+    counterparty: text("counterparty").notNull(),
+    /** The GhostCart shopper who started it (user id), when known. */
+    userId: text("user_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("ondc_messages_txn_idx").on(t.transactionId, t.action), index("ondc_messages_created_idx").on(t.createdAt)],
+);
+
+/** Expo push tokens from the mobile app, per signed-in shopper (buyer) or seller member (phone). */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").notNull(),
+    /** buyer (user id) | member (phone). A phone signed in as both gets both kinds of notification. */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    platform: text("platform").notNull(), // ios | android
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.token, t.actorType] }), index("push_tokens_actor_idx").on(t.actorType, t.actorId)],
 );

@@ -12,6 +12,7 @@ import { IntegrationsTab } from "./integrations";
 import { OrdersTab } from "./orders";
 import { ProductsTab } from "./products";
 import { VerificationTab } from "./verification";
+import { SellerStats } from "./stats";
 import { api } from "./ui";
 
 export interface StoreSummary {
@@ -37,6 +38,7 @@ export interface ProductRow {
   categoryId: string | null;
   sku: string | null;
   images: string[];
+  countryOfOrigin: string | null;
   status: string;
 }
 export interface StoreData {
@@ -159,6 +161,11 @@ export function SellerDashboard() {
           <Link href="/seller/start" className="hover:text-fg">
             Add a store
           </Link>
+          {data?.role === "owner" && (
+            <a href={`/api/seller/stores/${data.store.id}/export`} className="hover:text-fg" title="Everything your organisation holds on GhostCart, as spreadsheets">
+              Download all data
+            </a>
+          )}
           <button
             onClick={async () => {
               await api("/api/auth/logout", { body: { role: "member" } });
@@ -193,6 +200,7 @@ export function SellerDashboard() {
               {data.policies.store.maxDiscountPct ?? 10}% off
               {data.products[0] ? ` · e.g. ${data.products[0].title} at ${inr(data.products[0].price)}` : ""}
             </p>
+            <SellerStats storeId={data.store.id} />
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">

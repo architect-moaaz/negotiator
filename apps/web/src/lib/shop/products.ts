@@ -19,6 +19,7 @@ export const productInput = z.object({
   category: z.string().trim().max(60).optional(),
   sku: z.string().trim().max(60).optional(),
   images: z.array(z.string().url()).max(8).default([]),
+  countryOfOrigin: z.string().trim().max(60).optional(),
   status: z.enum(["active", "draft", "archived"]).default("active"),
 });
 export type ProductInput = z.input<typeof productInput>;
@@ -52,18 +53,19 @@ export async function createProduct(storeId: string, input: ProductInput, source
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .insert(products)
-    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, status: p.status, source })
+    .values({ id: newId("prd"), storeId, categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, countryOfOrigin: p.countryOfOrigin || null, status: p.status, source })
     .returning();
   return row;
 }
 
+/** Fields left out keep their value only where a sync can't know them (country of origin); the rest are replaced. */
 export async function updateProduct(storeId: string, id: string, input: ProductInput) {
   const db = await getDb();
   const p = parse(input);
   const categoryId = p.category ? (await ensureCategory(storeId, p.category)).id : null;
   const [row] = await db
     .update(products)
-    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, status: p.status, updatedAt: new Date() })
+    .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, ...(p.countryOfOrigin !== undefined && { countryOfOrigin: p.countryOfOrigin || null }), status: p.status, updatedAt: new Date() })
     .where(and(eq(products.id, id), eq(products.storeId, storeId)))
     .returning();
   return row as Product | undefined;
@@ -115,7 +117,7 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-export const CSV_COLUMNS = ["title", "price", "mrp", "stock", "category", "sku", "description", "image_url"] as const;
+export const CSV_COLUMNS = ["title", "price", "mrp", "stock", "category", "sku", "description", "image_url", "country_of_origin"] as const;
 
 /**
  * Other names for our columns, so a marketplace's own listing export imports as-is: Amazon's inventory
@@ -148,6 +150,8 @@ const COLUMN_ALIASES: Record<string, (typeof CSV_COLUMNS)[number]> = {
   image_link: "image_url",
   product_category: "category",
   vertical: "category",
+  origin: "country_of_origin",
+  country: "country_of_origin",
 };
 
 /**
@@ -183,6 +187,7 @@ export async function importProductsCsv(storeId: string, text: string, source = 
           sku: get("sku"),
           description: get("description") ?? "",
           images: get("image_url") ? [get("image_url")!] : [],
+          countryOfOrigin: get("country_of_origin"),
         },
       );
       created++;

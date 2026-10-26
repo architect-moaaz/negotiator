@@ -65,6 +65,9 @@ export default function Home() {
           <Link href="/grievance" className="hover:text-fg">
             Make a complaint
           </Link>
+          <Link href="/legal" className="hover:text-fg">
+            Terms and policies
+          </Link>
         </footer>
       </main>
       <Ticker />

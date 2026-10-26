@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { startShopNegotiation } from "../shop/negotiation";
 import { createOrg } from "../shop/orgs";
 import { createProduct } from "../shop/products";
+import { saveDisclosure } from "../shop/disclosure";
 import { createStore, getStore, updateStore } from "../shop/stores";
 import { namesMatch } from "./kyc-provider";
 import { checkMetaTag } from "./ownership";
@@ -13,6 +14,7 @@ async function draft(platform: "ghostcart_shop" | "website" = "ghostcart_shop", 
   const org = await createOrg({ name: `ZZ Verify ${++n}`, ownerPhone: `+9190000010${String(n).padStart(2, "0")}`, ownerName: "ZZ Owner" });
   return createStore({ orgId: org.id, name: `ZZ Verify Store ${n}`, platform, domain });
 }
+const details = { address: "12 ZZ Test Road", city: "Pune", state: "Maharashtra", pincode: "411001", supportPhone: "9000001099", returnDays: 7, returnPolicy: "Unused items can be returned within 7 days; refunds within 5 working days." };
 const gstinFor = (pan: string, state = "29") => `${state}${pan}1Z${gstinCheckChar(`${state}${pan}1Z`)}`;
 
 describe("names", () => {
@@ -85,9 +87,13 @@ describe("review", () => {
     await saveBusinessDetails(s.orgId, { legalName: "ZZ Live Seller", businessType: "individual", pan: "ABCPL7777K" });
     await saveBankAccount(s.orgId, { holderName: "ZZ Live Seller", account: "111122223333", ifsc: "SBIN0001111" });
     await addOwnershipPhoto(s, "stock", "/uploads/zz.jpg");
-    const list = await verificationChecklist(s);
-    expect(list.steps).toEqual({ business: "done", gstin: "done", bank: "done", ownership: "in_review" });
-    await submitForReview(s);
+    expect((await verificationChecklist(s)).steps.details).toBe("missing");
+    expect((await verificationChecklist(s)).canSubmit).toBe(false); // buyers must see who they're buying from
+    await saveDisclosure(s.id, details);
+    const withDetails = (await getStore(s.id))!;
+    const list = await verificationChecklist(withDetails);
+    expect(list.steps).toEqual({ business: "done", gstin: "done", bank: "done", ownership: "in_review", details: "done" });
+    await submitForReview(withDetails);
     expect((await pendingReviews()).some((r) => r.store.id === s.id)).toBe(true);
 
     await decideReview(s.id, { approve: true, tier: "new" }, "ZZ Reviewer");
@@ -107,7 +113,8 @@ describe("review", () => {
     await saveBusinessDetails(s.orgId, { legalName: "ZZ Back Seller", businessType: "individual", pan: "ABCPB8888K" });
     await saveBankAccount(s.orgId, { holderName: "ZZ Back Seller", account: "444455556666", ifsc: "SBIN0002222" });
     await addOwnershipPhoto(s, "stock", "/uploads/zz2.jpg");
-    await submitForReview(s);
+    await saveDisclosure(s.id, details);
+    await submitForReview((await getStore(s.id))!);
     await expect(decideReview(s.id, { approve: false, note: " " }, "ZZ Reviewer")).rejects.toThrow("what to fix");
     await decideReview(s.id, { approve: false, note: "Photo is blurry, please retake." }, "ZZ Reviewer");
     expect(await getStore(s.id)).toMatchObject({ status: "draft", reviewNote: "Photo is blurry, please retake." });
