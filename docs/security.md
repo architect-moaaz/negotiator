@@ -12,7 +12,7 @@ What protects GhostCart today, and what's still to do. Update this when you add 
 | Abuse | Rate limits on OTP, verification, haggling, complaints, the widget lookup and deal polling | `lib/rate-limit.ts` |
 | Secrets | Envelope encryption for platform tokens, webhook secrets and number PINs: a random data key per secret (AES-256-GCM), wrapped by a named key-encryption key from `SECRETS_KEYS`; rotation re-wraps data keys only (`db:rotate-secrets`). API keys stored hashed; identities (PAN, bank) stored as keyed hashes | `lib/crypto.ts`, `lib/secrets-rotation.ts`, `lib/integrations/keys.ts`, `lib/verification/identity-hash.ts` |
 | Webhooks | Inbound: Shopify HMAC, Meta `X-Hub-Signature-256`, Pine Labs signature. Outbound to sellers: HMAC-signed with retries | `lib/shopify/*`, `lib/meta/*`, `lib/integrations/webhooks.ts` |
-| Money | Code sets every price; the LLM can only pick from moves the code allowed. Double-entry ledger; holds until delivery | `packages/core`, `lib/orders/*` |
+| Money | Code sets every price; the LLM can only pick from moves the code allowed. Double-entry ledger, checked nightly and before money releases by the ledger gate; holds until delivery | `packages/core`, `lib/orders/*`, [database.md](database.md#the-ledger-gate-release-gate-for-money) |
 | Fraud | Self-dealing blocks, velocity limits, device links, duplicate identity detection, flagged orders | `lib/fraud/*` |
 | Privacy | Consent records, data export, account erasure, grievance queue | `lib/privacy/*` |
 | Supply chain | Dependabot weekly grouped updates for npm and GitHub Actions; lockfile committed; CI on every PR | `.github/` |

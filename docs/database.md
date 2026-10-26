@@ -16,6 +16,23 @@ Durable data is moving from Redis to Postgres. Redis keeps short-lived keys: OTP
 3. Review the SQL, commit it with the schema change. Tests apply every migration to an in-process Postgres (PGlite), so CI needs no database.
 4. Migrations run against Neon with `pnpm --filter @ghostcart/db db:migrate` (reads `DATABASE_URL_UNPOOLED`). Production migrations are run by the lead, not by CI, for now.
 
+## The ledger gate (release gate for money)
+
+`ledgerGate` (`apps/web/src/lib/orders/ledger-gate.ts`) checks that the ledger agrees with itself and with every order:
+
+- the whole ledger and each transaction sum to zero, and a transaction belongs to one order and one kind
+- each order has exactly one "paid" transaction, split as the order says, posted only to its own store's accounts
+- nothing is over-released or over-refunded, and each order's total is fully accounted for as refunded + released + still held
+- the hold row, the order status and processed refunds match the ledger
+
+It runs every night after reconciliation (`/api/cron/reconcile`; a failure is logged and sent to Sentry) and shows on the finance admin view. Before shipping any change that touches money, and again after deploying it, run it against production (read-only):
+
+```bash
+pnpm --filter @ghostcart/web db:ledger-gate
+```
+
+It exits 1 and lists each problem if anything is off.
+
 ## Cutover from Redis (one-time)
 | Step | `STORE_MODE` | What happens |
 |---|---|---|
