@@ -186,3 +186,72 @@ test.describe("Shopify-like theme", () => {
     expect(problems).toEqual([]);
   });
 });
+
+test.describe("cart page (GhostCart Privilege)", () => {
+  async function serveCart(context: BrowserContext, html: string, opts: { available?: boolean; exitPrompt?: boolean } = {}) {
+    const posted: { origin: string | null; body: { key: string; cartRef?: string; items: { ref: string; quantity: number }[]; returnUrl: string } }[] = [];
+    await serve(context, { "/cart": { html } });
+    await context.route(`${SHOP}/cart.js`, (r) => r.fulfill({ json: { token: "zzcarttoken123?key=abc", items: [{ product_id: 9001, quantity: 1 }, { product_id: 9002, quantity: 2 }] } }));
+    await context.route(`${SHOP}/wp-json/wc/store/v1/cart`, (r) => r.fulfill({ json: { items: [{ id: 51, quantity: 1 }] } }));
+    await context.route(`${GC}/api/v1/widget/cart`, (r) => {
+      const origin = r.request().headers().origin ?? null;
+      const cors = { "Access-Control-Allow-Origin": SHOP, "Access-Control-Allow-Methods": "POST", "Access-Control-Allow-Headers": "Content-Type" };
+      if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: cors });
+      posted.push({ origin, body: r.request().postDataJSON() });
+      return r.fulfill({ headers: cors, json: { available: opts.available ?? true, exitPrompt: opts.exitPrompt ?? false, url: `${GC}/api/v1/widget/cart/cart_zz/open?key=${KEY}` } });
+    });
+    await context.route(`${GC}/api/v1/widget/cart/**`, (r) => r.fulfill({ contentType: "text/html", body: "<!doctype html><title>Privilege</title><h1>Your private offer</h1>" }));
+    return posted;
+  }
+  const cartButton = (page: Page) => page.locator("[data-ghostcart-cart]").getByRole("button", { name: "Make an offer on your cart" });
+
+  test("reads the Shopify cart the store already shows and opens a private offer on all of it", async ({ page, context }) => {
+    const posted = await serveCart(context, `<!doctype html><h1>Your cart</h1><div data-ghostcart-cart="shopify"></div>${tag()}`);
+    const problems = watch(page);
+    await page.goto(`${SHOP}/cart`);
+    await expect(cartButton(page)).toBeVisible();
+    expect(posted).toEqual([
+      { origin: SHOP, body: { key: KEY, cartRef: "zzcarttoken123", items: [{ ref: "shopify-9001", quantity: 1 }, { ref: "shopify-9002", quantity: 2 }], returnUrl: `${SHOP}/cart` } },
+    ]);
+    const [popup] = await Promise.all([context.waitForEvent("page"), cartButton(page).click()]);
+    expect(new URL(popup.url()).pathname).toBe("/api/v1/widget/cart/cart_zz/open");
+    expect(new URL(popup.url()).searchParams.get("return")).toBe(`${SHOP}/cart`);
+    expect(problems).toEqual([]);
+  });
+
+  test("reads a WooCommerce cart from the Store API, keeping one cart id per browser", async ({ page, context }) => {
+    const posted = await serveCart(context, `<!doctype html><div data-ghostcart-cart="woocommerce"></div>${tag()}`);
+    await page.goto(`${SHOP}/cart`);
+    await expect(cartButton(page)).toBeVisible();
+    await page.reload();
+    await expect(cartButton(page)).toBeVisible();
+    expect(posted.map((p) => p.body.items)).toEqual([[{ ref: "woo-51", quantity: 1 }], [{ ref: "woo-51", quantity: 1 }]]);
+    expect(posted[0].body.cartRef).toMatch(/^[0-9a-f]{24}$/);
+    expect(posted[1].body.cartRef).toBe(posted[0].body.cartRef);
+  });
+
+  test("shows nothing when the seller won't haggle on this cart", async ({ page, context }) => {
+    const posted = await serveCart(context, `<!doctype html><div data-ghostcart-cart="shopify"></div>${tag()}`, { available: false });
+    await page.goto(`${SHOP}/cart`);
+    await expect.poll(() => posted.length).toBe(1);
+    await expect(cartButton(page)).toHaveCount(0);
+  });
+
+  test("offers once when the shopper heads for the tab bar, if the seller turned the prompt on", async ({ page, context }, testInfo) => {
+    test.skip(testInfo.project.name === "phone", "Exit intent needs a mouse; phones never see the prompt.");
+    await serveCart(context, `<!doctype html><div style="height:400px"></div><div data-ghostcart-cart="shopify"></div>${tag()}`, { exitPrompt: true });
+    await page.goto(`${SHOP}/cart`);
+    await expect(cartButton(page)).toBeVisible();
+    await page.mouse.move(300, 200);
+    await page.mouse.move(300, -5);
+    await page.evaluate(() => document.dispatchEvent(new MouseEvent("mouseout", { clientY: -1, relatedTarget: null, bubbles: true })));
+    const dialog = page.getByRole("dialog", { name: "Private offer on your cart" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.reload();
+    await expect(cartButton(page)).toBeVisible();
+    await page.evaluate(() => document.dispatchEvent(new MouseEvent("mouseout", { clientY: -1, relatedTarget: null, bubbles: true })));
+    await expect(dialog).toHaveCount(0);
+  });
+});

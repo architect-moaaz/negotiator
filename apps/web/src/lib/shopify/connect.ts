@@ -10,7 +10,7 @@ import { shopifyConfig } from "@ghostcart/channels";
 import { connectionForShop, tokenOf, updateConnection } from "./connections";
 import { importShopifyProducts } from "./sync";
 
-const WEBHOOK_TOPICS = ["ORDERS_CREATE", "PRODUCTS_CREATE", "PRODUCTS_UPDATE", "PRODUCTS_DELETE", "APP_UNINSTALLED"];
+const WEBHOOK_TOPICS = ["ORDERS_CREATE", "CHECKOUTS_CREATE", "CHECKOUTS_UPDATE", "PRODUCTS_CREATE", "PRODUCTS_UPDATE", "PRODUCTS_DELETE", "APP_UNINSTALLED"];
 
 /**
  * Finish connecting an installed shop to a GhostCart store: attach (or create) the store, record the

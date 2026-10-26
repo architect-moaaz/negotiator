@@ -156,3 +156,49 @@ describe("GhostCart Privilege bundle haggles", () => {
     await expect(startCartNegotiation(cart.id, "priv-buyer-4")).rejects.toThrow("Only 5");
   });
 });
+
+describe("GhostCart Privilege on the seller's cart page", async () => {
+  const { createApiKey } = await import("../integrations/keys");
+  const widgetCart = await import("@/app/api/v1/widget/cart/route");
+  const openCart = await import("@/app/api/v1/widget/cart/[id]/open/route");
+  const post = (key: string, origin: string, body: object) =>
+    widgetCart.POST(new Request("http://test/api/v1/widget/cart", { method: "POST", headers: { origin, "Content-Type": "application/json" }, body: JSON.stringify({ key, ...body }) }));
+
+  it("save the shopper's cart anonymously and hand back a link to a private offer on all of it", async () => {
+    const { store, a, b } = await storeWithCart();
+    const { value: key } = await createApiKey(store, "publishable", "owner");
+    const origin = `https://${store.domain}`;
+    const items = [{ ref: a.sku, quantity: 1 }, { ref: b.sku, quantity: 2 }, { ref: "shopify-unknown", quantity: 1 }];
+    const res = await post(key, origin, { cartRef: "zzcarttoken1", items, returnUrl: `${origin}/cart` });
+    const info = await res.json();
+    expect(info).toMatchObject({ available: true, listTotal: 3000, exitPrompt: true });
+    expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+    // Revisiting updates the same cart.
+    const again = await (await post(key, origin, { cartRef: "zzcarttoken1", items: items.slice(0, 1) })).json();
+    expect(again.url).toBe(info.url);
+
+    const cartId = new URL(info.url).pathname.split("/")[5];
+    const open = await openCart.GET(new Request(info.url), { params: Promise.resolve({ id: cartId }) });
+    expect(open.status).toBe(302);
+    const target = new URL(open.headers.get("location")!);
+    expect(target.pathname).toMatch(/^\/p\/[A-Za-z0-9_-]{32}$/);
+    expect(target.searchParams.get("return")).toBe(`${origin}/cart`);
+    const resolved = await resolveInvite(target.pathname.slice(3));
+    expect(resolved?.cart.lines).toHaveLength(1);
+  });
+
+  it("answer nothing to other sites, and say no when the seller hasn't turned recovery on", async () => {
+    const off = await storeWithCart({ recovery: false });
+    const { value: key } = await createApiKey(off.store, "publishable", "owner");
+    expect((await post(key, "https://evil.example", { items: [{ ref: off.a.sku, quantity: 1 }] })).status).toBe(403);
+    expect(await (await post(key, `https://${off.store.domain}`, { items: [{ ref: off.a.sku, quantity: 1 }] })).json()).toEqual({ available: false });
+  });
+
+  it("never open a cart that holds a shopper's contact details from the widget link", async () => {
+    const { store, a } = await storeWithCart();
+    const { value: key } = await createApiKey(store, "publishable", "owner");
+    const cart = await captureCart({ storeId: store.id, source: "widget", items: [{ ref: a.sku!, quantity: 1 }], contact: { email: "zz@example.com" }, consent: true });
+    const res = await openCart.GET(new Request(`http://test/api/v1/widget/cart/${cart.id}/open?key=${key}`), { params: Promise.resolve({ id: cart.id }) });
+    expect(res.status).toBe(404);
+  });
+});

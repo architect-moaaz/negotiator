@@ -134,6 +134,41 @@ describe("Shopify install → haggle → code → order", () => {
     expect((await getCart(cart.id))?.status).toBe("recovered");
   });
 
+  it("turns checkouts into carts, keeping contact details only when allowed, and closes them on the order", async () => {
+    const { shop, storeId } = await installAndConnect();
+    const { cartsForStore, getCart } = await import("../privilege/carts");
+    const checkout = (token: string, extra: object = {}) => ({
+      token,
+      line_items: [{ product_id: 9001, quantity: 1 }, { product_id: 424242, quantity: 1 }],
+      email: "zz.checkout@example.com",
+      phone: "+919876500001",
+      buyer_accepts_marketing: true,
+      abandoned_checkout_url: `https://${shop}/checkouts/${token}/recover`,
+      ...extra,
+    });
+    await webhooks.POST(signedWebhook("checkouts/create", shop, checkout("zzck1")));
+    const [anon] = (await cartsForStore(storeId)).filter((c) => c.externalRef === "zzck1");
+    expect(anon).toMatchObject({ source: "shopify_checkout", email: null, phone: null, consentAt: null, subtotal: 1499 });
+
+    process.env.SHOPIFY_CHECKOUT_CONTACT = "1";
+    try {
+      await webhooks.POST(signedWebhook("checkouts/update", shop, checkout("zzck2", { buyer_accepts_marketing: false })));
+      await webhooks.POST(signedWebhook("checkouts/create", shop, checkout("zzck3")));
+    } finally {
+      delete process.env.SHOPIFY_CHECKOUT_CONTACT;
+    }
+    const carts = await cartsForStore(storeId);
+    expect(carts.find((c) => c.externalRef === "zzck2")).toMatchObject({ email: null });
+    const kept = carts.find((c) => c.externalRef === "zzck3")!;
+    expect(kept).toMatchObject({ email: "zz.checkout@example.com", phone: "+919876500001" });
+
+    await webhooks.POST(signedWebhook("orders/create", shop, { id: 9, name: "#1009", checkout_token: "zzck1", discount_codes: [] }));
+    expect((await getCart(anon.id))?.status).toBe("completed");
+
+    await webhooks.POST(signedWebhook("customers/redact", shop, { customer: { email: "zz.checkout@example.com", phone: "+919876500001" } }));
+    expect(await getCart(kept.id)).toMatchObject({ email: null, phone: null, name: null });
+  });
+
   it("falls back to a draft order when Shopify won't create the code, redeems it, and deletes it once expired", async () => {
     const { shop, storeId } = await installAndConnect("zz-nodiscount");
     await updateStore(storeId, { status: "live" });

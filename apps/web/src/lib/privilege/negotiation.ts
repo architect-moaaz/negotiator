@@ -10,12 +10,37 @@ import { policyForProduct } from "../shop/policies";
 import { getProduct } from "../shop/products";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
+import type { RecoverySettings } from "@ghostcart/core";
 import type { Deal } from "../types";
-import { getCart, updateCart, RECOVERABLE, type CartStatus } from "./carts";
+import { getCart, updateCart, RECOVERABLE, type CartRow, type CartStatus } from "./carts";
 import { getRecovery } from "./settings";
 
 /** How long a Privilege haggle stays open once the shopper starts it. */
 const PRIVILEGE_MINUTES = 30;
+
+type Store = NonNullable<Awaited<ReturnType<typeof getStore>>>;
+
+/**
+ * The cart as a bundle the seller will haggle on: every product re-read (prices, stock and rules may have
+ * changed since the cart was captured) and each line's recovery limits summed. Throws ShopError when any
+ * item can't be offered, so the cart is haggled whole or not at all.
+ */
+export async function bundleFor(cart: Pick<CartRow, "lines">, store: Store, recovery: RecoverySettings) {
+  const lines: NonNullable<Deal["cart"]>["lines"] = [];
+  const lineTerms = [];
+  for (const l of cart.lines) {
+    const p = await getProduct(l.productId);
+    if (!p || p.storeId !== store.id || p.status !== "active") throw new ShopError(`${l.title} isn't available any more.`, 409);
+    if (p.stock < l.quantity) throw new ShopError(`Only ${p.stock} of ${p.title} left in stock.`, 409);
+    const policy = await policyForProduct(p);
+    const terms = recoveryLineTerms(policy, recovery, p.price, { sellerId: store.id, sellerName: store.name, category: "general" });
+    lineTerms.push(terms && { terms, quantity: l.quantity });
+    lines.push({ productId: p.id, title: p.title, quantity: l.quantity, unitPrice: p.price, image: p.images[0] });
+  }
+  const terms = cartTerms(lineTerms, { sellerId: store.id, sellerName: store.name });
+  if (!terms) throw new ShopError("Some items in this cart are sold at a fixed price, so the cart can't be haggled.", 409);
+  return { lines, terms };
+}
 
 /**
  * GhostCart Privilege: the shopper opens their private invite and makes the seller an offer on the
@@ -44,20 +69,7 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
     if (cart.lines.length > 1 || cart.lines[0].quantity > 1) throw new ShopError("Bundle offers on this shop are coming soon. Make an offer on one item for now.", 409);
   }
 
-  // Re-read every product: prices, stock and rules may have changed since the cart was captured.
-  const lines: NonNullable<Deal["cart"]>["lines"] = [];
-  const lineTerms = [];
-  for (const l of cart.lines) {
-    const p = await getProduct(l.productId);
-    if (!p || p.storeId !== store.id || p.status !== "active") throw new ShopError(`${l.title} isn't available any more.`, 409);
-    if (p.stock < l.quantity) throw new ShopError(`Only ${p.stock} of ${p.title} left in stock.`, 409);
-    const policy = await policyForProduct(p);
-    const terms = recoveryLineTerms(policy, recovery, p.price, { sellerId: store.id, sellerName: store.name, category: "general" });
-    lineTerms.push(terms && { terms, quantity: l.quantity });
-    lines.push({ productId: p.id, title: p.title, quantity: l.quantity, unitPrice: p.price, image: p.images[0] });
-  }
-  const terms = cartTerms(lineTerms, { sellerId: store.id, sellerName: store.name });
-  if (!terms) throw new ShopError("Some items in this cart are sold at a fixed price, so the cart can't be haggled.", 409);
+  const { lines, terms } = await bundleFor(cart, store, recovery);
   const listTotal = terms.benchmark;
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (listTotal > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);

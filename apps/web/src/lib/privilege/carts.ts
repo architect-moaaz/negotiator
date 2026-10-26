@@ -1,5 +1,5 @@
 import { schema } from "@ghostcart/db";
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, lt, or } from "drizzle-orm";
 import { getDb } from "../db";
 import { recordConsent, RECOVERY_OFFER_WORDING } from "../privacy/consent";
 import { newId } from "../shop/ids";
@@ -37,6 +37,8 @@ export interface CaptureInput {
   contact?: { email?: string; phone?: string; name?: string };
   /** The shopper ticked the recovery-offer box (checkout) or asked for an offer themselves. */
   consent?: boolean;
+  /** What the shopper agreed to, when it wasn't GhostCart's own wording (recorded with the consent). */
+  consentWording?: string;
   returnUrl?: string;
 }
 
@@ -116,7 +118,7 @@ export async function captureCart(input: CaptureInput): Promise<CartRow> {
       .returning();
   }
   if (input.consent && !existing?.consentAt) {
-    await recordConsent(input.userId ?? contact?.phone ?? contact?.email ?? row.id, "recovery_offers", "granted", RECOVERY_OFFER_WORDING, `cart:${input.source}`);
+    await recordConsent(input.userId ?? contact?.phone ?? contact?.email ?? row.id, "recovery_offers", "granted", input.consentWording ?? RECOVERY_OFFER_WORDING, `cart:${input.source}`);
   }
   await kv.log({ type: "cart_captured", actor: "system", userId: input.userId, detail: `${input.source} cart ${row.id}: ${lines.length} item(s), list ₹${subtotal}${input.consent ? ", recovery consent" : ""}` });
   return row;
@@ -169,4 +171,38 @@ export async function cartsByStatus(storeId: string, statuses: CartStatus[]) {
 export async function cartsForStore(storeId: string) {
   const db = await getDb();
   return db.select().from(carts).where(eq(carts.storeId, storeId));
+}
+
+type Who = { userId?: string; email?: string; phone?: string };
+
+function whoMatches(who: Who) {
+  const email = who.email?.trim().toLowerCase();
+  const phone = who.phone ? normalizePhone(who.phone) : null;
+  return [who.userId ? eq(carts.userId, who.userId) : undefined, email ? eq(carts.email, email) : undefined, phone ? eq(carts.phone, phone) : undefined].filter(
+    (c) => c !== undefined,
+  );
+}
+
+/**
+ * Forget a shopper's contact details on carts (account deletion, or Shopify's customers/redact for one
+ * store). The cart's items stay for the seller's stats, no longer tied to anyone. Returns how many.
+ */
+export async function eraseCartContact(who: Who, storeId?: string) {
+  const match = whoMatches(who);
+  if (!match.length) return 0;
+  const db = await getDb();
+  const rows = await db
+    .update(carts)
+    .set({ email: null, phone: null, name: null, userId: null })
+    .where(and(or(...match), storeId ? eq(carts.storeId, storeId) : undefined))
+    .returning({ id: carts.id });
+  return rows.length;
+}
+
+/** Carts tied to a shopper (data export, or Shopify's customers/data_request for one store). */
+export async function cartsWithContact(who: Who, storeId?: string) {
+  const match = whoMatches(who);
+  if (!match.length) return [];
+  const db = await getDb();
+  return db.select().from(carts).where(and(or(...match), storeId ? eq(carts.storeId, storeId) : undefined));
 }
