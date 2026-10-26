@@ -231,7 +231,7 @@ export function VerificationTab({ storeId, canManage, onStatus }: { storeId: str
             <p className="text-muted">
               {data.platform === "ghostcart_shop"
                 ? "Take a photo of the products you sell, with today's newspaper or a handwritten note saying \"GhostCart\" and today's date in the frame."
-                : `Upload a screenshot of your ${data.platform === "amazon" ? "Amazon Seller Central" : "Flipkart Seller Hub"} profile showing your store name. Connecting your seller account directly comes next.`}
+                : `Connect your ${data.platform === "amazon" ? "Amazon Seller Central" : "Flipkart Seller Hub"} account on the Integrations tab (that proves it's yours), or upload a screenshot of your seller profile showing your store name.`}
             </p>
             {editable && (
               <label className={`${secondary} w-fit cursor-pointer`}>

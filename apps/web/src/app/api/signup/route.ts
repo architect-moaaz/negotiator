@@ -4,6 +4,7 @@ import { OtpError, sendLoginCode, verifyLoginCode } from "@/lib/otp";
 import { codeLimits, rateLimit, verifyLimits } from "@/lib/rate-limit";
 import { issueSessionToken, startSession } from "@/lib/session";
 import { store } from "@/lib/store";
+import { turnstileFailed, verifyTurnstile } from "@/lib/turnstile";
 import { maskPhone, normalizePhone, publicUser, signUp } from "@/lib/users";
 
 /**
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     source?: string;
     code?: string;
     client?: string;
+    turnstile?: string;
   };
   const name = body.name?.trim();
   const phone = body.phone ? normalizePhone(body.phone) : null;
@@ -33,6 +35,7 @@ export async function POST(request: Request) {
     if (!body.code) {
       const limited = await rateLimit(...codeLimits(request, phone));
       if (limited) return limited;
+      if (body.client !== "mobile" && !(await verifyTurnstile(body.turnstile, request))) return turnstileFailed();
       const { via } = await sendLoginCode("buyer-signup", phone);
       await store.log({ type: "login_code_sent", actor: "system", detail: `signup code via ${via} to ${maskPhone(phone)}` });
       return Response.json({ codeSent: true, via, phone: maskPhone(phone) });

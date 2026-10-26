@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ReconciliationPanel } from "./reconciliation-panel";
 
 interface Finance {
   balanced: boolean;
@@ -42,6 +43,7 @@ export function FinancePanel() {
           ))}
         </ul>
       )}
+      <ReconciliationPanel />
       <table className="w-full text-left text-sm">
         <thead className="text-muted">
           <tr>

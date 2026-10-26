@@ -28,6 +28,15 @@ if (!process.env.ONDC_SIGNING_PRIVATE_KEY) {
   process.env.ONDC_SIGNING_PUBLIC_KEY = keys.publicKey;
 }
 
+// Flipkart Seller APIs: the in-repo mock.
+const FLIPKART = "http://flipkart.test/api/mock-flipkart";
+process.env.FLIPKART_AUTH_BASE ??= `${FLIPKART}/oauth-service`;
+process.env.FLIPKART_API_BASE ??= `${FLIPKART}/sellers`;
+
+// WhatsApp through a BSP: the in-repo Gupshup mock.
+const GUPSHUP = "http://gupshup.test/api/mock-gupshup";
+process.env.GUPSHUP_API_BASE ??= GUPSHUP;
+
 // Push notifications go to the in-repo Expo push mock.
 const EXPO = "http://expo.test/api/mock-expo-push";
 process.env.EXPO_PUSH_URL ??= EXPO;
@@ -35,6 +44,14 @@ process.env.EXPO_PUSH_URL ??= EXPO;
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(FLIPKART)) {
+    const mock = await import("./src/app/api/mock-flipkart/[...path]/route");
+    return mock.GET(new Request(url, init), { params: Promise.resolve({ path: new URL(url).pathname.replace("/api/mock-flipkart/", "").split("/") }) });
+  }
+  if (url.startsWith(GUPSHUP)) {
+    const mock = await import("./src/app/api/mock-gupshup/wa/api/v1/msg/route");
+    return init?.method === "POST" ? mock.POST(new Request(url, init)) : mock.GET();
+  }
   if (url.startsWith(EXPO)) {
     const mock = await import("./src/app/api/mock-expo-push/route");
     return init?.method === "POST" ? mock.POST(new Request(url, init)) : mock.GET();

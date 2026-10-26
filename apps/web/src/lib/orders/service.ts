@@ -241,7 +241,9 @@ export async function runOrderJobs(now = new Date()) {
   await retryWebhooks();
   const { pollAmazonImports } = await import("../amazon/connect");
   await pollAmazonImports();
-  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted };
+  const { revokeExpiredGrants } = await import("../grants/service");
+  const revokedGrants = await revokeExpiredGrants();
+  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted, revokedGrants };
 }
 
 /** Seller money at a glance: on hold until delivery, and released (on its way to the bank). */
