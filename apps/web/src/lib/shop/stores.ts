@@ -47,7 +47,7 @@ export async function storesForOrg(orgId: string) {
   return (await db.select().from(stores).where(eq(stores.orgId, orgId))) as Store[];
 }
 
-export async function updateStore(id: string, patch: Partial<Pick<Store, "name" | "domain" | "status" | "tier" | "verifiedAt">>) {
+export async function updateStore(id: string, patch: Partial<Pick<Store, "name" | "domain" | "status" | "tier" | "verifiedAt" | "reviewNote">>) {
   const db = await getDb();
   const [store] = await db.update(stores).set(patch).where(eq(stores.id, id)).returning();
   return store as Store | undefined;

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import { FULFILMENT_STAGES } from "@/lib/fulfilment";
 import type { FulfilmentStage, PublicCheckout, PublicDeal } from "@/lib/types";
+import { ShopOrderStatus } from "./shop-order-status";
 
 const FIELDS = [
   { name: "name", label: "Full name", autoComplete: "name", span: 2 },
@@ -399,7 +400,7 @@ export function CheckoutPanel({
               Paid in full. Your {deal.bestSeller} order is going to{" "}
               {c.deliverTo?.name}, {c.deliverTo?.area}.
             </p>
-            {c.deliveryBy && (
+            {c.deliveryBy && !deal.shop && (
               <p className="text-muted">
                 Estimated delivery by{" "}
                 <span className="text-fg">{dayFmt.format(c.deliveryBy)}</span>.
@@ -412,6 +413,7 @@ export function CheckoutPanel({
           </div>
         )}
         {step === "ordered" && <Tracking c={c} />}
+        {step === "ordered" && deal.shop && <ShopOrderStatus dealId={deal.id} storeName={deal.shop.storeName} returnUrl={deal.shop.returnUrl} />}
 
         {step === "lapsed" && (
           <div className="mt-8">
