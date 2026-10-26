@@ -280,6 +280,12 @@ export const legacyStore = {
     else mem.users.set(user.id, user);
   },
 
+  /** Free a phone number's sign-in index (after the account behind it is erased). Postgres keys on the row itself. */
+  async releasePhone(phone: string) {
+    if (redis) await redis.del(`phone:${phone}`);
+    else mem.phones.delete(phone);
+  },
+
   async sellerIdForPhone(phone: string) {
     return (redis ? await redis.get<string>(`sellerPhone:${phone}`) : (mem.kv.get(`sellerPhone:${phone}`) as string | undefined)) ?? undefined;
   },

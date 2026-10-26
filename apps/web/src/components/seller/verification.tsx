@@ -9,12 +9,25 @@ interface Checklist {
   reviewNote: string | null;
   platform: string;
   domain: string | null;
-  steps: { business: StepState; gstin: StepState; bank: StepState; ownership: StepState };
+  steps: { business: StepState; gstin: StepState; bank: StepState; ownership: StepState; details: StepState };
+  disclosure: Disclosure | null;
   canSubmit: boolean;
   org: { legalName?: string | null; businessType?: string | null };
   ownership: { txt: string; meta: string } | null;
   checks: { type: string; status: string; masked: string | null; reason: string | null }[];
 }
+
+interface Disclosure {
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  supportPhone: string;
+  supportEmail?: string;
+  returnDays: number;
+  returnPolicy: string;
+}
+const EMPTY_DISCLOSURE = { address: "", city: "", state: "", pincode: "", supportPhone: "", supportEmail: "", returnDays: "7", returnPolicy: "" };
 
 const BADGE: Record<StepState, [string, string]> = {
   missing: ["To do", "text-muted"],
@@ -23,8 +36,9 @@ const BADGE: Record<StepState, [string, string]> = {
   done: ["Verified", "text-paid"],
 };
 
-function Step({ n, title, state, children }: { n: number; title: string; state: StepState; children: React.ReactNode }) {
-  const [label, tone] = BADGE[state];
+function Step({ n, title, state, doneLabel, children }: { n: number; title: string; state: StepState; doneLabel?: string; children: React.ReactNode }) {
+  const [badge, tone] = BADGE[state];
+  const label = state === "done" && doneLabel ? doneLabel : badge;
   return (
     <section className="border-t border-line py-6">
       <div className="flex items-baseline justify-between gap-4">
@@ -42,12 +56,17 @@ export function VerificationTab({ storeId, canManage, onStatus }: { storeId: str
   const [data, setData] = useState<Checklist | null>(null);
   const [business, setBusiness] = useState({ legalName: "", businessType: "individual", pan: "", gstin: "" });
   const [bank, setBank] = useState({ holderName: "", account: "", confirm: "", ifsc: "" });
+  const [details, setDetails] = useState<typeof EMPTY_DISCLOSURE | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async () => {
     const r = await api<Checklist>(`/api/seller/stores/${storeId}/verification`);
-    if (r.ok) setData(r.data);
+    if (r.ok) {
+      setData(r.data);
+      const d = r.data.disclosure;
+      setDetails((cur) => cur ?? (d ? { ...d, supportPhone: d.supportPhone.replace(/^\+91/, ""), supportEmail: d.supportEmail ?? "", returnDays: String(d.returnDays) } : EMPTY_DISCLOSURE));
+    }
   }, [storeId]);
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -225,13 +244,80 @@ export function VerificationTab({ storeId, canManage, onStatus }: { storeId: str
         )}
       </Step>
 
+      <Step n={4} title="Shop details for buyers" state={data.steps.details} doneLabel="Saved">
+        <p className="mb-4 text-sm text-muted">
+          The law asks marketplaces to show buyers who they&apos;re buying from: your address, a customer care number and your return policy. These appear on your shop and product pages
+          {data.org.legalName ? `, next to your legal name (${data.org.legalName})` : ""}.
+        </p>
+        {canManage && details && (
+          <form
+            className="grid gap-3 sm:grid-cols-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setBusy("details");
+              setErrors((x) => ({ ...x, details: "" }));
+              const r = await api(`/api/seller/stores/${storeId}/disclosure`, { method: "PUT", body: details });
+              setBusy("");
+              if (!r.ok) setErrors((x) => ({ ...x, details: r.error }));
+              await load();
+            }}
+          >
+            <label className="grid gap-1 sm:col-span-2">
+              <span className="text-sm text-muted">Street address you trade from</span>
+              <input required autoComplete="street-address" value={details.address} onChange={(e) => setDetails({ ...details, address: e.target.value })} className={field} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">City</span>
+              <input required value={details.city} onChange={(e) => setDetails({ ...details, city: e.target.value })} className={field} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">State</span>
+              <input required value={details.state} onChange={(e) => setDetails({ ...details, state: e.target.value })} className={field} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">Pincode</span>
+              <input required inputMode="numeric" maxLength={6} value={details.pincode} onChange={(e) => setDetails({ ...details, pincode: e.target.value.replace(/\D/g, "") })} className={`${field} font-receipt`} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">Customer care number</span>
+              <input required inputMode="tel" placeholder="98765 43210" value={details.supportPhone} onChange={(e) => setDetails({ ...details, supportPhone: e.target.value })} className={field} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">Customer care email (optional)</span>
+              <input type="email" value={details.supportEmail} onChange={(e) => setDetails({ ...details, supportEmail: e.target.value })} className={field} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted">Days a buyer has to return an item</span>
+              <input required inputMode="numeric" value={details.returnDays} onChange={(e) => setDetails({ ...details, returnDays: e.target.value.replace(/\D/g, "") })} className={field} />
+            </label>
+            <label className="grid gap-1 sm:col-span-2">
+              <span className="text-sm text-muted">Return and refund policy, in plain words</span>
+              <textarea
+                required
+                rows={3}
+                placeholder="Unused items in original packaging can be returned within 7 days of delivery. We refund to your original payment method within 5 working days of receiving it."
+                value={details.returnPolicy}
+                onChange={(e) => setDetails({ ...details, returnPolicy: e.target.value })}
+                className={field}
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <ErrorText>{errors.details}</ErrorText>
+              <button disabled={busy === "details"} className={secondary}>
+                {busy === "details" ? "Saving…" : data.disclosure ? "Update shop details" : "Save shop details"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Step>
+
       {editable && (
         <div className="border-t border-line pt-6">
           <ErrorText>{errors.submit}</ErrorText>
           <button disabled={!data.canSubmit || busy === "submit"} onClick={() => run("submit", "submit", {})} className={primary}>
             Submit for review
           </button>
-          {!data.canSubmit && <p className="mt-2 text-sm text-muted">Finish the three steps to submit.</p>}
+          {!data.canSubmit && <p className="mt-2 text-sm text-muted">Finish the four steps to submit.</p>}
         </div>
       )}
     </div>

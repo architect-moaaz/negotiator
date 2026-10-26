@@ -11,6 +11,7 @@ Team: `architect-moaaz` (Moaaz), `rajathc93`, `lakshmie6x`, `ginger205`, and Cla
 ```bash
 pnpm install
 pnpm dev          # apps/web on http://localhost:3000; without Redis env vars data is in memory
+pnpm --filter @ghostcart/mobile start   # the Expo app (see apps/mobile/README.md)
 pnpm check        # typecheck, lint, test, build across the workspace (what CI runs)
 pnpm test         # vitest in every package
 pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforces prerender rules
@@ -20,7 +21,8 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 
 | Area | Where |
 | --- | --- |
-| Negotiation pipeline (scrape → seller match → compare → terms → opening) | `apps/web/src/lib/negotiate.ts`, `apps/web/src/lib/scrape.ts` |
+| Negotiation state (offers, approvals, lock payment or price grant) | `apps/web/src/lib/negotiate.ts`; shop haggles start in `apps/web/src/lib/shop/negotiation.ts` |
+| Consumer catalogue (search across live sellers) | `apps/web/src/lib/shop/catalogue.ts`, `apps/web/src/app/page.tsx`, `apps/web/src/app/search` |
 | Money rules: budget, floor, auto-approve limit, allowed moves | `packages/core` (`terms.ts`, `moves.ts`; pure, property-tested). `apps/web/src/lib/haggle.ts` wraps it |
 | Agent wording (Claude via Vercel AI SDK 7) | `apps/web/src/lib/agent.ts`, `chooseMove` in `apps/web/src/lib/haggle.ts` |
 | Human approvals: deal desk, sellers, AgenticOrg recommendations | `apps/web/src/lib/deal-desk.ts`, `apps/web/src/app/api/admin/*`, `apps/web/src/app/api/seller/*` |
@@ -32,11 +34,18 @@ pnpm --filter @ghostcart/web build   # must pass: Next 16 cacheComponents enforc
 | Rate limits | `apps/web/src/lib/rate-limit.ts` |
 | Analytics and demographics | `apps/web/src/lib/analytics.ts`, `apps/web/src/lib/demographics.ts`, `apps/web/src/app/api/track` |
 | Storage: Redis (short-lived keys; in-memory in dev) and Postgres via `STORE_MODE` | `apps/web/src/lib/store.ts`, `pg-store.ts`, `packages/db` (Drizzle schema, migrations), [docs/database.md](docs/database.md) |
+| Shopper data rights (consent records, export, erasure) and the grievance officer | `apps/web/src/lib/privacy/*`, `apps/web/src/app/grievance` |
+| Seller disclosures (E-Commerce Rules), draft legal pages | `apps/web/src/lib/shop/disclosure.ts`, `apps/web/src/app/legal` |
+| Security headers (CSP, HSTS) and controls | `apps/web/security-headers.ts`, [docs/security.md](docs/security.md) |
+| Per-org data export, analytics warehouse (nightly daily metrics) | `apps/web/src/lib/shop/export.ts`, `apps/web/src/lib/warehouse.ts` |
+| ONDC buyer app (signing, registry, callbacks, mock network) | `apps/web/src/lib/ondc/*`, [docs/ondc.md](docs/ondc.md) |
+| Mobile app (Expo: shopper + seller approvals with push) | `apps/mobile`, push in `apps/web/src/lib/push.ts`, app sessions via `x-gc-*` headers in `apps/web/src/lib/session.ts` |
+| Load tests (k6) | `load/`, [load/README.md](load/README.md) |
 | UI | `apps/web/src/app/*` pages, `apps/web/src/components/*` |
 
 ## Rules we learned the hard way
 
-1. **No scraping or bot-check circumvention.** Amazon now blocks automated reads (503 pages). We detect that and ask for a screenshot; we never route around it (no stealth proxies, no CAPTCHA tricks). The real path is official APIs, seller catalogues and ONDC.
+1. **No scraping or bot-check circumvention.** The hackathon's page-scraping flow is gone. Product data comes from sellers (their own catalogue, Shopify/Woo sync, Amazon SP-API) and, for price comparison, official affiliate APIs only. Never route around a block.
 2. **Code sets every price; the LLM only talks.** `computeTerms` and `candidateMoves` decide what's allowed, and the model picks a move and writes the reply. Never let a model output become a price without the code-side bounds check.
 3. **Humans approve what the agent can't.** Anything below the auto-approve limit escalates; after a human rejects, the agent holds at its final offer and never pages them again for the same deal.
 4. **Honest UI copy.** Social proof, timers and claims use real data only ("be the first" rather than fake counts). Test-mode payments are labelled as test mode.

@@ -30,7 +30,7 @@ describe("resolvePolicy", () => {
 describe("termsFromPolicy", () => {
   it("turns percentages into rupee limits on the list price", () => {
     const t = termsFromPolicy(resolvePolicy({ store: { maxDiscountPct: 10, autoApprovePct: 5 } }), 20000, ctx)!;
-    expect(t).toMatchObject({ fundedBy: "seller", benchmark: 20000, floor: 18000, autoLimit: 19000, opening: 19750, budget: 2000 });
+    expect(t).toMatchObject({ fundedBy: "seller", benchmark: 20000, floor: 18000, autoLimit: 19000, opening: 19750, budget: 2000, benchmarkKind: "list" });
   });
 
   it("respects a product's absolute floor when it's above the percentage floor", () => {

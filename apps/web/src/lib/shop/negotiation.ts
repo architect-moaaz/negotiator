@@ -23,7 +23,11 @@ export class ShopError extends Error {
  * A shopper starts haggling on a GhostCart Shop product. The seller's list price is the benchmark and
  * their discount rules set the limits; from here the normal haggle, approval and checkout flow runs.
  */
-export async function startShopNegotiation(productId: string, userId: string, opts: { channel?: string; city?: string; request?: Request; returnUrl?: string } = {}) {
+export async function startShopNegotiation(
+  productId: string,
+  userId: string,
+  opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"] } = {},
+) {
   const product = await getProduct(productId);
   const store = product && (await getStore(product.storeId));
   if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
@@ -76,7 +80,8 @@ export async function startShopNegotiation(productId: string, userId: string, op
     expiresAt: now + policy.expiryMinutes * 60 * 1000,
     status: "negotiating",
     city: opts.city,
-    channel: "web",
+    channel: opts.chat?.channel ?? "web",
+    chat: opts.chat,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };
