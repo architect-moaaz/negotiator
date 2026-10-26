@@ -705,3 +705,34 @@ export const webPushSubscriptions = pgTable(
   },
   (t) => [index("web_push_phone_idx").on(t.phone)],
 );
+
+/**
+ * GhostCart's monthly tax invoice to each seller for its platform fee (fees are earned when a payout is
+ * released or a price grant is redeemed, so an issued invoice never needs reversing). Money in paise.
+ */
+export const feeInvoices = pgTable(
+  "fee_invoices",
+  {
+    /** GC/2026-27/000001: sequential per financial year. */
+    number: text("number").primaryKey(),
+    fy: text("fy").notNull(),
+    serial: integer("serial").notNull(),
+    orgId: text("org_id").notNull(),
+    storeId: text("store_id").notNull(),
+    /** YYYY-MM (IST) the fees were earned in. */
+    period: text("period").notNull(),
+    sellerName: text("seller_name").notNull(),
+    sellerGstin: text("seller_gstin"),
+    sellerAddress: text("seller_address"),
+    /** Two-digit GST state code of the place of supply (the seller's state). */
+    placeOfSupply: text("place_of_supply"),
+    taxable: bigint("taxable", { mode: "number" }).notNull(),
+    cgst: bigint("cgst", { mode: "number" }).notNull(),
+    sgst: bigint("sgst", { mode: "number" }).notNull(),
+    igst: bigint("igst", { mode: "number" }).notNull(),
+    total: bigint("total", { mode: "number" }).notNull(),
+    lines: jsonb("lines").$type<{ ref: string; at: string; fee: number; gst: number }[]>().notNull(),
+    issuedAt: ts("issued_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("fee_invoices_store_period_idx").on(t.storeId, t.period), uniqueIndex("fee_invoices_fy_serial_idx").on(t.fy, t.serial), index("fee_invoices_org_idx").on(t.orgId)],
+);
