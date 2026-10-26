@@ -653,3 +653,18 @@ export const ondcMessages = pgTable(
   },
   (t) => [index("ondc_messages_txn_idx").on(t.transactionId, t.action), index("ondc_messages_created_idx").on(t.createdAt)],
 );
+
+/** Expo push tokens from the mobile app, per signed-in shopper (buyer) or seller member (phone). */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").notNull(),
+    /** buyer (user id) | member (phone). A phone signed in as both gets both kinds of notification. */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    platform: text("platform").notNull(), // ios | android
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.token, t.actorType] }), index("push_tokens_actor_idx").on(t.actorType, t.actorId)],
+);

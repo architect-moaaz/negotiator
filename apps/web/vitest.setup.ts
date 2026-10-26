@@ -28,9 +28,17 @@ if (!process.env.ONDC_SIGNING_PRIVATE_KEY) {
   process.env.ONDC_SIGNING_PUBLIC_KEY = keys.publicKey;
 }
 
+// Push notifications go to the in-repo Expo push mock.
+const EXPO = "http://expo.test/api/mock-expo-push";
+process.env.EXPO_PUSH_URL ??= EXPO;
+
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(EXPO)) {
+    const mock = await import("./src/app/api/mock-expo-push/route");
+    return init?.method === "POST" ? mock.POST(new Request(url, init)) : mock.GET();
+  }
   if (url.startsWith(ONDC) || url.startsWith(ONDC_BAP)) {
     const request = new Request(url, init);
     const path = new URL(url).pathname;
