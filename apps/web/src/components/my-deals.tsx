@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { inr, shortTitle } from "@/lib/format";
 import type { DealStatus, PublicDeal } from "@/lib/types";
+import { YourData } from "./your-data";
 
 const STATUS: Record<DealStatus, string> = {
   negotiating: "Haggling",
   awaiting_approval: "Waiting for approval",
   pending: "Agreed, pay to lock",
   paid: "Locked",
+  granted: "Code ready",
   expired: "Expired",
 };
 
@@ -18,6 +20,7 @@ export function MyDeals() {
   const router = useRouter();
   const [data, setData] = useState<{ name: string; deals: PublicDeal[] } | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [deleted, setDeleted] = useState(false);
 
   useEffect(() => {
     fetch("/api/me/deals", { cache: "no-store" })
@@ -31,6 +34,17 @@ export function MyDeals() {
     router.refresh();
   }
 
+  if (deleted) {
+    return (
+      <div role="status" className="mt-20 text-center">
+        <p className="text-lg">Your account is deleted.</p>
+        <p className="mt-2 text-muted">Your name, number and conversations are erased. You&apos;re logged out.</p>
+        <Link href="/" className="mt-6 inline-block rounded-xl bg-saffron px-6 py-3 font-semibold text-paper-ink">
+          Back to GhostCart
+        </Link>
+      </div>
+    );
+  }
   if (needsLogin) {
     return (
       <div className="mt-20 text-center">
@@ -86,6 +100,7 @@ export function MyDeals() {
           </li>
         ))}
       </ul>
+      <YourData onDeleted={() => setDeleted(true)} />
     </div>
   );
 }

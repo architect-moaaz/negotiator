@@ -6,8 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import { PhoneLogin } from "../phone-login";
+import { ApprovalsTab } from "./approvals";
 import { DiscountsTab } from "./discounts";
+import { IntegrationsTab } from "./integrations";
+import { OrdersTab } from "./orders";
 import { ProductsTab } from "./products";
+import { VerificationTab } from "./verification";
+import { SellerStats } from "./stats";
 import { api } from "./ui";
 
 export interface StoreSummary {
@@ -33,6 +38,7 @@ export interface ProductRow {
   categoryId: string | null;
   sku: string | null;
   images: string[];
+  countryOfOrigin: string | null;
   status: string;
 }
 export interface StoreData {
@@ -46,7 +52,7 @@ export interface StoreData {
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const STATUS: Record<string, string> = {
-  draft: "Draft: shoppers can't see this store yet. Verification comes next.",
+  draft: "Draft: shoppers can't see this store yet. Get verified to go live.",
   pending_review: "Waiting for review. We'll message you when it's live.",
   live: "Live",
   suspended: "Suspended. Contact GhostCart support.",
@@ -57,7 +63,8 @@ export function SellerDashboard() {
   const params = useSearchParams();
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [data, setData] = useState<StoreData | null>(null);
-  const [tab, setTab] = useState<"products" | "discounts">("products");
+  const [waiting, setWaiting] = useState(0);
+  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "integrations" | "verification">("products");
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
@@ -80,6 +87,20 @@ export function SellerDashboard() {
     const t = setTimeout(() => loadStore(storeId), 0);
     return () => clearTimeout(t);
   }, [storeId, loadStore]);
+  // Keep the approvals badge current whichever tab is open.
+  useEffect(() => {
+    if (!storeId) return;
+    const poll = async () => {
+      const r = await api<{ waiting: unknown[] }>(`/api/seller/stores/${storeId}/approvals`);
+      if (r.ok) setWaiting(r.data.waiting.length);
+    };
+    const first = setTimeout(poll, 0);
+    const t = setInterval(poll, 15000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
+  }, [storeId]);
 
   if (account === undefined) return <p className="mt-16 text-muted">Loading…</p>;
   if (account === null) {
@@ -140,6 +161,11 @@ export function SellerDashboard() {
           <Link href="/seller/start" className="hover:text-fg">
             Add a store
           </Link>
+          {data?.role === "owner" && (
+            <a href={`/api/seller/stores/${data.store.id}/export`} className="hover:text-fg" title="Everything your organisation holds on GhostCart, as spreadsheets">
+              Download all data
+            </a>
+          )}
           <button
             onClick={async () => {
               await api("/api/auth/logout", { body: { role: "member" } });
@@ -160,15 +186,25 @@ export function SellerDashboard() {
           <section className="mt-10">
             <h1 className="text-3xl font-bold tracking-tight">{data.store.name}</h1>
             <p className={`mt-2 ${data.store.status === "live" ? "text-paid" : "text-muted"}`}>{STATUS[data.store.status] ?? data.store.status}</p>
+            {data.store.platform === "ghostcart_shop" && (
+              <p className="mt-1">
+                Your shop:{" "}
+                <Link href={`/s/${data.store.slug}`} className="text-saffron underline underline-offset-4">
+                  /s/{data.store.slug}
+                </Link>
+                {data.store.status !== "live" && <span className="text-muted"> (preview)</span>}
+              </p>
+            )}
             <p className="mt-1 text-sm text-muted">
               {plural(data.products.length, "product")} · {plural(data.categories.length, "category", "categories")} · store default up to{" "}
               {data.policies.store.maxDiscountPct ?? 10}% off
               {data.products[0] ? ` · e.g. ${data.products[0].title} at ${inr(data.products[0].price)}` : ""}
             </p>
+            <SellerStats storeId={data.store.id} />
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 border-b border-line">
-            {(["products", "discounts"] as const).map((t) => (
+            {(["approvals", "orders", "products", "discounts", ...(data.role === "owner" ? (["integrations"] as const) : []), "verification"] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -177,12 +213,17 @@ export function SellerDashboard() {
                 className={`-mb-px border-b-2 pb-3 capitalize ${tab === t ? "border-saffron text-fg" : "border-transparent text-muted hover:text-fg"}`}
               >
                 {t}
+                {t === "approvals" && waiting > 0 && <span className="ml-2 rounded-full bg-saffron px-2 text-sm text-paper-ink">{waiting}</span>}
               </button>
             ))}
           </div>
 
+          {tab === "approvals" && <ApprovalsTab storeId={data.store.id} canApprove={["owner", "admin", "approver"].includes(data.role)} onCount={setWaiting} />}
+          {tab === "orders" && <OrdersTab storeId={data.store.id} canAct={["owner", "admin"].includes(data.role)} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
+          {tab === "integrations" && <IntegrationsTab storeId={data.store.id} domain={data.store.domain} platform={data.store.platform} />}
+          {tab === "verification" && <VerificationTab storeId={data.store.id} canManage={data.role === "owner"} onStatus={() => loadStore(data.store.id)} />}
         </>
       )}
     </div>
