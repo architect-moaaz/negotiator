@@ -64,7 +64,9 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
   }
 
   const live = keys.filter((k) => !k.revokedAt);
-  const widgetKey = revealed?.kind === "publishable" ? revealed.value : live.find((k) => k.kind === "publishable")?.prefix + "…";
+  // The full key is only returned once, at creation; afterwards we only know its prefix.
+  const publishable = live.find((k) => k.kind === "publishable");
+  const fresh = revealed?.kind === "publishable" ? revealed.value : null;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
   return (
@@ -100,13 +102,20 @@ export function IntegrationsTab({ storeId, domain, platform }: { storeId: string
         <button onClick={() => createKey("publishable")} className={`${secondary} mt-3`}>
           Create a widget key
         </button>
-        {widgetKey && (
+        {fresh || publishable ? (
           <>
             <p className="mt-4 text-sm text-muted">Add this once, before the closing &lt;/body&gt; tag:</p>
-            <Snippet text={`<script src="${origin}/widget/v1.js" data-key="${widgetKey}" async></script>`} />
+            <Snippet text={`<script src="${origin}/widget/v1.js" data-key="${fresh ?? "YOUR-WIDGET-KEY"}" async></script>`} />
+            {!fresh && publishable && (
+              <p className="mt-2 text-sm text-muted">
+                Replace YOUR-WIDGET-KEY with the full widget key starting <span className="font-receipt">{publishable.prefix}…</span> that you copied when you created it. Lost it? Create a new one.
+              </p>
+            )}
             <p className="mt-3 text-sm text-muted">Then, on each product page, where the button should appear (use the product&apos;s SKU from your GhostCart catalogue):</p>
             <Snippet text={`<div data-ghostcart-product="YOUR-SKU"></div>`} />
           </>
+        ) : (
+          <p className="mt-4 text-sm text-muted">Create a widget key first. Your install code will appear here.</p>
         )}
       </section>
 
