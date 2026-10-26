@@ -133,3 +133,26 @@ describe("store modes", () => {
     expect(composeStore(legacyStore, null, "postgres").mode).toBe("redis");
   });
 });
+
+describe("postgres compare-and-set", () => {
+  it("rejects a save from a stale copy in postgres mode and keeps the dual-mode mirror in step", async () => {
+    const pg = createPgStore(await createTestDb());
+    const store = composeStore(legacyStore, pg, "postgres");
+    const d = await store.saveDeal(deal(`zz-cas-${Date.now()}`), true);
+    expect(d.version).toBe(1);
+    const a = (await store.getDeal(d.id))!;
+    const b = (await store.getDeal(d.id))!;
+    a.dealPrice -= 100;
+    await store.saveDeal(a);
+    b.dealPrice -= 200;
+    await expect(store.saveDeal(b)).rejects.toThrow("just changed");
+    expect((await store.getDeal(d.id))!).toMatchObject({ version: 2, dealPrice: a.dealPrice });
+
+    const dualPg = createPgStore(await createTestDb());
+    const dual = composeStore(legacyStore, dualPg, "dual");
+    const m = await dual.saveDeal(deal(`zz-cas-dual-${Date.now()}`), true);
+    m.dealPrice -= 50;
+    await dual.saveDeal(m);
+    expect(await dualPg.getDeal(m.id)).toMatchObject({ version: 2, dealPrice: m.dealPrice });
+  });
+});

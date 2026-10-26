@@ -2,6 +2,7 @@ import { inr } from "./format";
 import { BALANCE_REF_SUFFIX, createBalancePayment, PaymentsUnavailableError } from "./payments";
 import { createOrderFromDeal } from "./orders/service";
 import { takeStock } from "./shop/products";
+import { recordEvent } from "./negotiation-events";
 import { store } from "./store";
 import { normalizePhone } from "./users";
 import { FULFILMENT_STAGES } from "./fulfilment";
@@ -104,6 +105,7 @@ export async function placeOrder(deal: Deal, source: string) {
     tracking: [{ stage: "placed", at: now }],
   });
   await store.saveDeal(deal);
+  await recordEvent(deal, "ordered", "system", { price: c.amount, message: c.orderRef });
   if (deal.shop) {
     await takeStock(deal.shop.productId);
     try {

@@ -110,6 +110,11 @@ export interface Deal extends Offer {
   grant?: PriceGrant;
   /** Set when the haggle happens in a chat app, so decisions made elsewhere are messaged back. */
   chat?: { channel: "whatsapp" | "instagram"; threadKey: string; storeId: string };
+  /**
+   * Bumped by every save. A save only succeeds if the stored deal still has the version this copy was
+   * read at, so two people acting at once (shopper and approver, two approvers) can't overwrite each other.
+   */
+  version?: number;
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */

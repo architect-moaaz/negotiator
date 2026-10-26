@@ -668,3 +668,26 @@ export const pushTokens = pgTable(
   },
   (t) => [primaryKey({ columns: [t.token, t.actorType] }), index("push_tokens_actor_idx").on(t.actorType, t.actorId)],
 );
+
+/**
+ * Append-only history of every negotiation: what happened, by whom, at which deal version. Feeds the
+ * live event stream (/api/v1/sessions/:id/events) and outlives the deal's week in Redis.
+ */
+export const negotiationEvents = pgTable(
+  "negotiation_events",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    dealId: text("deal_id").notNull(),
+    /** The deal version this event produced. */
+    version: integer("version").notNull(),
+    /** started | offer | counter | hold | final | escalated | approved | rejected | countered | agreed | grant_issued | paid | address | ordered */
+    type: text("type").notNull(),
+    /** shopper | agent | seller | desk | system */
+    actor: text("actor").notNull(),
+    price: integer("price"),
+    status: text("status").notNull(),
+    message: text("message"),
+    at: ts("at").notNull().defaultNow(),
+  },
+  (t) => [index("negotiation_events_deal_idx").on(t.dealId, t.id)],
+);

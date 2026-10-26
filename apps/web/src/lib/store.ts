@@ -1,5 +1,6 @@
 import { createDb } from "@ghostcart/db";
 import { Redis } from "@upstash/redis";
+import { DealConflictError } from "./errors";
 import { createPgStore, type PgStore } from "./pg-store";
 import type { Activity, Deal, Seller, SellerDemand, Stats, TickerEvent, User, Visit } from "./types";
 
@@ -18,6 +19,7 @@ const redis =
 function createMem() {
   return {
     deals: new Map<string, Deal>(),
+    dealVersions: new Map<string, number>(),
     dealIds: [] as string[],
     users: new Map<string, User>(),
     phones: new Map<string, string>(),
@@ -56,6 +58,33 @@ export const legacyStore = {
       if (isNew) mem.dealIds.unshift(deal.id);
     }
     return deal;
+  },
+
+  /**
+   * Compare-and-set: write the deal only if the stored version is still `expected` (undefined: no check,
+   * for deals saved before versions existed). The version lives in its own key so the check is one atomic
+   * Lua step without parsing the deal.
+   */
+  async casDeal(deal: Deal, expected: number | undefined, isNew = false) {
+    if (redis) {
+      const ok = await redis.eval(
+        `local v = redis.call('GET', KEYS[1])
+         if ARGV[1] ~= '' and (v or '0') ~= ARGV[1] then return 0 end
+         redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+         redis.call('SET', KEYS[2], ARGV[4], 'EX', ARGV[3])
+         return 1`,
+        [`dealv:${deal.id}`, `deal:${deal.id}`],
+        [expected === undefined ? "" : String(expected), String(deal.version), String(DEAL_TTL_S), JSON.stringify(deal)],
+      );
+      if (!ok) return false;
+      if (isNew) await redis.lpush("deals", deal.id);
+      return true;
+    }
+    if (expected !== undefined && (mem.dealVersions.get(deal.id) ?? 0) !== expected) return false;
+    mem.dealVersions.set(deal.id, deal.version ?? 1);
+    mem.deals.set(deal.id, structuredClone(deal));
+    if (isNew) mem.dealIds.unshift(deal.id);
+    return true;
   },
 
   async getDeal(id: string) {
@@ -313,8 +342,10 @@ export const legacyStore = {
  */
 export type StoreMode = "redis" | "dual" | "postgres";
 
+export { DealConflictError } from "./errors";
+
+// saveDeal is composed separately below (compare-and-set against the active store).
 const DURABLE_WRITES = [
-  "saveDeal",
   "updateUser",
   "log",
   "incrStats",
@@ -375,6 +406,20 @@ export function composeStore(legacy: typeof legacyStore, pg: PgStore | null, mod
   return {
     ...base,
     mode: active,
+
+    /**
+     * Save a deal, failing with DealConflictError if someone else saved it since this copy was read.
+     * On success the caller's object carries the new version, so it can be saved again in the same flow.
+     */
+    async saveDeal(deal: Deal, isNew = false) {
+      const expected = deal.version;
+      const next = { ...deal, version: (expected ?? 0) + 1 };
+      const ok = await (active === "postgres" ? pg!.casDeal(next, expected, isNew) : legacy.casDeal(next, expected, isNew));
+      if (!ok) throw new DealConflictError();
+      if (active === "dual") await mirror("saveDeal", () => pg!.saveDeal(next));
+      deal.version = next.version;
+      return deal;
+    },
 
     async getDeal(id: string) {
       return withExpiry(await (active === "postgres" ? pg!.getDeal(id) : legacy.getDeal(id)));
