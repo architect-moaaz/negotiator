@@ -34,11 +34,16 @@ export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolea
   const [data, setData] = useState<{ held: number; released: number; orders: OrderRow[] } | null>(null);
   const [form, setForm] = useState<Record<string, { courier?: string; awb?: string; code?: string; response?: string }>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [invoices, setInvoices] = useState<{ number: string; period: string; total: number }[]>([]);
 
   const load = useCallback(async () => {
     const r = await api<{ held: number; released: number; orders: OrderRow[] }>(`/api/seller/stores/${storeId}/orders`);
     if (r.ok) setData(r.data);
-  }, [storeId]);
+    if (canAct) {
+      const inv = await api<{ number: string; period: string; total: number }[]>(`/api/seller/stores/${storeId}/invoices`);
+      if (inv.ok) setInvoices(inv.data);
+    }
+  }, [storeId, canAct]);
   useEffect(() => {
     const t = setTimeout(load, 0);
     return () => clearTimeout(t);
@@ -66,6 +71,23 @@ export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolea
         </div>
       </div>
       <p className="mt-3 text-sm text-muted">Each payout releases a few days after delivery, once the buyer&apos;s window to report a problem closes.</p>
+      {invoices.length > 0 && (
+        <details className="mt-4 text-sm">
+          <summary className="cursor-pointer text-muted hover:text-fg">GhostCart fee invoices ({invoices.length})</summary>
+          <ul className="mt-2 space-y-1">
+            {invoices.map((i) => (
+              <li key={i.number}>
+                <a href={`/seller/invoices/${encodeURIComponent(i.number)}`} className="underline underline-offset-4 hover:text-saffron">
+                  {i.number}
+                </a>{" "}
+                <span className="text-muted">
+                  · {i.period} · {rupees(i.total)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {data.orders.length === 0 && <p className="mt-8 text-muted">No orders yet.</p>}
       <div className="mt-8 space-y-4">
