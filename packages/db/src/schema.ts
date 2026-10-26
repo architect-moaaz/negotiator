@@ -691,3 +691,17 @@ export const negotiationEvents = pgTable(
   },
   (t) => [index("negotiation_events_deal_idx").on(t.dealId, t.id)],
 );
+
+/** Browser push subscriptions for seller members using the web dashboard (offers to approve). */
+export const webPushSubscriptions = pgTable(
+  "web_push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    /** The member's verified phone. */
+    phone: text("phone").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("web_push_phone_idx").on(t.phone)],
+);
