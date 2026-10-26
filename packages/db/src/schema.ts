@@ -630,3 +630,41 @@ export const storeDailyMetrics = pgTable(
   },
   (t) => [primaryKey({ columns: [t.day, t.storeId] }), index("store_daily_metrics_org_idx").on(t.orgId, t.day)],
 );
+
+/**
+ * Every ONDC message we send or receive, as sent: the buyer app's working state (search results, quotes,
+ * orders are read back from here) and the log ONDC asks for in certification.
+ */
+export const ondcMessages = pgTable(
+  "ondc_messages",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    transactionId: text("transaction_id").notNull(),
+    messageId: text("message_id").notNull(),
+    /** search | on_search | select | on_select | init | on_init | confirm | on_confirm | status | on_status | … */
+    action: text("action").notNull(),
+    direction: text("direction").notNull(), // out | in
+    /** The other side: the gateway for search, otherwise the seller app's subscriber id. */
+    counterparty: text("counterparty").notNull(),
+    /** The GhostCart shopper who started it (user id), when known. */
+    userId: text("user_id"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("ondc_messages_txn_idx").on(t.transactionId, t.action), index("ondc_messages_created_idx").on(t.createdAt)],
+);
+
+/** Expo push tokens from the mobile app, per signed-in shopper (buyer) or seller member (phone). */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").notNull(),
+    /** buyer (user id) | member (phone). A phone signed in as both gets both kinds of notification. */
+    actorType: text("actor_type").notNull(),
+    actorId: text("actor_id").notNull(),
+    platform: text("platform").notNull(), // ios | android
+    createdAt: ts("created_at").notNull().defaultNow(),
+    lastSeen: ts("last_seen").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.token, t.actorType] }), index("push_tokens_actor_idx").on(t.actorType, t.actorId)],
+);
