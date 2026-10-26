@@ -2,6 +2,7 @@ import { schema } from "@ghostcart/db";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { trialBalance } from "@/lib/orders/ledger";
+import { ledgerGate } from "@/lib/orders/ledger-gate";
 import { heldFor } from "@/lib/orders/service";
 import { settlementGateway } from "@/lib/orders/settlement";
 import { requireStaff } from "@/lib/staff";
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const db = await getDb();
   const tb = await trialBalance(db);
+  const gate = await ledgerGate(db);
   const gateway = settlementGateway();
   const recent = await db.select().from(schema.holds).orderBy(desc(schema.holds.updatedAt)).limit(200);
   const mismatches = [];
@@ -29,7 +31,7 @@ export async function GET(request: Request) {
     }
   }
   return Response.json(
-    { balanced: tb.total === 0 && tb.unbalanced.length === 0, total: tb.total, unbalanced: tb.unbalanced, accounts: tb.accounts, gateway: gateway?.name ?? null, checked: recent.length, mismatches },
+    { balanced: gate.ok, gate: { checked: gate.checked, skipped: gate.skipped.length, problems: gate.problems.slice(0, 100) }, total: tb.total, unbalanced: tb.unbalanced, accounts: tb.accounts, gateway: gateway?.name ?? null, checked: recent.length, mismatches },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
