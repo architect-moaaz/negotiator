@@ -25,6 +25,7 @@ export function toPublic(deal: Deal): PublicDeal {
   delete pub.userId;
   delete pub.negotiation;
   delete pub.checkout;
+  if (pub.grant) pub.grant = { ...pub.grant, ref: undefined }; // the platform's internal id stays server-side
   const n = deal.negotiation;
   return {
     ...(pub as Omit<PublicDeal, "negotiation" | "checkout">),
