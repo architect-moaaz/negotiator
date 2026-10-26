@@ -36,5 +36,6 @@ test("login only lets a valid mobile number ask for a code", async ({ page }) =>
   await phone.fill("12345");
   await expect(call).toBeDisabled();
   await phone.fill("98765 43210");
-  await expect(call).toBeEnabled();
+  // With Turnstile on, the button also waits for Cloudflare's check (which may challenge a headless browser).
+  if ((await page.locator('iframe[src*="challenges.cloudflare.com"]').count()) === 0) await expect(call).toBeEnabled();
 });
