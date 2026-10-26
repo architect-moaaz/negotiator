@@ -37,8 +37,8 @@ export interface PriceGrant {
   platformOrderRef?: string;
 }
 
-/** "whatsapp" deals came from the hackathon Twilio sandbox (removed); the WhatsApp channel returns in Wave 3. */
-export type Channel = "web" | "whatsapp";
+/** Where the shopper haggles: the web (GhostCart pages and the widget) or a chat app with the seller. */
+export type Channel = "web" | "whatsapp" | "instagram";
 
 export interface DeliveryAddress {
   name: string;
@@ -108,6 +108,8 @@ export interface Deal extends Offer {
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
   shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string; platform?: string };
   grant?: PriceGrant;
+  /** Set when the haggle happens in a chat app, so decisions made elsewhere are messaged back. */
+  chat?: { channel: "whatsapp" | "instagram"; threadKey: string; storeId: string };
 }
 
 /** Deal as exposed to browsers: no internal ids or phone numbers. */

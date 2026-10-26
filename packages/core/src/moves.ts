@@ -59,7 +59,9 @@ export function templateMessage(move: Move, offer: number, terms: NegotiationTer
     case "accept":
       return `Deal. ${inr(move.price)} it is, locking your invoice now.`;
     case "counter":
-      return `${inr(offer)} is a stretch when the best price anywhere is ${inr(terms.benchmark)} at ${bestSeller}. I can do ${inr(move.price)}.`;
+      return terms.benchmarkKind === "list"
+        ? `${inr(offer)} is a stretch on a ${inr(terms.benchmark)} list price. I can do ${inr(move.price)}.`
+        : `${inr(offer)} is a stretch when the best price anywhere is ${inr(terms.benchmark)} at ${bestSeller}. I can do ${inr(move.price)}.`;
     case "final":
       return `Final answer: ${inr(move.price)}. That's nearly ${terms.fundedBy === "seller" ? "all the margin I'm allowed to give" : "my whole commission"} on the table.`;
     case "hold":

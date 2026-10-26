@@ -57,6 +57,20 @@ describe("orders and the ledger", () => {
     expect((await trialBalance(await getDb())).total).toBe(0);
   });
 
+  it("hand the hold back for a retry when the gateway fails to release", async () => {
+    const { order } = await paidShopOrder(10000, "verified");
+    await markDelivered(order.id, "test", new Date(Date.now() - 4 * 24 * 60 * 60 * 1000));
+    const gateway = settlementGateway()!;
+    const original = gateway.release;
+    gateway.release = async () => {
+      throw new Error("gateway down");
+    };
+    await expect(releaseOrder(order.id)).rejects.toThrow("gateway down");
+    gateway.release = original;
+    expect((await getOrder(order.id))?.status).toBe("delivered");
+    expect((await runOrderJobs()).released).toContain(order.id); // retried and released
+  });
+
   it("keep the payout held during the dispute window", async () => {
     const { order } = await paidShopOrder();
     await markDelivered(order.id, "buyer tapped received"); // new tier: 7 days
