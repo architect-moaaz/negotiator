@@ -61,3 +61,5 @@ load/k6/.seed.json
 # Playwright
 apps/e2e/test-results/
 apps/e2e/playwright-report/
+packages/widget/test-results/
+packages/widget/playwright-report/

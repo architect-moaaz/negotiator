@@ -2,13 +2,17 @@
   "name": "@ghostcart/widget",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "The \"Make an offer\" button sellers add to their own product pages.",
   "scripts": {
     "build": "esbuild src/widget.ts --bundle --minify --format=iife --target=es2019 --outfile=../../apps/web/public/widget/v1.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test:browser": "pnpm run build && playwright test"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@playwright/test": "1.64.1",
+    "@types/node": "^20"
   }
 }
