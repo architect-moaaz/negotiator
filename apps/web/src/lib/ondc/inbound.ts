@@ -8,7 +8,7 @@ import { lookupSigningKey } from "./registry";
 
 const { ondcMessages } = schema;
 
-export const CALLBACKS = new Set(["on_search", "on_select", "on_init", "on_confirm", "on_status", "on_cancel", "on_update", "on_track", "on_support"]);
+export const CALLBACKS = new Set(["on_search", "on_select", "on_init", "on_confirm", "on_status", "on_cancel", "on_update", "on_track", "on_support", "on_issue", "on_issue_status"]);
 
 /**
  * A seller app's callback. Accepted only if it's signed by the seller app named in its context (key from
