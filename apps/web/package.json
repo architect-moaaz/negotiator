@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
     "db:backfill": "tsx --env-file-if-exists=.env.local scripts/backfill-postgres.mts",
-    "db:seed-load": "tsx --env-file-if-exists=.env.local scripts/seed-load-test.mts"
+    "db:seed-load": "tsx --env-file-if-exists=.env.local scripts/seed-load-test.mts",
+    "db:rotate-secrets": "tsx --env-file-if-exists=.env.local scripts/rotate-secrets.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.87",
