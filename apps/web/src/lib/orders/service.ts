@@ -6,6 +6,7 @@ import { getDb } from "../db";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
+import { notifyShopperOrder } from "../notify/order-updates";
 import { balance, post } from "./ledger";
 import { settlementGateway } from "./settlement";
 
@@ -111,6 +112,7 @@ export async function createOrderFromDeal(deal: Deal) {
   const { flagOrderIfRisky } = await import("../fraud/checks");
   const checked = await flagOrderIfRisky(order);
   await notifySeller(checked, "order.placed");
+  await notifyShopperOrder(checked, "placed");
   return checked;
 }
 
@@ -139,6 +141,7 @@ export async function markDelivered(orderId: string, via: string, at = new Date(
   await db.update(holds).set({ releaseAt: new Date(at.getTime() + days * 24 * 60 * 60 * 1000), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
   await log(order, `delivered (${via}); payout releases in ${days} days unless the buyer raises a problem`);
   await notifySeller(updated, "order.delivered");
+  await notifyShopperOrder(updated, "delivered");
   return updated;
 }
 
@@ -203,6 +206,9 @@ export async function refundOrder(orderId: string, amount: number, reason: strin
   await log(order, `refunded ₹${amount / 100} to the buyer (${reason}) by ${requestedBy}`, requestedBy === "system" ? "system" : "human");
   const after = (await getOrder(orderId))!;
   await notifySeller(after, after.status === "cancelled" ? "order.cancelled" : "order.refunded");
+  // Staff reasons can be internal notes; only the automatic ones are shown to the shopper.
+  const shown = requestedBy === "system" ? reason : undefined;
+  await notifyShopperOrder(after, after.status === "cancelled" ? "cancelled" : "refunded", { refund: amount, reason: shown });
   return after;
 }
 

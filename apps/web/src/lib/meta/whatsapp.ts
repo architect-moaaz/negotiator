@@ -58,11 +58,16 @@ export async function sendWhatsAppTemplate(conn: NonNullable<Awaited<ReturnType<
     if (!res.ok) throw new Error(`Gupshup template ${res.status}`);
     return;
   }
+  await sendMetaTemplate(conn.externalId, decryptSecret(conn.accessTokenEncrypted), digits, msg);
+}
+
+/** A template through Meta's Cloud API from a given number (a seller's, or GhostCart's own for order updates). */
+export async function sendMetaTemplate(phoneNumberId: string, token: string, to: string, msg: TemplateMessage) {
   const components: unknown[] = [{ type: "body", parameters: msg.body.map((text) => ({ type: "text", text })) }];
   if (msg.urlSuffix) components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: msg.urlSuffix }] });
-  await graph(`${conn.externalId}/messages`, {
-    token: decryptSecret(conn.accessTokenEncrypted),
-    body: { messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "template", template: { name: msg.template, language: { code: msg.language ?? "en" }, components } },
+  await graph(`${phoneNumberId}/messages`, {
+    token,
+    body: { messaging_product: "whatsapp", recipient_type: "individual", to: to.replace(/^\+/, ""), type: "template", template: { name: msg.template, language: { code: msg.language ?? "en" }, components } },
   });
 }
 

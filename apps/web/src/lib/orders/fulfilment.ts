@@ -2,7 +2,7 @@ import { schema } from "@ghostcart/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { randomBytes, randomInt } from "node:crypto";
 import { getDb } from "../db";
-import { notifyBuyer } from "../push";
+import { notifyShopperOrder } from "../notify/order-updates";
 import { store as kv } from "../store";
 import type { FulfilmentStage } from "../types";
 import { getOrder, heldFor, markDelivered, OrderError, orderPayload, refundOrder, type Order } from "./service";
@@ -49,7 +49,7 @@ export async function markShipped(orderId: string, input: { courier: string; awb
   await db.update(orders).set({ status: "shipped", shippedAt: new Date(), updatedAt: new Date() }).where(eq(orders.id, orderId));
   await syncDeal(order, "shipped", { courier, awb, note: `${courier} · AWB ${awb}` });
   await kv.log({ type: "order_status", actor: "seller", userId: order.userId, dealId: order.dealId, detail: `${orderId}: shipped by ${by} with ${courier}, AWB ${awb}` });
-  await notifyBuyer(order.userId, { title: "Your order has shipped", body: `${order.title} is on its way with ${courier}.`, data: { type: "order", dealId: order.dealId } });
+  await notifyShopperOrder(order, "shipped", { courier, awb });
   const shipped = (await getOrder(orderId))!;
   const { emitWebhook } = await import("../integrations/webhooks");
   await emitWebhook(shipped.storeId, "order.shipped", { ...orderPayload(shipped), courier, awb });
@@ -94,7 +94,10 @@ export async function pollTracking() {
     try {
       const t = await provider.track(shipment.awb, shipment.courier);
       await db.update(shipments).set({ lastStatus: t.status, events: t.events, lastCheckedAt: new Date() }).where(eq(shipments.orderId, order.id));
-      if (t.status === "out_for_delivery") await syncDeal(order, "out_for_delivery", { note: "Out for delivery" });
+      if (t.status === "out_for_delivery") {
+        await syncDeal(order, "out_for_delivery", { note: "Out for delivery" });
+        await notifyShopperOrder(order, "out_for_delivery");
+      }
       if (t.status === "delivered") {
         await confirmDelivery(order, `${provider.name} tracking`, t.deliveredAt);
         delivered.push(order.id);
