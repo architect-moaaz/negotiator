@@ -3,6 +3,7 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../db";
 import { notifyShopperOrder } from "../notify/order-updates";
+import { putBackStock } from "../shop/stock";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import { heldFor, getOrder, OrderError, refundOrder, type Order } from "./service";
@@ -110,6 +111,7 @@ export async function returnReceived(orderId: string, by: string) {
   const held = await heldFor(order);
   const refunded = await refundOrder(orderId, held.sellerShare + held.fee + held.gst, "returned to the seller", by);
   await db.update(returnRequests).set({ status: "received", closedAt: new Date() }).where(eq(returnRequests.id, r.id));
+  await putBackStock(order.productId);
   return refunded;
 }
 

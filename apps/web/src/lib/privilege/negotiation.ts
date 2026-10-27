@@ -8,6 +8,7 @@ import { LOCK_FEE_INR, testPayments } from "../payments";
 import { ShopError } from "../shop/negotiation";
 import { policyForProduct } from "../shop/policies";
 import { getProduct } from "../shop/products";
+import { refreshLiveStock } from "../shop/stock";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import type { RecoverySettings } from "@ghostcart/core";
@@ -73,6 +74,10 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
     if (cart.lines.length > 1 || cart.lines[0].quantity > 1) throw new ShopError("Bundle offers on this shop are coming soon. Make an offer on one item for now.", 409);
   }
 
+  if (grants) {
+    const current = (await Promise.all(cart.lines.map((l) => getProduct(l.productId)))).filter((p): p is NonNullable<typeof p> => !!p);
+    await refreshLiveStock(store, current);
+  }
   const { lines, terms } = await bundleFor(cart, store, limits);
   const listTotal = terms.benchmark;
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;

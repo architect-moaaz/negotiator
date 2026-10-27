@@ -88,6 +88,17 @@ describe("one-click pickup", () => {
   });
 });
 
+describe("stock", () => {
+  it("goes back on sale when an unshipped order is cancelled", async () => {
+    const { order: o } = await order();
+    const { getProduct } = await import("../shop/products");
+    const before = (await getProduct(o.productId!))!.stock;
+    await runOrderJobs(new Date(o.shipBy.getTime() + 1000));
+    expect((await getOrder(o.id))?.status).toBe("cancelled");
+    expect((await getProduct(o.productId!))!.stock).toBe(before + 1);
+  });
+});
+
 describe("disputes", () => {
   it("freeze the payout, then a full refund closes the order", async () => {
     const { store, order: o } = await order();

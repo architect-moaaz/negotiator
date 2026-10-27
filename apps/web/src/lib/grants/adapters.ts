@@ -15,6 +15,8 @@ export interface GrantAdapter {
    * `discountInr` off those products together, and the checkout link puts every line in the cart.
    */
   createGrant(input: { store: Store; product: Product; code: string; discountInr: number; expiresAt: Date; lines?: GrantLine[] }): Promise<{ checkoutUrl: string; kind?: "code" | "draft_order"; ref?: string }>;
+  /** Units in stock on the platform right now, by GhostCart product id (missing = unknown). */
+  liveStock?(input: { store: Store; products: Product[] }): Promise<Map<string, number>>;
   /** Withdraw an unused grant once it has expired (codes expire on their own; draft orders don't). */
   revoke?(input: { store: Store; ref: string }): Promise<void>;
 }

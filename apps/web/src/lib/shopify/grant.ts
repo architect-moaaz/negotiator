@@ -1,5 +1,5 @@
 import { registerGrantAdapter } from "../grants/adapters";
-import { ShopifyError, shopifyGraphql } from "./admin";
+import { numericId, ShopifyError, shopifyGraphql } from "./admin";
 import { connectionForStore, tokenOf } from "./connections";
 
 /**
@@ -14,6 +14,20 @@ registerGrantAdapter("shopify", {
   platform: "shopify",
   async ready(store) {
     return !!(await connectionForStore(store.id));
+  },
+  async liveStock({ store, products }) {
+    const conn = await connectionForStore(store.id);
+    const byVariant = new Map<string, string>(products.flatMap((p): [string, string][] => (p.source.split(":")[2] ? [[p.source.split(":")[2], p.id]] : [])));
+    if (!conn || !byVariant.size) return new Map();
+    const data = await shopifyGraphql<{ nodes: ({ id: string; inventoryQuantity: number | null } | null)[] }>(
+      conn.externalId,
+      tokenOf(conn),
+      `query GhostCartStock($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id inventoryQuantity } } }`,
+      { ids: [...byVariant.keys()].map((v) => `gid://shopify/ProductVariant/${v}`) },
+    );
+    const out = new Map<string, number>();
+    for (const n of data.nodes) if (n && typeof n.inventoryQuantity === "number") out.set(byVariant.get(numericId(n.id))!, Math.max(0, n.inventoryQuantity));
+    return out;
   },
   async createGrant({ store, product, code, discountInr, expiresAt, lines }) {
     const conn = await connectionForStore(store.id);

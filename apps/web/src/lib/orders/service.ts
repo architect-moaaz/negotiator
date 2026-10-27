@@ -198,6 +198,8 @@ export async function refundOrder(orderId: string, amount: number, reason: strin
   await post(db, { orderId, kind: "refund", postings: refundPostings(held, order.storeId, amount), memo: reason });
   await db.update(refunds).set({ status: "processed", gatewayRef: ref }).where(eq(refunds.id, refundId));
   const full = amount === heldTotal;
+  // Cancelled before it shipped: the unit was never sent, so it goes back on sale.
+  if (full && finalStatus === "cancelled" && order.status === "placed") await (await import("../shop/stock")).putBackStock(order.productId);
   if (full) {
     await db.update(holds).set({ state: "refunded", amount: 0, updatedAt: new Date() }).where(eq(holds.orderId, orderId));
     await db.update(orders).set({ status: finalStatus, updatedAt: new Date() }).where(eq(orders.id, orderId));

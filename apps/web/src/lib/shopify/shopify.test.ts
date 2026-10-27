@@ -116,6 +116,15 @@ describe("Shopify install → haggle → code → order", () => {
     expect(await balance(await getDb(), accounts.sellerFeesDue(storeId))).toBeGreaterThan(0);
   });
 
+  it("takes Shopify's live stock before a haggle", async () => {
+    const { shop, storeId } = await installAndConnect();
+    await updateStore(storeId, { status: "live" });
+    await kv.kvSet(`mockshopify:${shop}:stock:gid://shopify/ProductVariant/7002`, 0);
+    const bottle = (await getProductByRef(storeId, "shopify-9002"))!;
+    await expect(startShopNegotiation(bottle.id, `shopify-stock-buyer-${n}`)).rejects.toThrow("Out of stock");
+    expect((await getProductByRef(storeId, "shopify-9002"))?.stock).toBe(0);
+  });
+
   it("imports brand (vendor) and barcode for matching shoppers' marketplace carts", async () => {
     const { storeId } = await installAndConnect();
     expect(await getProductByRef(storeId, "shopify-9002")).toMatchObject({ brand: "Milton", gtin: "08901030865275" });

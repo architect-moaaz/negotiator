@@ -36,6 +36,8 @@ final class GhostCart_Plugin {
 		add_action( 'wp_loaded', array( __CLASS__, 'apply_coupon_from_link' ), 30 );
 		add_action( 'woocommerce_new_product', array( __CLASS__, 'sync_product' ) );
 		add_action( 'woocommerce_update_product', array( __CLASS__, 'sync_product' ) );
+		// Stock changes from orders don't fire update_product; send them too so GhostCart never oversells.
+		add_action( 'woocommerce_product_set_stock', array( __CLASS__, 'sync_stock' ) );
 		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'report_order' ) );
 		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'report_order' ) );
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'report_order' ) );
@@ -218,6 +220,12 @@ final class GhostCart_Plugin {
 		self::api( '/api/v1/products', array( 'products' => array( self::product_payload( $product ) ) ) );
 	}
 
+	public static function sync_stock( $product ) {
+		if ( $product instanceof WC_Product ) {
+			self::sync_product( $product->get_id() );
+		}
+	}
+
 	private static function sync_all() {
 		$sent = 0;
 		$page = 1;
@@ -315,6 +323,7 @@ final class GhostCart_Plugin {
 	public static function register_routes() {
 		register_rest_route( 'ghostcart/v1', '/verify', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'route_verify' ), 'permission_callback' => array( __CLASS__, 'signed' ) ) );
 		register_rest_route( 'ghostcart/v1', '/coupons', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'route_coupon' ), 'permission_callback' => array( __CLASS__, 'signed' ) ) );
+		register_rest_route( 'ghostcart/v1', '/stock', array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'route_stock' ), 'permission_callback' => array( __CLASS__, 'signed' ) ) );
 	}
 
 	/** X-GhostCart-Signature: t=<unix>,v1=<hex hmac-sha256 of "t.body">, within five minutes. */
@@ -330,6 +339,19 @@ final class GhostCart_Plugin {
 	public static function route_verify( WP_REST_Request $request ) {
 		$nonce = (string) $request->get_param( 'nonce' );
 		return rest_ensure_response( array( 'signature' => hash_hmac( 'sha256', $nonce, get_option( self::OPT_SIGNING ) ) ) );
+	}
+
+	/** Live stock for up to 50 products, as GhostCart counts it (100 when the store doesn't track stock). */
+	public static function route_stock( WP_REST_Request $request ) {
+		$ids   = array_slice( array_map( 'intval', (array) $request->get_param( 'productIds' ) ), 0, 50 );
+		$stock = array();
+		foreach ( $ids as $id ) {
+			$product = $id ? wc_get_product( $id ) : null;
+			if ( $product ) {
+				$stock[ $id ] = $product->managing_stock() ? max( 0, (int) $product->get_stock_quantity() ) : ( $product->is_in_stock() ? 100 : 0 );
+			}
+		}
+		return rest_ensure_response( array( 'stock' => (object) $stock ) );
 	}
 
 	/** A single-use coupon for one product (or a whole cart), for the price the shopper agreed with GhostCart. */

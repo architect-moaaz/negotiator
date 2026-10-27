@@ -9,6 +9,7 @@ import { store as kv } from "../store";
 import type { Deal } from "../types";
 import { policyForProduct, termsForProduct } from "./policies";
 import { getProduct } from "./products";
+import { refreshLiveStock } from "./stock";
 import { getStore } from "./stores";
 
 export class ShopError extends Error {
@@ -29,9 +30,9 @@ export async function startShopNegotiation(
   userId: string,
   opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"]; language?: "en" | "hi" } = {},
 ) {
-  const product = await getProduct(productId);
-  const store = product && (await getStore(product.storeId));
-  if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
+  const found = await getProduct(productId);
+  const store = found && (await getStore(found.storeId));
+  if (!found || !store || found.status !== "active") throw new ShopError("This product isn't available.", 404);
   if (store.status !== "live") throw new ShopError("This shop isn't open yet.", 409);
   const grants = GRANT_PLATFORMS.has(store.platform);
   if (grants) {
@@ -41,6 +42,8 @@ export async function startShopNegotiation(
     // Without a settlement gateway the buyer's money would land with GhostCart instead of on hold for the seller.
     throw new ShopError("This shop isn't taking payments yet. Check back soon.", 503);
   }
+  // Shopify/Woo: check the store's own stock now, so nobody haggles for something already sold there.
+  const [product] = grants ? await refreshLiveStock(store, [found]) : [found];
   if (product.stock < 1) throw new ShopError("Out of stock right now.", 409);
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (product.price > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
