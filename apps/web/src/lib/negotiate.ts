@@ -110,6 +110,13 @@ export async function submitOffer(deal: Deal, offer: number) {
     language: deal.language,
   }));
   const { move, message } = overrideAfterRejection(chosen.move, n) ?? chosen;
+  // The seller's "when I'm away" rule approves some escalations itself (never below the floor).
+  let byAwayRule = false;
+  if (move.action === "escalate" && deal.shop) {
+    const { awayRuleApproves } = await import("@ghostcart/core");
+    const { getAwayRule } = await import("./shop/automation");
+    byAwayRule = awayRuleApproves(await getAwayRule(deal.shop.storeId), new Date(), move.price, n.terms);
+  }
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });
   await log("agent_move", `${move.action} at ${inr(move.price)}: "${message}"`, "agent");
 
@@ -125,7 +132,7 @@ export async function submitOffer(deal: Deal, offer: number) {
       `Needs human approval: ${inr(move.price)} is below the agent's auto-approve limit ${inr(n.terms.autoLimit)} (floor ${inr(n.terms.floor)})`,
       "agent",
     );
-    await startApprovalCall(deal);
+    if (!byAwayRule) await startApprovalCall(deal);
   } else {
     n.currentOffer = move.price;
     n.rounds += 1;
@@ -135,6 +142,7 @@ export async function submitOffer(deal: Deal, offer: number) {
   await store.saveDeal(deal);
   await recordEvent(deal, "offer", "shopper", { price: offer });
   await recordEvent(deal, move.action === "accept" ? "agreed" : move.action === "escalate" ? "escalated" : move.action, "agent", { price: move.price, message });
+  if (byAwayRule) return decideApproval(deal, "approved", `${n.terms.sellerName ?? "The seller"}'s away rule`, "seller");
   // Only once the deal is saved: a notification must never point at a state that didn't stick.
   if (move.action === "escalate") await pushApprovalRequest(deal, move.price);
   return deal;

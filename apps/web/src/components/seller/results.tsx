@@ -34,6 +34,64 @@ interface SellerReview {
   createdAt: string;
 }
 
+interface Suggestion {
+  productId: string;
+  title: string;
+  haggles: number;
+  lost: number;
+  closable: number;
+  currentAutoPct: number;
+  suggestedAutoPct: number;
+}
+
+/** Playbook: limits worth changing, from this store's own lost haggles. The seller applies them. */
+function Suggestions({ storeId }: { storeId: string }) {
+  const [list, setList] = useState<Suggestion[] | null>(null);
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<{ suggestions: Suggestion[] }>(`/api/seller/stores/${storeId}/automation`).then((r) => live && r.ok && setList(r.data.suggestions));
+    return () => {
+      live = false;
+    };
+  }, [storeId]);
+  if (!list?.length) return null;
+  return (
+    <section className="grid max-w-2xl gap-3 rounded-2xl border border-saffron/60 p-5">
+      <h3 className="font-semibold">Suggestions from your last 30 days</h3>
+      {list.map((s) => (
+        <div key={s.productId} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+          <p className="max-w-md">
+            <span className="font-medium">{s.title}</span>: {s.lost} of {s.haggles} haggles ended without a sale, though the shopper&apos;s offer was inside your own maximum
+            discount. Letting your agent go to {s.suggestedAutoPct}% on its own (now {s.currentAutoPct}%) would have closed {s.closable} of them.
+          </p>
+          {done[s.productId] ? (
+            <span className="text-muted">Applied</span>
+          ) : (
+            <button
+              onClick={async () => {
+                setError("");
+                const r = await api(`/api/seller/stores/${storeId}/automation`, { body: { productId: s.productId, autoApprovePct: s.suggestedAutoPct } });
+                if (!r.ok) return setError(r.error);
+                setDone({ ...done, [s.productId]: true });
+              }}
+              className="rounded-xl border border-line px-3 py-2 hover:border-saffron"
+            >
+              Apply {s.suggestedAutoPct}%
+            </button>
+          )}
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className="text-alarm">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** Buyers' reviews of this store's orders, with one reply each. */
 function Reviews({ storeId }: { storeId: string }) {
   const [list, setList] = useState<SellerReview[] | null>(null);
@@ -158,6 +216,7 @@ export function ResultsTab({ storeId }: { storeId: string }) {
           </table>
         </>
       )}
+      <Suggestions storeId={storeId} />
       <Reviews storeId={storeId} />
     </div>
   );

@@ -501,6 +501,19 @@ export const productReviews = pgTable(
   (t) => [uniqueIndex("product_reviews_order_idx").on(t.orderId), index("product_reviews_product_idx").on(t.productId), index("product_reviews_store_idx").on(t.storeId)],
 );
 
+/** A store's "when I'm away" approval rule (packages/core away.ts). One row per store. */
+export const awayRules = pgTable("away_rules", {
+  storeId: text("store_id")
+    .primaryKey()
+    .references(() => stores.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  maxPctOff: doublePrecision("max_pct_off").notNull().default(0),
+  days: integer("days").array().notNull().default(sql`'{0,1,2,3,4,5,6}'::integer[]`),
+  startHour: integer("start_hour").notNull().default(21),
+  endHour: integer("end_hour").notNull().default(9),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
 /* ---------- Fraud signals ---------- */
 
 /** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */

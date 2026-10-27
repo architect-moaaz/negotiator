@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { inr } from "@/lib/format";
 import { PhoneLogin } from "../phone-login";
 import { ApprovalsTab } from "./approvals";
+import { AwayRuleForm } from "./away-rule";
 import { DiscountsTab } from "./discounts";
 import { IntegrationsTab } from "./integrations";
 import { OrdersTab } from "./orders";
@@ -224,7 +225,12 @@ export function SellerDashboard() {
             ))}
           </div>
 
-          {tab === "approvals" && <ApprovalsTab storeId={data.store.id} canApprove={["owner", "admin", "approver"].includes(data.role)} onCount={setWaiting} />}
+          {tab === "approvals" && (
+            <>
+              <ApprovalsTab storeId={data.store.id} canApprove={["owner", "admin", "approver"].includes(data.role)} onCount={setWaiting} />
+              <AwayRuleForm storeId={data.store.id} canManage={["owner", "admin"].includes(data.role)} />
+            </>
+          )}
           {tab === "orders" && <OrdersTab storeId={data.store.id} canAct={["owner", "admin"].includes(data.role)} />}
           {tab === "results" && <ResultsTab storeId={data.store.id} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
