@@ -12,6 +12,8 @@ interface BuyerOrder {
   dispute?: { reason: string; status: string; resolution: string | null };
   returnWindowEndsAt?: string;
   returnRequest?: { reason: string; status: string; sellerNote: string | null };
+  canReview?: boolean;
+  review?: { rating: number; body: string; sellerReply: string | null };
 }
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -21,6 +23,7 @@ export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: stri
   const [order, setOrder] = useState<BuyerOrder | null>(null);
   const [problem, setProblem] = useState({ open: false, reason: "not_received", details: "" });
   const [ret, setRet] = useState({ open: false, reason: "changed_mind", details: "" });
+  const [review, setReview] = useState({ rating: 0, body: "" });
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -92,6 +95,41 @@ export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: stri
         <button onClick={() => setProblem({ ...problem, open: true })} className="text-muted underline underline-offset-4 hover:text-fg">
           Report a problem
         </button>
+      )}
+      {order.canReview && (
+        <form
+          className="grid gap-2 rounded-xl border border-line p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            act({ action: "review", rating: String(review.rating), details: review.body });
+          }}
+        >
+          <p className="font-semibold">How was it?</p>
+          <div role="radiogroup" aria-label="Rating" className="flex gap-1 text-2xl">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={review.rating === n}
+                aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                onClick={() => setReview({ ...review, rating: n })}
+                className={n <= review.rating ? "text-saffron" : "text-muted"}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <textarea rows={2} placeholder="A few words for other shoppers (optional)" value={review.body} onChange={(e) => setReview({ ...review, body: e.target.value })} className="rounded-lg border border-line bg-panel px-3 py-2" />
+          <button disabled={!review.rating} className="w-fit rounded-xl bg-saffron px-4 py-2.5 font-semibold text-paper-ink disabled:opacity-50">
+            Post review
+          </button>
+        </form>
+      )}
+      {order.review && (
+        <p className="text-muted">
+          You rated it {order.review.rating}/5.{order.review.sellerReply ? ` ${storeName} replied: "${order.review.sellerReply}"` : ""}
+        </p>
       )}
       {order.returnWindowEndsAt && !ret.open && !problem.open && (
         <button onClick={() => setRet({ ...ret, open: true })} className="block text-muted underline underline-offset-4 hover:text-fg">

@@ -24,6 +24,75 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
+interface SellerReview {
+  id: string;
+  authorName: string;
+  rating: number;
+  body: string;
+  sellerReply: string | null;
+  hidden: boolean;
+  createdAt: string;
+}
+
+/** Buyers' reviews of this store's orders, with one reply each. */
+function Reviews({ storeId }: { storeId: string }) {
+  const [list, setList] = useState<SellerReview[] | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const load = () => api<{ reviews: SellerReview[] }>(`/api/seller/stores/${storeId}/reviews`).then((r) => r.ok && setList(r.data.reviews));
+  useEffect(() => {
+    let live = true;
+    api<{ reviews: SellerReview[] }>(`/api/seller/stores/${storeId}/reviews`).then((r) => live && r.ok && setList(r.data.reviews));
+    return () => {
+      live = false;
+    };
+  }, [storeId]);
+  if (!list?.length) return null;
+  return (
+    <section className="grid max-w-2xl gap-4">
+      <h3 className="font-semibold">What buyers said</h3>
+      {list.map((r) => (
+        <div key={r.id} className="border-t border-line pt-3">
+          <p>
+            {"★".repeat(r.rating)}
+            <span className="text-muted">{"☆".repeat(5 - r.rating)}</span> <span className="text-sm text-muted">{r.authorName}</span>
+            {r.hidden && <span className="ml-2 text-sm text-alarm">hidden by GhostCart</span>}
+          </p>
+          {r.body && <p className="mt-1">{r.body}</p>}
+          {r.sellerReply ? (
+            <p className="mt-1 text-sm text-muted">You replied: {r.sellerReply}</p>
+          ) : (
+            <div className="mt-2 flex gap-2">
+              <input
+                value={drafts[r.id] ?? ""}
+                onChange={(e) => setDrafts({ ...drafts, [r.id]: e.target.value })}
+                placeholder="Reply once, publicly"
+                className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-3 py-2"
+              />
+              <button
+                onClick={async () => {
+                  setError("");
+                  const res = await api(`/api/seller/stores/${storeId}/reviews`, { body: { reviewId: r.id, reply: drafts[r.id] } });
+                  if (!res.ok) setError(res.error);
+                  load();
+                }}
+                className="rounded-xl border border-line px-3 py-2 hover:border-saffron"
+              >
+                Reply
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className="text-alarm">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** What selling through haggles did for the store: sales, the discounts that bought them, fees, what's kept. */
 export function ResultsTab({ storeId }: { storeId: string }) {
   const [days, setDays] = useState(30);
@@ -89,6 +158,7 @@ export function ResultsTab({ storeId }: { storeId: string }) {
           </table>
         </>
       )}
+      <Reviews storeId={storeId} />
     </div>
   );
 }

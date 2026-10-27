@@ -474,6 +474,33 @@ export const returnRequests = pgTable(
   (t) => [index("return_requests_order_idx").on(t.orderId), index("return_requests_status_idx").on(t.status)],
 );
 
+/**
+ * A rating from the buyer of a delivered order: one per order, never edited, never paid for. Sellers can
+ * reply once; staff can hide abusive ones (with a reason, logged), never change the rating.
+ */
+export const productReviews = pgTable(
+  "product_reviews",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    storeId: text("store_id").notNull(),
+    productId: text("product_id"),
+    userId: text("user_id").notNull(),
+    /** First name and initial, as shown. */
+    authorName: text("author_name").notNull(),
+    rating: integer("rating").notNull(),
+    body: text("body").notNull().default(""),
+    sellerReply: text("seller_reply"),
+    sellerRepliedAt: ts("seller_replied_at"),
+    hiddenAt: ts("hidden_at"),
+    hiddenReason: text("hidden_reason"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("product_reviews_order_idx").on(t.orderId), index("product_reviews_product_idx").on(t.productId), index("product_reviews_store_idx").on(t.storeId)],
+);
+
 /* ---------- Fraud signals ---------- */
 
 /** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */

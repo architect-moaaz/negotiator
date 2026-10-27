@@ -5,6 +5,7 @@ import { canActAsShopper } from "@/lib/deal-access";
 import { canDispute, confirmReceivedByBuyer, disputeFor, openDispute, shipmentFor } from "@/lib/orders/fulfilment";
 import { requestReturn, returnFor, returnWindowEnd } from "@/lib/orders/returns";
 import { OrderError, orderForDeal } from "@/lib/orders/service";
+import { addReview, canReview, reviewForOrder } from "@/lib/reviews";
 import { store as kv } from "@/lib/store";
 
 async function load(dealId: string) {
@@ -19,7 +20,15 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/orders/[dea
   const found = await load((await ctx.params).dealId);
   if (!found) return Response.json({ error: "Order not found." }, { status: 404 });
   const { order } = found;
-  const [shipment, dispute, ret, returnEnds, db] = await Promise.all([shipmentFor(order.id), disputeFor(order.id), returnFor(order.id), returnWindowEnd(order), getDb()]);
+  const [shipment, dispute, ret, returnEnds, review, reviewable, db] = await Promise.all([
+    shipmentFor(order.id),
+    disputeFor(order.id),
+    returnFor(order.id),
+    returnWindowEnd(order),
+    reviewForOrder(order.id),
+    canReview(order),
+    getDb(),
+  ]);
   const [hold] = await db.select().from(schema.holds).where(eq(schema.holds.orderId, order.id));
   return Response.json(
     {
@@ -32,6 +41,8 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/orders/[dea
       dispute: dispute && { reason: dispute.reason, status: dispute.status, resolution: dispute.resolution },
       returnWindowEndsAt: returnEnds ?? undefined,
       returnRequest: ret && { reason: ret.reason, status: ret.status, sellerNote: ret.sellerNote },
+      canReview: reviewable,
+      review: review && { rating: review.rating, body: review.body, sellerReply: review.sellerReply },
     },
     { headers: { "Cache-Control": "no-store" } },
   );
@@ -41,10 +52,11 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/orders/[dea
 export async function POST(request: Request, ctx: RouteContext<"/api/orders/[dealId]">) {
   const found = await load((await ctx.params).dealId);
   if (!found) return Response.json({ error: "Order not found." }, { status: 404 });
-  const body = (await request.json().catch(() => ({}))) as { action?: string; reason?: string; details?: string };
+  const body = (await request.json().catch(() => ({}))) as { action?: string; reason?: string; details?: string; rating?: unknown };
   try {
     if (body.action === "received") await confirmReceivedByBuyer(found.order.id);
     else if (body.action === "problem") await openDispute(found.order.id, { reason: body.reason ?? "", details: body.details ?? "" });
+    else if (body.action === "review") await addReview(found.order.id, found.order.userId, { rating: Number(body.rating), body: body.details });
     else if (body.action === "return") await requestReturn(found.order.id, { reason: body.reason ?? "", details: body.details ?? "" });
     else return Response.json({ error: "Unknown action." }, { status: 400 });
     return Response.json({ ok: true });

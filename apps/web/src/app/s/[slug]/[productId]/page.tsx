@@ -10,6 +10,7 @@ import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { getLang } from "@/lib/lang";
+import { reviewSummary } from "@/lib/reviews";
 import { GRANT_PLATFORMS } from "@/lib/grants/adapters";
 import { getProduct } from "@/lib/shop/products";
 import { policyForProduct } from "@/lib/shop/policies";
@@ -35,7 +36,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
   const product = shop && (await getProduct(productId));
   if (!shop || !product || product.storeId !== shop.store.id || product.status !== "active") notFound();
   const { store, preview } = shop;
-  const [policy, seller, lang] = await Promise.all([policyForProduct(product), sellerDetails(store), getLang()]);
+  const [policy, seller, lang, reviews] = await Promise.all([policyForProduct(product), sellerDetails(store), getLang(), reviewSummary({ productId: product.id })]);
   const raw = (await searchParams).return;
   const back = await allowedReturnUrl(store.id, typeof raw === "string" ? raw : undefined);
 
@@ -83,6 +84,25 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
           {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">{t(lang, "product.origin", { c: product.countryOfOrigin })}</p>}
         </div>
       </div>
+      {reviews.count > 0 && (
+        <section aria-label="Reviews" className="mt-12">
+          <h2 className="text-xl font-semibold">
+            {reviews.average.toFixed(1)} ★ <span className="text-base font-normal text-muted">from {reviews.count} verified buyer{reviews.count === 1 ? "" : "s"}</span>
+          </h2>
+          <ul className="mt-4 grid gap-4">
+            {reviews.latest.map((r) => (
+              <li key={r.id} className="border-t border-line pt-4">
+                <p>
+                  <span aria-label={`${r.rating} out of 5`}>{"★".repeat(r.rating)}</span>
+                  <span className="text-muted">{"★".repeat(5 - r.rating).replace(/★/g, "☆")}</span> <span className="text-sm text-muted">{r.authorName}</span>
+                </p>
+                {r.body && <p className="mt-1">{r.body}</p>}
+                {r.sellerReply && <p className="mt-2 text-sm text-muted">{store.name} replied: {r.sellerReply}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <SellerDetailsBlock seller={seller} paidOn={GRANT_PLATFORMS.has(store.platform) ? store.name : undefined} />
     </>
   );
