@@ -4,7 +4,7 @@ import { getDb } from "../db";
 
 const { consents } = schema;
 
-export type ConsentPurpose = "deal_contact" | "marketing" | "recovery_offers";
+export type ConsentPurpose = "deal_contact" | "marketing" | "recovery_offers" | "price_alerts";
 export type Consent = typeof consents.$inferSelect;
 
 /** The exact words shown next to the signup checkbox. Change them here and in the form together. */

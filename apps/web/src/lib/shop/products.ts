@@ -78,6 +78,8 @@ export async function updateProduct(storeId: string, id: string, input: ProductI
     .set({ categoryId, title: p.title, description: p.description, price: p.price, mrp: p.mrp ?? null, stock: p.stock, sku: p.sku ?? null, images: p.images, ...(p.countryOfOrigin !== undefined && { countryOfOrigin: p.countryOfOrigin || null }), ...(p.brand !== undefined && { brand: p.brand || null }), ...(p.gtin !== undefined && { gtin: normalizeGtin(p.gtin) }), ...(p.modelNumber !== undefined && { modelNumber: p.modelNumber || null }), status: p.status, updatedAt: new Date() })
     .where(and(eq(products.id, id), eq(products.storeId, storeId)))
     .returning();
+  // A lower listed price may meet shoppers' price alerts (the module imports this one, so load it late).
+  if (row) await (await import("../alerts")).firePriceAlerts(row.id).catch((err) => console.warn("price alerts failed", err));
   return row as Product | undefined;
 }
 

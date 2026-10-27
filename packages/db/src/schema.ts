@@ -805,6 +805,32 @@ export const recoverySettings = pgTable("recovery_settings", {
 });
 
 /**
+ * A shopper asked to hear when a product's listed price drops to their target (never about a seller's
+ * private haggle limits). One live alert per shopper and product; expires after 60 days.
+ */
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** Whole rupees. */
+    targetPrice: integer("target_price").notNull(),
+    /** Listed price when the alert was set, for the message. */
+    priceAtSet: integer("price_at_set").notNull(),
+    /** sha256 of the token in the alert's stop link. */
+    stopTokenHash: text("stop_token_hash").notNull(),
+    expiresAt: ts("expires_at").notNull(),
+    firedAt: ts("fired_at"),
+    stoppedAt: ts("stopped_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("price_alerts_product_idx").on(t.productId), uniqueIndex("price_alerts_live_idx").on(t.userId, t.productId).where(sql`fired_at is null and stopped_at is null`)],
+);
+
+/**
  * A shopper's cart on a store, captured with the seller's integration (widget, Shopify webhook, Woo
  * plugin) or brought by the shopper (Rescue my cart). Lines are product ids in this store with the
  * list price at capture time. Contact details are kept only with recovery consent.

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HaggleButton } from "@/components/shop/haggle-button";
+import { PriceAlert } from "@/components/shop/price-alert";
 import { SellerDetailsBlock } from "@/components/shop/seller-details";
 import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
@@ -66,7 +67,10 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
             {preview ? (
               <p className="rounded-xl border border-saffron/60 px-4 py-3 text-sm">Preview: shoppers can haggle once your shop is live.</p>
             ) : policy.enabled ? (
-              <HaggleButton productId={product.id} disabled={product.stock < 1} label="Make an offer" returnUrl={back ?? undefined} />
+              <div className="grid gap-3">
+                <HaggleButton productId={product.id} disabled={product.stock < 1} label="Make an offer" returnUrl={back ?? undefined} />
+                <PriceAlert productId={product.id} price={product.price} />
+              </div>
             ) : (
               <p className="text-muted">This item is sold at a fixed price.</p>
             )}

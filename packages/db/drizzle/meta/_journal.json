@@ -141,6 +141,13 @@
       "when": 1793121934793,
       "tag": "0019_shipment_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793122266307,
+      "tag": "0020_price_alerts",
+      "breakpoints": true
     }
   ]
 }

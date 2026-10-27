@@ -241,7 +241,9 @@ export type ActivityType =
   | "privilege_invited"
   | "privilege_opened"
   | "cart_recovered"
-  | "privilege_opt_out";
+  | "privilege_opt_out"
+  | "price_alert_set"
+  | "price_alert_sent";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
 export interface Activity {
