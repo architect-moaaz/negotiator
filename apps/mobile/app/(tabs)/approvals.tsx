@@ -100,7 +100,7 @@ export default function Approvals() {
               <Button kind="danger" label="Reject" busy={busy === `${d.id}:rejected`} onPress={() => decide(d, "rejected")} />
             </View>
           </View>
-          <Field label="Or counter with (₹)" keyboardType="number-pad" value={counter[d.id] ?? ""} onChangeText={(v) => setCounter({ ...counter, [d.id]: v.replace(/\D/g, "") })} />
+          <Field label="Or counter with (₹)" testID="counter" keyboardType="number-pad" value={counter[d.id] ?? ""} onChangeText={(v) => setCounter({ ...counter, [d.id]: v.replace(/\D/g, "") })} />
           <Button kind="secondary" label="Send counter-offer" disabled={!counter[d.id]} busy={busy === `${d.id}:counter`} onPress={() => decide(d, "counter")} />
         </Card>
       ))}

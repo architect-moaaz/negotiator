@@ -1,0 +1,91 @@
+# A new shopper finds the kettle, signs up with their phone, and offers below what the agent may accept
+# alone, so the offer goes to the seller.
+appId: ${APP_ID}
+name: shopper-offers
+tags: [shopper]
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/open-app.yaml
+- runFlow: ../subflows/sign-out.yaml
+- tapOn:
+    id: "search"
+- inputText: "ZZ Maestro"
+- tapOn: "ZZ Maestro Kettle, .* Make an offer\\."
+# Not signed in yet: the app asks for a phone number first.
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 20000
+- tapOn:
+    id: "phone"
+- inputText: ${SHOPPER_PHONE}
+- runFlow: ../subflows/close-keyboard.yaml
+- tapOn: "Call me with a code"
+# A number GhostCart hasn't seen: the screen switches to creating an account.
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 20000
+- tapOn:
+    id: "name"
+- inputText: "ZZ Maestro Shopper"
+- runFlow: ../subflows/close-keyboard.yaml
+# The keyboard is still open: these sit below it until the screen is scrolled up.
+- scrollUntilVisible:
+    element:
+      id: "consent"
+    direction: DOWN
+    visibilityPercentage: 100
+- tapOn:
+    id: "consent"
+- scrollUntilVisible:
+    element: "Call me with a code"
+    direction: DOWN
+    visibilityPercentage: 100
+- tapOn: "Call me with a code"
+- runFlow: ../subflows/enter-code.yaml
+# Back on the shop, signed in: start the haggle.
+- extendedWaitUntil:
+    visible: "Every price is open to a bargain"
+    timeout: 20000
+- tapOn: "ZZ Maestro Kettle, .* Make an offer\\."
+- extendedWaitUntil:
+    visible: "List price .*"
+    timeout: 30000
+- assertVisible: "Current offer .*"
+# ₹1,850 is above the floor (₹1,800) but below what the agent may accept alone (₹1,900); the agent may
+# counter first, so keep offering until it goes to the seller.
+- repeat:
+    times: 4
+    while:
+      notVisible: "Your offer of .* is with the seller\\..*"
+    commands:
+      # Scroll to whichever is on the page: the offer field (still haggling) or the waiting message.
+      - scrollUntilVisible:
+          element: "Send offer|Your offer of .* is with the seller\\..*"
+          direction: DOWN
+          visibilityPercentage: 100
+      - runFlow:
+          when:
+            visible: "Send offer"
+          commands:
+            - waitForAnimationToEnd
+            - tapOn:
+                id: "offer"
+            # Start from an empty field whatever happened in the last round.
+            - eraseText: 20
+            - inputText: "1850"
+            - runFlow: ../subflows/close-keyboard.yaml
+            # Close the number pad (it has no Done key) by tapping the text above the field, so the
+            # next tap can't land on a key while the screen settles.
+            - tapOn: "Current offer .*"
+            - waitForAnimationToEnd
+            - scrollUntilVisible:
+                element: "Send offer"
+                direction: DOWN
+                visibilityPercentage: 100
+            - tapOn: "Send offer"
+            - waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Your offer of ₹1,850 is with the seller\\..*"
+    direction: DOWN
+    visibilityPercentage: 100

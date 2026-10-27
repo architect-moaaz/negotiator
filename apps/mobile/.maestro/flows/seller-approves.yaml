@@ -1,0 +1,27 @@
+# The shop's owner signs in on the same phone as the seller and approves the waiting offer.
+appId: ${APP_ID}
+name: seller-approves
+tags: [seller]
+---
+- launchApp
+- runFlow: ../subflows/open-app.yaml
+- tapOn: "Approvals(, tab.*)?"
+- tapOn: "Sign in as a seller"
+- extendedWaitUntil:
+    visible: "Seller sign in"
+    timeout: 20000
+- tapOn:
+    id: "phone"
+- inputText: ${SELLER_PHONE}
+- runFlow: ../subflows/close-keyboard.yaml
+- tapOn: "Call me with a code"
+- runFlow: ../subflows/enter-code.yaml
+- extendedWaitUntil:
+    visible: "Shopper offers ₹1,850 against your list price ₹2,000\\."
+    timeout: 30000
+- assertVisible: "ZZ Maestro Kettle"
+- assertVisible: "Your agent could go to .* alone; your floor is .*"
+- tapOn: "Approve"
+- extendedWaitUntil:
+    visible: "Nothing waiting\\..*"
+    timeout: 20000

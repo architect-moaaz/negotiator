@@ -1,12 +1,23 @@
 import type { ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { color } from "@/lib/theme";
 
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
   return (
     <SafeAreaView style={s.screen} edges={["top", "left", "right"]}>
-      {scroll ? <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">{children}</ScrollView> : <View style={[s.content, { flex: 1 }]}>{children}</View>}
+      {/* Android draws edge to edge, so the window no longer shrinks for the keyboard: pad for it here. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "android" ? "padding" : undefined}>
+        {scroll ? (
+          // The keyboard (a number pad with no Done key on iOS) mustn't hide the field being typed in or the
+          // button under it: the content scrolls above the keyboard, and dragging dismisses it.
+          <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[s.content, { flex: 1 }]}>{children}</View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -1,0 +1,18 @@
+# Open the GhostCart app inside Expo Go. The flags skip Expo Go's onboarding and floating button, the
+# same way `expo start --ios/--android` opens it.
+appId: ${APP_ID}
+---
+- openLink: ${APP_URL}?__expo_disable_fab=1&__expo_disable_onboarding=1
+- extendedWaitUntil:
+    visible: "Every price is open to a bargain|Toggle performance monitor"
+    timeout: 90000
+# Expo Go on Android opens its developer menu over the app after its data is cleared: close it.
+- runFlow:
+    when:
+      visible: "Toggle performance monitor"
+    commands:
+      - pressKey: back
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: "Every price is open to a bargain"
+    timeout: 20000

@@ -63,3 +63,6 @@ apps/e2e/test-results/
 apps/e2e/playwright-report/
 packages/widget/test-results/
 packages/widget/playwright-report/
+
+# Maestro device-flow reports
+apps/mobile/.maestro/report-*.xml

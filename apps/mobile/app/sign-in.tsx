@@ -34,7 +34,7 @@ export default function SignIn() {
     const r =
       mode === "signup"
         ? await api("/api/signup", { body: { name, phone: digits, consent, source: "app", client: "mobile" } })
-        : await api("/api/auth/code", { body: { role: kind, phone: digits } });
+        : await api("/api/auth/code", { body: { role: kind, phone: digits, client: "mobile" } });
     setBusy(false);
     if (r.ok) return setSent(true);
     if (r.status === 404 && kind === "buyer") {
@@ -62,15 +62,15 @@ export default function SignIn() {
     <Screen>
       <Title>{kind === "member" ? "Seller sign in" : mode === "signup" ? "Create your account" : "Sign in"}</Title>
       <Body muted>We&apos;ll call your number and read out a code.</Body>
-      {mode === "signup" && <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" editable={!sent} />}
-      <Field label="Mobile number" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} placeholder="98765 43210" editable={!sent} />
+      {mode === "signup" && <Field label="Your name" testID="name" value={name} onChangeText={setName} autoComplete="name" editable={!sent} />}
+      <Field label="Mobile number" testID="phone" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} placeholder="98765 43210" editable={!sent} />
       {mode === "signup" && (
-        <Pressable accessibilityRole="switch" accessibilityState={{ checked: consent }} onPress={() => setConsent(!consent)} style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+        <Pressable testID="consent" accessibilityRole="switch" accessibilityState={{ checked: consent }} onPress={() => setConsent(!consent)} style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
           <Switch value={consent} onValueChange={setConsent} trackColor={{ true: color.saffron, false: color.line }} />
           <Text style={{ color: color.muted, flex: 1 }}>{CONSENT}</Text>
         </Pressable>
       )}
-      {sent && <Field label="Code" keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} value={code} onChangeText={(v) => setCode(v.replace(/\D/g, ""))} />}
+      {sent && <Field label="Code" testID="code" keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} value={code} onChangeText={(v) => setCode(v.replace(/\D/g, ""))} />}
       <ErrorText>{error}</ErrorText>
       <View style={{ gap: 10 }}>
         {sent ? (

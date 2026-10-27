@@ -28,10 +28,21 @@ export class OtpError extends Error {
   }
 }
 
+/**
+ * Device tests (Maestro, apps/mobile/.maestro) can't read the dev console, so local runs may fix the code
+ * with E2E_LOGIN_CODE. Never in production builds (Vercel previews included) and never when real calls
+ * are configured, so a real phone always gets a random code.
+ */
+function fixedTestCode() {
+  const fixed = process.env.E2E_LOGIN_CODE;
+  if (!fixed || process.env.NODE_ENV === "production" || process.env.VERCEL_ENV || vobizConfigured) return null;
+  return /^\d{6}$/.test(fixed) ? fixed : null;
+}
+
 /** Create a 6-digit login code and read it out to the phone via a Vobiz voice call. */
 export async function sendLoginCode(role: OtpPurpose, phone: string) {
   if (!(await store.claimOnce(`otp-throttle:${phone}`, RESEND_S))) throw new OtpError("We just called you. Wait a few seconds before asking for another code.", 429);
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const code = fixedTestCode() ?? String(randomInt(0, 1_000_000)).padStart(6, "0");
   await store.kvSet<OtpRecord>(key(role, phone), { hash: hash(phone, code), attempts: 0, expiresAt: Date.now() + CODE_TTL_S * 1000 }, CODE_TTL_S);
 
   if (!vobizConfigured) {
