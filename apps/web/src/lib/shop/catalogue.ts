@@ -2,7 +2,7 @@ import { schema } from "@ghostcart/db";
 import { and, desc, eq, gt, ilike, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
 
-const { categories, products, stores } = schema;
+const { categories, productBoosts, products, stores } = schema;
 
 export interface CatalogueItem {
   productId: string;
@@ -13,6 +13,8 @@ export interface CatalogueItem {
   storeName: string;
   storeSlug: string;
   category: string | null;
+  /** A paid boost: shown first and always labelled "Sponsored". */
+  sponsored: boolean;
 }
 
 /**
@@ -32,10 +34,12 @@ export async function searchCatalogue(query = "", limit = 24): Promise<Catalogue
       storeName: stores.name,
       storeSlug: stores.slug,
       category: categories.name,
+      boostedUntil: productBoosts.until,
     })
     .from(products)
     .innerJoin(stores, eq(stores.id, products.storeId))
     .leftJoin(categories, eq(categories.id, products.categoryId))
+    .leftJoin(productBoosts, and(eq(productBoosts.productId, products.id), gt(productBoosts.until, sql`now()`)))
     .where(
       and(
         eq(stores.status, "live"),
@@ -44,9 +48,9 @@ export async function searchCatalogue(query = "", limit = 24): Promise<Catalogue
         ...words.map((w) => or(ilike(products.title, `%${w.replace(/[%_]/g, "")}%`), ilike(categories.name, `%${w.replace(/[%_]/g, "")}%`))),
       ),
     )
-    .orderBy(desc(products.updatedAt))
+    .orderBy(sql`${productBoosts.until} is null`, desc(products.updatedAt))
     .limit(Math.min(60, limit));
-  return rows.map(({ images, ...r }) => ({ ...r, image: images[0] ?? null }));
+  return rows.map(({ images, boostedUntil, ...r }) => ({ ...r, image: images[0] ?? null, sponsored: !!boostedUntil }));
 }
 
 /** Live shops with something to sell, for the home page. */

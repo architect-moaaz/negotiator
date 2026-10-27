@@ -514,6 +514,37 @@ export const awayRules = pgTable("away_rules", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
+/** Each shopper's invite code (Rescue, referrals). Created on first use. */
+export const referralCodes = pgTable("referral_codes", {
+  code: text("code").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** Who brought whom: recorded once, when a new shopper signs up through an invite link. */
+export const referrals = pgTable(
+  "referrals",
+  {
+    referredUserId: text("referred_user_id").primaryKey(),
+    referrerUserId: text("referrer_user_id").notNull(),
+    code: text("code").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("referrals_referrer_idx").on(t.referrerUserId)],
+);
+
+/** Promoted listings: staff-set, time-limited, always labelled "Sponsored" to shoppers. */
+export const productBoosts = pgTable("product_boosts", {
+  productId: text("product_id")
+    .primaryKey()
+    .references(() => products.id, { onDelete: "cascade" }),
+  storeId: text("store_id").notNull(),
+  until: ts("until").notNull(),
+  note: text("note").notNull().default(""),
+  createdBy: text("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
 /* ---------- Fraud signals ---------- */
 
 /** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */

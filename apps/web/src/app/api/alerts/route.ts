@@ -1,12 +1,21 @@
 import { AlertError, alertsForUser, setPriceAlert, stopPriceAlert } from "@/lib/alerts";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getProduct } from "@/lib/shop/products";
+import { getStore } from "@/lib/shop/stores";
 import { currentUser } from "@/lib/users";
 
 /** The signed-in shopper's live price alerts. */
 export async function GET() {
   const user = await currentUser();
   if (!user) return Response.json({ error: "Sign in to see your alerts.", needsSignup: true }, { status: 401 });
-  return Response.json({ alerts: (await alertsForUser(user.id)).map((a) => ({ id: a.id, productId: a.productId, targetPrice: a.targetPrice, expiresAt: a.expiresAt })) });
+  const alerts = await Promise.all(
+    (await alertsForUser(user.id)).map(async (a) => {
+      const p = await getProduct(a.productId);
+      const s = p && (await getStore(p.storeId));
+      return { id: a.id, productId: a.productId, title: p?.title ?? "A product", url: p && s ? `/s/${s.slug}/${p.id}` : null, targetPrice: a.targetPrice, expiresAt: a.expiresAt };
+    }),
+  );
+  return Response.json({ alerts });
 }
 
 /** Set (or replace) an alert. Body: { productId, target } (whole rupees, below today's price). */

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InviteCard } from "@/components/invite-card";
 import { MyDeals } from "@/components/my-deals";
 
 export const metadata = { title: "GhostCart · My deals", robots: { index: false } };
@@ -15,6 +16,7 @@ export default function AccountPage() {
         </Link>
       </header>
       <MyDeals />
+      <InviteCard />
     </main>
   );
 }

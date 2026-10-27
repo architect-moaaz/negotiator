@@ -30,6 +30,8 @@ export async function signUp(input: {
   consentWording?: string;
   demographics?: Demographics;
   source?: string;
+  /** From an invite link: credited to its owner only if this is a new account. */
+  inviteCode?: string;
 }) {
   const { user, created } = await store.upsertUser({
     id: crypto.randomUUID(),
@@ -42,6 +44,7 @@ export async function signUp(input: {
     createdAt: Date.now(),
     consentAt: input.consent ? Date.now() : undefined,
   });
+  if (created && input.inviteCode) await (await import("./referrals")).recordReferral(input.inviteCode, user.id);
   // Every tick of the box is recorded, including on sign-back-in: it renews consent the person may have withdrawn.
   if (input.consent) {
     await recordConsent(user.id, "deal_contact", "granted", input.consentWording ?? DEAL_CONTACT_WORDING, `signup:${input.source ?? input.channel}`);
