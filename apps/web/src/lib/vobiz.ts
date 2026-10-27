@@ -50,6 +50,29 @@ export async function placeCall({ to, dealId }: { to: string; dealId: string }) 
   return JSON.parse(text) as { request_uuid?: string; message?: string };
 }
 
+/** GhostCart Privilege: a signed answer URL for a private-offer invite call. */
+export function privilegeVoiceUrl(inviteId: string, step?: "keys") {
+  const id = `privilege:${inviteId}`;
+  return `${process.env.NEXT_PUBLIC_APP_URL}/api/voice/privilege?i=${encodeURIComponent(inviteId)}&k=${signDeal(id)}${step ? `&s=${step}` : ""}`;
+}
+
+export const verifyPrivilegeSignature = (inviteId: string | null, sig: string | null) => !!inviteId && verifyDealSignature(`privilege:${inviteId}`, sig);
+
+/** Call a shopper who asked for a private offer on their cart (they choose by keypress on the call). */
+export async function placeInviteCall({ to, inviteId }: { to: string; inviteId: string }) {
+  const res = await fetch(`${API}/Account/${AUTH_ID}/Call/`, {
+    method: "POST",
+    headers: { "X-Auth-ID": AUTH_ID!, "X-Auth-Token": AUTH_TOKEN!, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: FROM!.replace(/^\+/, ""), to, answer_url: privilegeVoiceUrl(inviteId), answer_method: "POST", caller_name: "GhostCart", time_limit: 90 }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`Vobiz invite call failed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
+/** Ask for one keypress; Vobiz posts it (Digits) to the action URL. */
+export const gatherKeys = (prompt: string, action: string) =>
+  `<Gather action="${esc(action)}" method="POST" inputType="dtmf" numDigits="1" executionTimeout="10">${speak(prompt)}</Gather>`;
+
 /** Call a phone and read out a login code (answer URL looks the code up by call id). */
 export async function placeOtpCall({ to, callId }: { to: string; callId: string }) {
   const res = await fetch(`${API}/Account/${AUTH_ID}/Call/`, {

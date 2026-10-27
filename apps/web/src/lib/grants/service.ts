@@ -1,11 +1,12 @@
-import { accounts, assertBalanced, inr, orderMoney } from "@ghostcart/core";
+import { accounts, allocateCartDiscount, assertBalanced, inr, orderMoney } from "@ghostcart/core";
 import { getDb } from "../db";
 import { post } from "../orders/ledger";
 import { getProduct } from "../shop/products";
 import { getStore } from "../shop/stores";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
-import { grantAdapterFor, grantCode } from "./adapters";
+import { updateCart } from "../privilege/carts";
+import { grantAdapterFor, grantCode, type GrantLine } from "./adapters";
 
 const GRANT_MINUTES = () => Number(process.env.GRANT_MINUTES ?? 30);
 const FEE_BPS = () => Number(process.env.PLATFORM_FEE_BPS ?? 200);
@@ -22,8 +23,17 @@ export async function issueGrant(deal: Deal, price: number, agreedBy: string) {
   if (!adapter) throw new GrantError(`${store.name}'s store isn't connected right now. Try again shortly.`);
   const code = grantCode();
   const expiresAt = new Date(Date.now() + GRANT_MINUTES() * 60 * 1000);
-  const discountInr = product.price - price;
-  const { checkoutUrl, kind = "code", ref } = await adapter.createGrant({ store, product, code, discountInr, expiresAt });
+  let discountInr = product.price - price;
+  let lines: GrantLine[] | undefined;
+  if (deal.cart) {
+    // A Privilege cart: re-read every line and split the cart discount across them by list value.
+    const products = await Promise.all(deal.cart.lines.map((l) => getProduct(l.productId)));
+    if (products.some((p) => !p || p.storeId !== store.id)) throw new GrantError("Something in this cart isn't available any more.");
+    const shares = allocateCartDiscount(deal.cart.lines, price);
+    lines = deal.cart.lines.map((l, i) => ({ product: products[i]!, quantity: l.quantity, discountInr: shares[i] }));
+    discountInr = shares.reduce((a, b) => a + b, 0);
+  }
+  const { checkoutUrl, kind = "code", ref } = await adapter.createGrant({ store, product, code, discountInr, expiresAt, lines });
 
   Object.assign(deal, {
     status: "granted",
@@ -60,6 +70,10 @@ export async function redeemGrant(input: { storeId: string; code: string; platfo
     ]),
   });
   await kv.incrStats({ paid: 1, saved: deal.saved });
+  if (deal.cart) {
+    await updateCart(deal.cart.cartId, { status: "recovered", recoveredAt: new Date() });
+    await kv.log({ type: "cart_recovered", actor: "system", userId: deal.userId, dealId: deal.id, detail: `Privilege cart ${deal.cart.cartId} recovered: ${deal.grant.platform} order ${input.platformOrderRef} at ${inr(deal.dealPrice)}` });
+  }
   await kv.log({ type: "order_placed", actor: "system", userId: deal.userId, dealId: deal.id, detail: `${deal.grant.platform} order ${input.platformOrderRef} used ${input.code}; fee ${inr((m.fee + m.gst) / 100)} owed by the seller` });
   return deal;
 }

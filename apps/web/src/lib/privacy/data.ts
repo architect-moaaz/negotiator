@@ -1,6 +1,7 @@
 import { schema } from "@ghostcart/db";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "../db";
+import { cartsWithContact, eraseCartContact } from "../privilege/carts";
 import { store } from "../store";
 import type { Deal, User } from "../types";
 import { consentHistory, recordConsent } from "./consent";
@@ -33,11 +34,12 @@ async function dealsFor(userId: string) {
 /** Everything GhostCart holds about a shopper, in one JSON document (DPDP right to access). */
 export async function exportShopperData(user: User) {
   const db = await getDb();
-  const [deals, consents, orderRows, grievanceRows] = await Promise.all([
+  const [deals, consents, orderRows, grievanceRows, cartRows] = await Promise.all([
     dealsFor(user.id),
     consentHistory(user.id),
     db.select().from(orders).where(eq(orders.userId, user.id)),
     db.select().from(grievances).where(eq(grievances.contact, user.phone)),
+    cartsWithContact({ userId: user.id, phone: user.phone, email: user.email }),
   ]);
   const disputeRows = orderRows.length ? await db.select().from(disputes).where(inArray(disputes.orderId, orderRows.map((o) => o.id))) : [];
   return {
@@ -57,6 +59,7 @@ export async function exportShopperData(user: User) {
     })),
     orders: orderRows.map((o) => ({ id: o.id, dealId: o.dealId, title: o.title, status: o.status, totalPaise: o.total, address: o.address, createdAt: o.createdAt, shippedAt: o.shippedAt, deliveredAt: o.deliveredAt })),
     disputes: disputeRows.map((d) => ({ id: d.id, orderId: d.orderId, reason: d.reason, details: d.details, status: d.status, resolution: d.resolution, createdAt: d.createdAt })),
+    carts: cartRows.map((c) => ({ id: c.id, storeId: c.storeId, items: c.lines.map((l) => ({ title: l.title, quantity: l.quantity, unitPrice: l.unitPrice })), status: c.status, email: c.email, phone: c.phone, recoveryConsentAt: c.consentAt, createdAt: c.createdAt })),
     grievances: grievanceRows.map((g) => ({ id: g.id, category: g.category, message: g.message, status: g.status, response: g.response, createdAt: g.createdAt })),
   };
 }
@@ -91,8 +94,10 @@ export async function deleteShopperAccount(user: User) {
   for (const deal of await dealsFor(user.id)) await store.saveDeal(scrubDeal(deal));
 
   await db.delete(deviceLinks).where(eq(deviceLinks.actorId, user.id));
+  await eraseCartContact({ userId: user.id, phone: user.phone, email: user.email });
   await db.update(activity).set({ detail: "Erased at the shopper's request" }).where(eq(activity.userId, user.id));
   await recordConsent(user.id, "deal_contact", "withdrawn", "Account deleted", "account_deletion");
+  await recordConsent(user.id, "recovery_offers", "withdrawn", "Account deleted", "account_deletion");
 
   const phone = user.phone;
   await store.updateUser({ id: user.id, name: "Deleted shopper", phone: `erased:${user.id}`, channel: user.channel, createdAt: user.createdAt });

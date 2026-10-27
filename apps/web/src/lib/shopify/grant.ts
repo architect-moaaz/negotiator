@@ -15,10 +15,13 @@ registerGrantAdapter("shopify", {
   async ready(store) {
     return !!(await connectionForStore(store.id));
   },
-  async createGrant({ store, product, code, discountInr, expiresAt }) {
+  async createGrant({ store, product, code, discountInr, expiresAt, lines }) {
     const conn = await connectionForStore(store.id);
-    const [, productId, variantId] = product.source.split(":");
-    if (!conn || !productId || !variantId) throw new Error("This store's Shopify connection isn't set up.");
+    const items = (lines ?? [{ product, quantity: 1, discountInr }]).map((l) => {
+      const [, productId, variantId] = l.product.source.split(":");
+      return { productId, variantId, quantity: l.quantity, discountInr: l.discountInr };
+    });
+    if (!conn || items.some((i) => !i.productId || !i.variantId)) throw new Error("This store's Shopify connection isn't set up.");
     const shop = conn.externalId;
     const token = tokenOf(conn);
     try {
@@ -35,11 +38,12 @@ registerGrantAdapter("shopify", {
           customerSelection: { all: true },
           customerGets: {
             value: { discountAmount: { amount: discountInr.toFixed(2), appliesOnEachItem: false } },
-            items: { products: { productsToAdd: [`gid://shopify/Product/${productId}`] } },
+            items: { products: { productsToAdd: [...new Set(items.map((i) => `gid://shopify/Product/${i.productId}`))] } },
           },
         },
       });
-      return { checkoutUrl: `https://${shop}/cart/${variantId}:1?discount=${encodeURIComponent(code)}`, kind: "code" };
+      const cartPath = items.map((i) => `${i.variantId}:${i.quantity}`).join(",");
+      return { checkoutUrl: `https://${shop}/cart/${cartPath}?discount=${encodeURIComponent(code)}`, kind: "code" };
     } catch (err) {
       if (!(err instanceof ShopifyError)) throw err;
       console.warn(`shopify discount code failed for ${shop}, using a draft order: ${err.message}`);
@@ -52,13 +56,12 @@ registerGrantAdapter("shopify", {
       }`,
       {
         input: {
-          lineItems: [
-            {
-              variantId: `gid://shopify/ProductVariant/${variantId}`,
-              quantity: 1,
-              appliedDiscount: { valueType: "FIXED_AMOUNT", value: Number(discountInr.toFixed(2)), amount: Number(discountInr.toFixed(2)), title: `GhostCart ${code}` },
-            },
-          ],
+          lineItems: items.map((i) => ({
+            variantId: `gid://shopify/ProductVariant/${i.variantId}`,
+            quantity: i.quantity,
+            // A line's discount covers all its units, so spread it per unit for the draft order.
+            appliedDiscount: { valueType: "FIXED_AMOUNT", value: Number((i.discountInr / i.quantity).toFixed(2)), amount: Number((i.discountInr / i.quantity).toFixed(2)), title: `GhostCart ${code}` },
+          })),
           tags: ["GhostCart", code],
           note: `Price agreed with the GhostCart agent (${code}). Valid until ${expiresAt.toISOString()}.`,
           customAttributes: [{ key: "ghostcart_code", value: code }],

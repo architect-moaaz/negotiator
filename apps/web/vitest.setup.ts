@@ -48,6 +48,10 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const mock = await import("./src/app/api/mock-flipkart/[...path]/route");
     return mock.GET(new Request(url, init), { params: Promise.resolve({ path: new URL(url).pathname.replace("/api/mock-flipkart/", "").split("/") }) });
   }
+  if (url.startsWith(`${GUPSHUP}/wa/api/v1/template/msg`)) {
+    const mock = await import("./src/app/api/mock-gupshup/wa/api/v1/template/msg/route");
+    return mock.POST(new Request(url, init));
+  }
   if (url.startsWith(GUPSHUP)) {
     const mock = await import("./src/app/api/mock-gupshup/wa/api/v1/msg/route");
     return init?.method === "POST" ? mock.POST(new Request(url, init)) : mock.GET();

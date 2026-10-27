@@ -6,7 +6,9 @@ import { verifyWebhookHmac } from "@ghostcart/channels";
 import { recordShopifyUsage } from "@/lib/shopify/billing";
 import { connectionForShop, updateConnection } from "@/lib/shopify/connections";
 import { archiveShopifyProduct, syncShopifyProductWebhook } from "@/lib/shopify/sync";
-import { updateStore } from "@/lib/shop/stores";
+import { cartsWithContact, completeCart, eraseCartContact } from "@/lib/privilege/carts";
+import { captureShopifyCheckout } from "@/lib/privilege/shopify";
+import { getStore, updateStore } from "@/lib/shop/stores";
 import { store as kv } from "@/lib/store";
 
 /** Every Shopify webhook, including the three mandatory privacy topics. Verified by HMAC first. */
@@ -18,9 +20,13 @@ export async function POST(request: Request) {
   const body = JSON.parse(raw || "{}");
   const conn = await connectionForShop(shop);
 
-  // Privacy (GDPR) topics. We keep no Shopify customer data beyond order numbers on redeemed codes.
+  // Privacy (GDPR) topics. The only Shopify customer data we keep is contact details on checkouts whose
+  // shopper consented (GhostCart Privilege), plus order numbers on redeemed codes.
   if (topic === "customers/data_request" || topic === "customers/redact") {
-    await kv.log({ type: "seller_action", actor: "system", detail: `Shopify ${topic} for ${shop}: no Shopify customer data held` });
+    const who = { email: body.customer?.email ?? undefined, phone: body.customer?.phone ?? undefined };
+    const held = conn?.storeId ? (topic === "customers/redact" ? await eraseCartContact(who, conn.storeId) : (await cartsWithContact(who, conn.storeId)).length) : 0;
+    const what = topic === "customers/redact" ? `contact details erased from ${held} cart(s)` : `${held} cart(s) hold this customer's contact details; the seller can export them from GhostCart`;
+    await kv.log({ type: "seller_action", actor: "system", detail: `Shopify ${topic} for ${shop}: ${what}` });
     return new Response(null, { status: 200 });
   }
   if (topic === "shop/redact") {
@@ -36,7 +42,11 @@ export async function POST(request: Request) {
     await syncShopifyProductWebhook(conn.storeId, body);
   } else if (topic === "products/delete") {
     await archiveShopifyProduct(conn.storeId, body.id);
+  } else if (topic === "checkouts/create" || topic === "checkouts/update") {
+    const store = await getStore(conn.storeId);
+    if (store) await captureShopifyCheckout(store.id, store.name, body);
   } else if (topic === "orders/create") {
+    if (body.checkout_token) await completeCart(conn.storeId, "shopify_checkout", String(body.checkout_token));
     // A discount code at checkout, or a GhostCart draft order (its code travels as a note attribute).
     const codes = new Set([
       ...((body.discount_codes ?? []) as { code: string }[]).map((d) => d.code),

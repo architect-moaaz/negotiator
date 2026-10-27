@@ -21,6 +21,17 @@ Errors are `{ "error": "…" }` with 400 (bad input), 401 (key), 404 (not this s
 
 `GET/POST /api/v1/products` (upsert by SKU, up to 500 at a time) and `GET /api/v1/orders?status=placed,shipped`. Webhooks to the seller are signed (dashboard → Integrations).
 
+## GhostCart Privilege (abandoned carts)
+
+| Call | Auth | What it does |
+| --- | --- | --- |
+| `POST /api/v1/woocommerce/checkouts` `{ externalRef, items: [{ ref, quantity }], email?, phone?, name?, consent, returnUrl? }` | secret key | A checkout placed by a shopper who ticked the private-offer box. Contact details are kept only with `consent: true`. Send `{ externalRef, completed: true }` once it's paid. |
+| `POST /api/v1/widget/cart` `{ key, cartRef?, items: [{ ref, quantity }], returnUrl? }` | publishable key, allowed origin | The cart shown on the seller's cart page (anonymous). Answers `{ available, listTotal, exitPrompt, url }`; `url` opens a private offer on the whole cart. |
+
+Items are named as in the catalogue: GhostCart product id or the synced SKU (`shopify-<id>`, `woo-<id>`). Prices always come from the catalogue, never from the request. Shopify checkouts arrive through the `checkouts/create|update` webhooks. Seller settings live at `/api/seller/stores/:id/recovery`. Design and channel rules: [plans/ghostcart-privilege.md](plans/ghostcart-privilege.md).
+
+Products also take optional `brand`, `gtin` (EAN/UPC; an invalid one is dropped) and `modelNumber`, which let shoppers find the exact item through Rescue my cart (`/rescue`).
+
 ## Example
 
 ```ts

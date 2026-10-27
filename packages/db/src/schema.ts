@@ -226,6 +226,12 @@ export const products = pgTable(
     /** Shown on the product page (Legal Metrology (Packaged Commodities) Rules, for e-commerce). */
     countryOfOrigin: text("country_of_origin"),
     sku: text("sku"),
+    /** Product identity for same-item matching across stores (GhostCart Privilege, Rescue my cart). */
+    brand: text("brand"),
+    /** Barcode: EAN-13 / UPC / GTIN-14, digits only. */
+    gtin: text("gtin"),
+    /** Manufacturer model number, e.g. WH-1000XM5. */
+    modelNumber: text("model_number"),
     /** active | draft | archived */
     status: text("status").notNull().default("active"),
     /** Where it came from: manual | csv | shopify:<id> | amazon:<asin> … */
@@ -238,6 +244,8 @@ export const products = pgTable(
     index("products_category_idx").on(t.categoryId),
     // Catalogue sync (/api/v1/products) upserts by SKU, so a SKU is unique within a store.
     uniqueIndex("products_store_sku_idx").on(t.storeId, t.sku).where(sql`sku is not null`),
+    // Rescue my cart looks up the same barcode across every store.
+    index("products_gtin_idx").on(t.gtin).where(sql`gtin is not null`),
   ],
 );
 
@@ -564,7 +572,7 @@ export const consents = pgTable(
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     /** The shopper's user id (or phone for people without an account). */
     subject: text("subject").notNull(),
-    /** deal_contact | marketing */
+    /** deal_contact | marketing | recovery_offers */
     purpose: text("purpose").notNull(),
     /** granted | withdrawn */
     action: text("action").notNull(),
@@ -772,4 +780,84 @@ export const reconciliationIssues = pgTable(
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("reconciliation_issues_status_idx").on(t.status), uniqueIndex("reconciliation_issues_key_idx").on(t.day, t.orderId, t.kind)],
+);
+
+/* ---------- GhostCart Privilege: abandoned carts become private haggles ---------- */
+
+/** How a store wants abandoned carts recovered. One row per store; absent means off. */
+export const recoverySettings = pgTable("recovery_settings", {
+  storeId: text("store_id")
+    .primaryKey()
+    .references(() => stores.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  /** Overrides the store's discount rules for recovery haggles; null means use them. */
+  maxDiscountPct: doublePrecision("max_discount_pct"),
+  autoApprovePct: doublePrecision("auto_approve_pct"),
+  delayMinutes: integer("delay_minutes").notNull().default(60),
+  /** email | whatsapp | voice, in the order to try. */
+  channels: text("channels").array().notNull().default(sql`ARRAY['email']::text[]`),
+  exitPrompt: boolean("exit_prompt").notNull().default(true),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * A shopper's cart on a store, captured with the seller's integration (widget, Shopify webhook, Woo
+ * plugin) or brought by the shopper (Rescue my cart). Lines are product ids in this store with the
+ * list price at capture time. Contact details are kept only with recovery consent.
+ */
+export const carts = pgTable(
+  "carts",
+  {
+    id: text("id").primaryKey(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id, { onDelete: "cascade" }),
+    /** widget | shopify_checkout | woo_checkout | ghostcart_checkout | rescue */
+    source: text("source").notNull(),
+    /** The platform's own id (Shopify checkout token, Woo order id), unique per store and source. */
+    externalRef: text("external_ref"),
+    lines: jsonb("lines").$type<{ productId: string; quantity: number; unitPrice: number; title: string; image?: string }[]>().notNull(),
+    subtotal: integer("subtotal").notNull(),
+    /** Set when the shopper has a GhostCart account. */
+    userId: text("user_id"),
+    email: text("email"),
+    phone: text("phone"),
+    name: text("name"),
+    /** When the shopper agreed to be sent a private offer about this cart (DPDP: purpose recovery_offers). */
+    consentAt: ts("consent_at"),
+    /** open → abandoned → invited → negotiating → recovered | expired | opted_out */
+    status: text("status").notNull().default("open"),
+    returnUrl: text("return_url"),
+    dealId: text("deal_id"),
+    lastActivityAt: ts("last_activity_at").notNull().defaultNow(),
+    abandonedAt: ts("abandoned_at"),
+    recoveredAt: ts("recovered_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("carts_store_status_idx").on(t.storeId, t.status),
+    uniqueIndex("carts_external_idx").on(t.storeId, t.source, t.externalRef).where(sql`external_ref is not null`),
+  ],
+);
+
+/** A private haggle invitation for a cart. The link token is stored hashed. */
+export const cartInvites = pgTable(
+  "cart_invites",
+  {
+    id: text("id").primaryKey(),
+    cartId: text("cart_id")
+      .notNull()
+      .references(() => carts.id, { onDelete: "cascade" }),
+    /** link | email | whatsapp | voice */
+    channel: text("channel").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    /** created → sent → opened → used | failed | expired */
+    status: text("status").notNull().default("created"),
+    error: text("error"),
+    expiresAt: ts("expires_at").notNull(),
+    sentAt: ts("sent_at"),
+    openedAt: ts("opened_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("cart_invites_cart_idx").on(t.cartId)],
 );

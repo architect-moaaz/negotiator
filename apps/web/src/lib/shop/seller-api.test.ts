@@ -100,3 +100,31 @@ describe("seller store access", () => {
     expect(trail.map((a) => a.detail.split(": ").slice(1).join(": "))).toEqual(expect.arrayContaining(["added Logged item at ₹999"]));
   });
 });
+
+describe("seller cart recovery (GhostCart Privilege)", () => {
+  it("starts off, validates limits, and saves for owners", async () => {
+    const { GET: getRecovery, PUT: putRecovery } = await import("@/app/api/seller/stores/[id]/recovery/route");
+    await signIn("9000000741");
+    const { store: s } = await (await onboard(req("/api/seller/onboard", { ...onboarding, storeName: "ZZ Recovery Mobiles" }))).json();
+    const first = await (await getRecovery(req(`/api/seller/stores/${s.id}/recovery`), ctx({ id: s.id }))).json();
+    expect(first.settings).toMatchObject({ enabled: false, delayMinutes: 60, channels: ["email"] });
+    expect(first.stats).toMatchObject({ captured: 0, recovered: 0 });
+    expect(first.channels.email.ready).toBe(true);
+    expect(first.channels.whatsapp).toMatchObject({ ready: false });
+
+    const bad = await putRecovery(req(`/api/seller/stores/${s.id}/recovery`, { enabled: true, maxDiscountPct: 5, autoApprovePct: 8 }, "PUT"), ctx({ id: s.id }));
+    expect(bad.status).toBe(400);
+    const ok = await putRecovery(req(`/api/seller/stores/${s.id}/recovery`, { enabled: true, maxDiscountPct: 15, autoApprovePct: 8, delayMinutes: 180, channels: ["whatsapp", "email"] }, "PUT"), ctx({ id: s.id }));
+    expect(ok.status).toBe(200);
+    expect((await (await getRecovery(req(`/api/seller/stores/${s.id}/recovery`), ctx({ id: s.id }))).json()).settings).toMatchObject({
+      enabled: true,
+      maxDiscountPct: 15,
+      autoApprovePct: 8,
+      delayMinutes: 180,
+      channels: ["whatsapp", "email"],
+    });
+
+    await signIn("9000000742"); // not a member
+    expect((await getRecovery(req(`/api/seller/stores/${s.id}/recovery`), ctx({ id: s.id }))).status).toBe(404);
+  });
+});

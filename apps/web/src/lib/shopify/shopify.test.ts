@@ -116,6 +116,65 @@ describe("Shopify install → haggle → code → order", () => {
     expect(await balance(await getDb(), accounts.sellerFeesDue(storeId))).toBeGreaterThan(0);
   });
 
+  it("imports brand (vendor) and barcode for matching shoppers' marketplace carts", async () => {
+    const { storeId } = await installAndConnect();
+    expect(await getProductByRef(storeId, "shopify-9002")).toMatchObject({ brand: "Milton", gtin: "08901030865275" });
+    expect(await getProductByRef(storeId, "shopify-9001")).toMatchObject({ brand: "ZZ Handloom", gtin: null });
+  });
+
+  it("issues one code for a whole Privilege cart, with a cart link carrying every item", async () => {
+    const { shop, storeId } = await installAndConnect();
+    await updateStore(storeId, { status: "live" });
+    const { setRecovery } = await import("../privilege/settings");
+    const { captureCart, getCart } = await import("../privilege/carts");
+    const { startCartNegotiation } = await import("../privilege/negotiation");
+    await setRecovery(storeId, { enabled: true, maxDiscountPct: 15, autoApprovePct: 10 });
+    const cart = await captureCart({ storeId, source: "widget", items: [{ ref: "shopify-9001", quantity: 1 }, { ref: "shopify-9002", quantity: 2 }] });
+    let deal = await startCartNegotiation(cart.id, `shopify-cart-buyer-${n}`);
+    deal = await acceptOffer(deal);
+    expect(deal.status).toBe("granted");
+    expect(deal.grant!.checkoutUrl).toBe(`https://${shop}/cart/7001:1,7002:2?discount=${deal.grant!.code}`);
+    const created = (await kv.kvGet<{ customerGets: { items: { products: { productsToAdd: string[] } } } }>(`mockshopify:${shop}:discount:${deal.grant!.code}`))!;
+    expect(created.customerGets.items.products.productsToAdd.sort()).toEqual(["gid://shopify/Product/9001", "gid://shopify/Product/9002"]);
+    await webhooks.POST(signedWebhook("orders/create", shop, { id: 3, name: "#1003", discount_codes: [{ code: deal.grant!.code }] }));
+    expect((await getCart(cart.id))?.status).toBe("recovered");
+  });
+
+  it("turns checkouts into carts, keeping contact details only when allowed, and closes them on the order", async () => {
+    const { shop, storeId } = await installAndConnect();
+    const { cartsForStore, getCart } = await import("../privilege/carts");
+    const checkout = (token: string, extra: object = {}) => ({
+      token,
+      line_items: [{ product_id: 9001, quantity: 1 }, { product_id: 424242, quantity: 1 }],
+      email: "zz.checkout@example.com",
+      phone: "+919876500001",
+      buyer_accepts_marketing: true,
+      abandoned_checkout_url: `https://${shop}/checkouts/${token}/recover`,
+      ...extra,
+    });
+    await webhooks.POST(signedWebhook("checkouts/create", shop, checkout("zzck1")));
+    const [anon] = (await cartsForStore(storeId)).filter((c) => c.externalRef === "zzck1");
+    expect(anon).toMatchObject({ source: "shopify_checkout", email: null, phone: null, consentAt: null, subtotal: 1499 });
+
+    process.env.SHOPIFY_CHECKOUT_CONTACT = "1";
+    try {
+      await webhooks.POST(signedWebhook("checkouts/update", shop, checkout("zzck2", { buyer_accepts_marketing: false })));
+      await webhooks.POST(signedWebhook("checkouts/create", shop, checkout("zzck3")));
+    } finally {
+      delete process.env.SHOPIFY_CHECKOUT_CONTACT;
+    }
+    const carts = await cartsForStore(storeId);
+    expect(carts.find((c) => c.externalRef === "zzck2")).toMatchObject({ email: null });
+    const kept = carts.find((c) => c.externalRef === "zzck3")!;
+    expect(kept).toMatchObject({ email: "zz.checkout@example.com", phone: "+919876500001" });
+
+    await webhooks.POST(signedWebhook("orders/create", shop, { id: 9, name: "#1009", checkout_token: "zzck1", discount_codes: [] }));
+    expect((await getCart(anon.id))?.status).toBe("completed");
+
+    await webhooks.POST(signedWebhook("customers/redact", shop, { customer: { email: "zz.checkout@example.com", phone: "+919876500001" } }));
+    expect(await getCart(kept.id)).toMatchObject({ email: null, phone: null, name: null });
+  });
+
   it("falls back to a draft order when Shopify won't create the code, redeems it, and deletes it once expired", async () => {
     const { shop, storeId } = await installAndConnect("zz-nodiscount");
     await updateStore(storeId, { status: "live" });

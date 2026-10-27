@@ -10,10 +10,23 @@ registerGrantAdapter("woocommerce", {
   async ready(store) {
     return !!(await wooConnectionForStore(store.id));
   },
-  async createGrant({ store, product, code, discountInr, expiresAt }) {
+  async createGrant({ store, product, code, discountInr, expiresAt, lines }) {
     const conn = await wooConnectionForStore(store.id);
-    const wooId = product.source.startsWith("woo:") ? product.source.slice(4) : product.sku?.replace(/^woo-/, "");
+    const wooIdOf = (p: typeof product) => (p.source.startsWith("woo:") ? p.source.slice(4) : p.sku?.replace(/^woo-/, ""));
+    const wooId = wooIdOf(product);
     if (!conn || !wooId) throw new Error("This store's WooCommerce connection isn't set up.");
+    if (lines?.length) {
+      // GhostCart Privilege: a fixed_cart coupon limited to these products, and a link that fills the cart.
+      const items = lines.map((l) => ({ productId: Number(wooIdOf(l.product)), quantity: l.quantity }));
+      if (items.some((i) => !i.productId)) throw new Error("This store's WooCommerce connection isn't set up.");
+      const { checkoutUrl } = await callPlugin<{ checkoutUrl: string }>(conn.externalId, conn.accessTokenEncrypted, "coupons", {
+        code,
+        items,
+        amount: discountInr.toFixed(2),
+        expiresAt: expiresAt.toISOString(),
+      });
+      return { checkoutUrl };
+    }
     const { checkoutUrl } = await callPlugin<{ checkoutUrl: string }>(conn.externalId, conn.accessTokenEncrypted, "coupons", {
       code,
       productId: Number(wooId),

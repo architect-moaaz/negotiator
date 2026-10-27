@@ -12,6 +12,7 @@ import { verificationChecklist } from "../verification/service";
 const connect = await import("@/app/api/v1/woocommerce/connect/route");
 const verify = await import("@/app/api/v1/woocommerce/verify/route");
 const orders = await import("@/app/api/v1/woocommerce/orders/route");
+const checkouts = await import("@/app/api/v1/woocommerce/checkouts/route");
 const products = await import("@/app/api/v1/products/route");
 
 /**
@@ -34,6 +35,7 @@ beforeEach(() => {
     if (url.pathname.endsWith("/verify")) return Response.json({ signature: site.tamper ? "0".repeat(64) : createHmac("sha256", site.secret!).update(data.nonce).digest("hex") });
     if (url.pathname.endsWith("/coupons")) {
       site.coupons.push(data);
+      if (Array.isArray(data.items)) return Response.json({ checkoutUrl: `${url.origin}/cart/?ghostcart_coupon=${data.code}&ghostcart_items=${data.items.map((i: { productId: number; quantity: number }) => `${i.productId}:${i.quantity}`).join(",")}` });
       return Response.json({ checkoutUrl: `${url.origin}/cart/?add-to-cart=${data.productId}&ghostcart_coupon=${data.code}` });
     }
     return new Response("{}", { status: 404 });
@@ -97,6 +99,45 @@ describe("WooCommerce price grants", () => {
     const res = await call(orders.POST, w.sk, { code: deal.grant!.code, orderNumber: "5521" });
     expect(await res.json()).toEqual({ redeemed: true });
     expect((await kv.getDeal(deal.id))?.grant?.platformOrderRef).toBe("#5521");
+  });
+
+  it("turns a reported checkout into a Privilege cart, one coupon for every item, closed by the paid order", async () => {
+    const w = await wooStore();
+    await pluginConnect(w);
+    await call(products.POST, w.sk, { products: [{ sku: "woo-51", title: "ZZ Woo Lamp", price: 1200, stock: 4 }, { sku: "woo-52", title: "ZZ Woo Bulb", price: 150, stock: 50 }] });
+    await updateStore(w.store.id, { status: "live" });
+    const { setRecovery } = await import("../privilege/settings");
+    const { getCart } = await import("../privilege/carts");
+    const { startCartNegotiation } = await import("../privilege/negotiation");
+    await setRecovery(w.store.id, { enabled: true, maxDiscountPct: 15, autoApprovePct: 10 });
+
+    const reported = await call(checkouts.POST, w.sk, {
+      externalRef: "881",
+      items: [{ ref: "woo-51", quantity: 1 }, { ref: "woo-52", quantity: 4 }],
+      email: "zz.buyer@example.com",
+      phone: "+91 98765 43210",
+      consent: true,
+    });
+    const { cartId } = await reported.json();
+    expect(await getCart(cartId)).toMatchObject({ source: "woo_checkout", subtotal: 1800, phone: "+919876543210" });
+
+    let deal = await startCartNegotiation(cartId, `woo-cart-buyer-${n}`);
+    deal = await acceptOffer(deal);
+    expect(deal.grant!.checkoutUrl).toBe(`${w.site}/cart/?ghostcart_coupon=${deal.grant!.code}&ghostcart_items=51:1,52:4`);
+    expect(sites.get(w.site)!.coupons.at(-1)).toMatchObject({ items: [{ productId: 51, quantity: 1 }, { productId: 52, quantity: 4 }], amount: (1800 - deal.dealPrice).toFixed(2) });
+    await call(orders.POST, w.sk, { code: deal.grant!.code, orderNumber: "882" });
+    expect((await getCart(cartId))?.status).toBe("recovered");
+  });
+
+  it("closes a reported checkout when the shopper pays for it, so no invite goes out", async () => {
+    const w = await wooStore();
+    await pluginConnect(w);
+    await call(products.POST, w.sk, { products: [{ sku: "woo-61", title: "ZZ Woo Mat", price: 900, stock: 4 }] });
+    const { getCart } = await import("../privilege/carts");
+    const { cartId } = await (await call(checkouts.POST, w.sk, { externalRef: "991", items: [{ ref: "woo-61", quantity: 1 }], consent: true })).json();
+    expect((await call(checkouts.POST, w.sk, { externalRef: "991", completed: true })).status).toBe(200);
+    expect((await getCart(cartId))?.status).toBe("completed");
+    expect((await call(checkouts.POST, "gc_sk_wrong", { externalRef: "991", completed: true })).status).toBe(401);
   });
 
   it("won't start haggles on a Woo store that never connected the plugin", async () => {

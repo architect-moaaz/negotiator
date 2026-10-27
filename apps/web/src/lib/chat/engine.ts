@@ -8,6 +8,8 @@ import { store as kv } from "../store";
 import type { Deal } from "../types";
 import { readIntent } from "@ghostcart/agent";
 import { traced } from "../telemetry";
+import { stopCart } from "../privilege/actions";
+import { cartsWithContact, RECOVERABLE, type CartStatus } from "../privilege/carts";
 
 /**
  * Haggling in a chat app, the same engine for WhatsApp and Instagram: the shopper picks a product,
@@ -69,7 +71,23 @@ async function start(msg: IncomingChat, productId: string, send: Send) {
   }
 }
 
+/**
+ * GhostCart Privilege: "STOP" on the store's WhatsApp number stops private offers on that shopper's carts
+ * at this store. Returns false when there was nothing to stop, so the message carries on as chat.
+ */
+async function stopPrivilege(msg: IncomingChat, send: Send) {
+  if (msg.channel !== "whatsapp" || !/^\s*stop\s*$/i.test(msg.text)) return false;
+  const phone = `+${msg.threadKey.split(":").at(-1)}`;
+  const store = await getStore(msg.storeId);
+  const open = (await cartsWithContact({ phone }, msg.storeId)).filter((c) => [...RECOVERABLE, "negotiating"].includes(c.status as CartStatus));
+  if (!store || !open.length) return false;
+  for (const cart of open) await stopCart(cart, store.name, "whatsapp_stop");
+  await send(`Done. ${store.name} won't send you offers on your cart again.`);
+  return true;
+}
+
 export async function handleIncomingChat(msg: IncomingChat, send: Send) {
+  if (await stopPrivilege(msg, send)) return;
   const state = (await kv.kvGet<ThreadState>(stateKey(msg.channel, msg.threadKey))) ?? {};
   const deal = state.dealId ? await kv.getDeal(state.dealId) : undefined;
 

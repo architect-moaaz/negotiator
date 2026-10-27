@@ -1,0 +1,25 @@
+{%- comment -%}
+  GhostCart Privilege: "Make an offer on your cart" on the cart page. The widget reads this shopper's
+  cart from /cart.js and shows the button only when the seller has turned on cart recovery and every
+  item can be haggled. Needs the GhostCart app embed on.
+{%- endcomment -%}
+{%- if cart.item_count > 0 -%}
+  <div
+    data-ghostcart-cart="shopify"
+    data-label="{{ block.settings.label | escape }}"
+    data-color="{{ block.settings.color }}"
+    style="margin: 12px 0;"
+  ></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "GhostCart: Offer on cart",
+  "target": "section",
+  "enabled_on": { "templates": ["cart"] },
+  "settings": [
+    { "type": "text", "id": "label", "label": "Button text", "default": "Make an offer on your cart" },
+    { "type": "color", "id": "color", "label": "Button colour", "default": "#f4b740" }
+  ]
+}
+{% endschema %}

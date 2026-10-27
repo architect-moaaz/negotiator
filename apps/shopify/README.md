@@ -14,6 +14,13 @@ deploys to Shopify: the app config and the theme app extension.
    expiring discount code (`discountCodeBasicCreate`) and the shopper lands on a cart link with it applied.
 5. `orders/create` reports the code used; GhostCart's fee is charged as a Shopify usage record
    (when `SHOPIFY_BILLING=on`).
+6. **GhostCart Privilege** (cart recovery, off until the seller turns it on in GhostCart): add the
+   **Offer on cart** block to the cart template, and shoppers can make an offer on the whole cart. One
+   code covers every product and the cart link (`/cart/<variant>:<qty>,…?discount=CODE`) refills the
+   cart. `checkouts/create` and `checkouts/update` turn checkouts into GhostCart carts; `orders/create`
+   closes them. Checkout email and phone are kept only when `SHOPIFY_CHECKOUT_CONTACT=1` and the shopper
+   accepted the store's marketing. Keep that off until Shopify grants Protected Customer Data access and
+   legal confirms the consent covers a private offer. Until then checkouts are counted, never contacted.
 
 ## Setup
 - Create the app in the Shopify Partner dashboard; copy the API key and secret into

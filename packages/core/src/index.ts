@@ -4,6 +4,8 @@ export * from "./identity";
 export * from "./money";
 export * from "./moves";
 export * from "./policy";
+export * from "./recovery";
+export * from "./matching";
 export * from "./terms";
 export * from "./tiers";
 export type * from "./types";
