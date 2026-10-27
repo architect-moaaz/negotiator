@@ -12,6 +12,7 @@ import { IntegrationsTab } from "./integrations";
 import { OrdersTab } from "./orders";
 import { ProductsTab } from "./products";
 import { RecoveryTab } from "./recovery";
+import { ResultsTab } from "./results";
 import { VerificationTab } from "./verification";
 import { SellerStats } from "./stats";
 import { api } from "./ui";
@@ -69,7 +70,7 @@ export function SellerDashboard() {
   const [data, setData] = useState<StoreData | null>(null);
   const [waiting, setWaiting] = useState(0);
   // A notification links to ?tab=approvals: open straight on the offer waiting for a decision.
-  const [tab, setTab] = useState<"approvals" | "orders" | "products" | "discounts" | "recovery" | "integrations" | "verification">(() => (params.get("tab") === "approvals" ? "approvals" : "products"));
+  const [tab, setTab] = useState<"approvals" | "orders" | "results" | "products" | "discounts" | "recovery" | "integrations" | "verification">(() => (params.get("tab") === "approvals" ? "approvals" : "products"));
 
   const stores = account?.orgs.flatMap((o) => o.stores) ?? [];
   const storeId = params.get("store") ?? stores[0]?.id;
@@ -209,7 +210,7 @@ export function SellerDashboard() {
           </section>
 
           <div role="tablist" className="mt-8 flex gap-6 overflow-x-auto whitespace-nowrap border-b border-line">
-            {(["approvals", "orders", "products", "discounts", "recovery", ...(data.role === "owner" ? (["integrations"] as const) : []), "verification"] as const).map((t) => (
+            {(["approvals", "orders", "results", "products", "discounts", "recovery", ...(data.role === "owner" ? (["integrations"] as const) : []), "verification"] as const).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -225,6 +226,7 @@ export function SellerDashboard() {
 
           {tab === "approvals" && <ApprovalsTab storeId={data.store.id} canApprove={["owner", "admin", "approver"].includes(data.role)} onCount={setWaiting} />}
           {tab === "orders" && <OrdersTab storeId={data.store.id} canAct={["owner", "admin"].includes(data.role)} />}
+          {tab === "results" && <ResultsTab storeId={data.store.id} />}
           {tab === "products" && <ProductsTab data={data} canEdit={!!canEdit} reload={() => loadStore(data.store.id)} />}
           {tab === "discounts" && <DiscountsTab data={data} canEdit={!!canEdit} onSaved={(policies) => setData({ ...data, policies })} />}
           {tab === "recovery" && <RecoveryTab
