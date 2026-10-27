@@ -134,6 +134,13 @@
       "when": 1793047585174,
       "tag": "0018_rescue_gtin_index",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793121934793,
+      "tag": "0019_shipment_booking",
+      "breakpoints": true
     }
   ]
 }

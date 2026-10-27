@@ -14,7 +14,7 @@ interface OrderRow {
   createdAt: string;
   deliveredAt: string | null;
   address?: Record<string, string>;
-  shipment?: { courier: string; awb: string; lastStatus: string; trackingProvider: string };
+  shipment?: { courier: string; awb: string; lastStatus: string; trackingProvider: string; labelUrl?: string | null; pickupAt?: string | null };
   dispute?: { reason: string; details: string; sellerResponse: string | null };
 }
 
@@ -31,13 +31,14 @@ const LABEL: Record<string, string> = {
 };
 
 export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolean }) {
-  const [data, setData] = useState<{ held: number; released: number; orders: OrderRow[] } | null>(null);
-  const [form, setForm] = useState<Record<string, { courier?: string; awb?: string; code?: string; response?: string }>>({});
+  const [data, setData] = useState<{ held: number; released: number; orders: OrderRow[]; canBook?: boolean } | null>(null);
+  const [form, setForm] = useState<Record<string, Record<string, string | undefined>>>({});
+  const [booking, setBooking] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [invoices, setInvoices] = useState<{ number: string; period: string; total: number }[]>([]);
 
   const load = useCallback(async () => {
-    const r = await api<{ held: number; released: number; orders: OrderRow[] }>(`/api/seller/stores/${storeId}/orders`);
+    const r = await api<{ held: number; released: number; orders: OrderRow[]; canBook?: boolean }>(`/api/seller/stores/${storeId}/orders`);
     if (r.ok) setData(r.data);
     if (canAct) {
       const inv = await api<{ number: string; period: string; total: number }[]>(`/api/seller/stores/${storeId}/invoices`);
@@ -119,8 +120,42 @@ export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolea
                 <p className={`mt-2 text-sm ${hoursLeft(o.shipBy) < 12 ? "text-alarm" : "text-muted"}`}>
                   Ship within {Math.max(0, hoursLeft(o.shipBy))} hours or the order is cancelled and the buyer refunded.
                 </p>
+                {canAct && data.canBook && (
+                  <div className="mt-3 rounded-xl border border-line p-3">
+                    <p className="text-sm font-semibold">Book a pickup</p>
+                    <p className="text-sm text-muted">We book the courier, get the tracking number and a label to print. Measure the packed parcel.</p>
+                    <div className="mt-2 flex flex-wrap items-end gap-3">
+                      {(
+                        [
+                          ["weightKg", "Weight (kg)", "0.5"],
+                          ["lengthCm", "Length (cm)", "20"],
+                          ["breadthCm", "Width (cm)", "15"],
+                          ["heightCm", "Height (cm)", "10"],
+                        ] as const
+                      ).map(([k, label, def]) => (
+                        <label key={k} className="grid gap-1 text-sm">
+                          <span className="text-muted">{label}</span>
+                          <input inputMode="decimal" placeholder={def} value={form[o.id]?.[k] ?? ""} onChange={set(o.id, k)} className={`${field} w-24 py-2`} />
+                        </label>
+                      ))}
+                      <button
+                        disabled={booking === o.id}
+                        onClick={async () => {
+                          setBooking(o.id);
+                          const f = form[o.id] ?? {};
+                          await act(o, { action: "book", weightKg: f.weightKg || "0.5", lengthCm: f.lengthCm || "20", breadthCm: f.breadthCm || "15", heightCm: f.heightCm || "10" });
+                          setBooking(null);
+                        }}
+                        className={secondary}
+                      >
+                        {booking === o.id ? "Booking…" : "Book pickup"}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {canAct && (
                   <div className="mt-3 flex flex-wrap items-end gap-3">
+                    {data.canBook && <p className="w-full text-sm text-muted">Or, if you shipped it yourself:</p>}
                     <label className="grid gap-1 text-sm">
                       <span className="text-muted">Courier</span>
                       <input placeholder="Delhivery" value={form[o.id]?.courier ?? ""} onChange={set(o.id, "courier")} className={`${field} py-2`} />
@@ -142,6 +177,16 @@ export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolea
                 <p className="mt-3">
                   {o.shipment.courier} · AWB <span className="font-receipt">{o.shipment.awb}</span> · tracking says {o.shipment.lastStatus.replace(/_/g, " ")}
                 </p>
+                {(o.shipment.labelUrl || o.shipment.pickupAt) && (
+                  <p className="mt-1 text-sm text-muted">
+                    {o.shipment.pickupAt && `Pickup ${new Date(o.shipment.pickupAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}. `}
+                    {o.shipment.labelUrl && (
+                      <a href={o.shipment.labelUrl} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-4">
+                        Print the shipping label
+                      </a>
+                    )}
+                  </p>
+                )}
                 {canAct && (
                   <div className="mt-3 flex flex-wrap items-end gap-3">
                     <label className="grid gap-1 text-sm">

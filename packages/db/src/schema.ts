@@ -417,6 +417,10 @@ export const shipments = pgTable("shipments", {
   events: jsonb("events").$type<{ at: string; status: string; note?: string }[]>().notNull().default([]),
   /** Four digits the buyer reads out at handover; the seller enters them to confirm delivery. */
   handoverCode: text("handover_code").notNull(),
+  /** Booked through the aggregator (one-click pickup): its shipment id, label and pickup date. */
+  bookingRef: text("booking_ref"),
+  labelUrl: text("label_url"),
+  pickupAt: ts("pickup_at"),
   lastCheckedAt: ts("last_checked_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
