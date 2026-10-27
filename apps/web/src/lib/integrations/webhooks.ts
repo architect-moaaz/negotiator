@@ -7,7 +7,7 @@ import { isPublicDomain } from "../verification/ownership";
 
 const { webhookDeliveries, webhookEndpoints } = schema;
 
-export const WEBHOOK_EVENTS = ["order.placed", "order.shipped", "order.delivered", "order.completed", "order.refunded", "order.cancelled"] as const;
+export const WEBHOOK_EVENTS = ["order.placed", "order.shipped", "order.delivered", "order.completed", "order.refunded", "order.cancelled", "order.return_requested"] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 const MAX_ATTEMPTS = 8;
 

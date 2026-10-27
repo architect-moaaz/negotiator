@@ -16,6 +16,7 @@ interface OrderRow {
   address?: Record<string, string>;
   shipment?: { courier: string; awb: string; lastStatus: string; trackingProvider: string; labelUrl?: string | null; pickupAt?: string | null };
   dispute?: { reason: string; details: string; sellerResponse: string | null };
+  returnRequest?: { reason: string; details: string; status: string; sellerNote: string | null; createdAt: string };
 }
 
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: paise % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
@@ -25,6 +26,8 @@ const LABEL: Record<string, string> = {
   shipped: "In transit",
   delivered: "Delivered, payout on hold",
   disputed: "Buyer reported a problem",
+  return_requested: "Return requested: answer within 3 days",
+  return_accepted: "Return on its way back",
   completed: "Paid out",
   refunded: "Refunded",
   cancelled: "Cancelled",
@@ -201,6 +204,43 @@ export function OrdersTab({ storeId, canAct }: { storeId: string; canAct: boolea
               </>
             )}
 
+            {o.status === "return_requested" && o.returnRequest && (
+              <div className="mt-3 grid gap-2">
+                <p>
+                  The buyer wants to return it ({o.returnRequest.reason.replace(/_/g, " ")}): &ldquo;{o.returnRequest.details}&rdquo;
+                </p>
+                <p className="text-sm text-muted">Your payout is on hold until this is settled. If you don&apos;t answer within 3 days, GhostCart staff decide.</p>
+                {canAct && (
+                  <>
+                    <textarea
+                      rows={2}
+                      placeholder="Accept: how it comes back (e.g. our courier picks it up on Friday). Decline: why not."
+                      value={form[o.id]?.response ?? ""}
+                      onChange={set(o.id, "response")}
+                      className={`${field} py-2`}
+                    />
+                    <div className="flex gap-3">
+                      <button onClick={() => act(o, { action: "accept_return", response: form[o.id]?.response })} className={secondary}>
+                        Accept the return
+                      </button>
+                      <button onClick={() => act(o, { action: "decline_return", response: form[o.id]?.response })} className={secondary}>
+                        Decline
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {o.status === "return_accepted" && o.returnRequest && (
+              <div className="mt-3 grid gap-2">
+                <p className="text-muted">You accepted the return: {o.returnRequest.sellerNote}</p>
+                {canAct && (
+                  <button onClick={() => act(o, { action: "return_received" })} className={`${secondary} w-fit`}>
+                    It&apos;s back with me: refund the buyer
+                  </button>
+                )}
+              </div>
+            )}
             {o.status === "disputed" && o.dispute && (
               <div className="mt-3">
                 <p>

@@ -10,7 +10,7 @@ import { store as kv } from "../store";
  * to at sign-up ("about this deal. No marketing"): app push, WhatsApp from GhostCart's own number (an
  * approved Utility template), and email. A failed channel never blocks the order itself.
  */
-export type OrderUpdate = "placed" | "shipped" | "out_for_delivery" | "delivered" | "refunded" | "cancelled";
+export type OrderUpdate = "placed" | "shipped" | "out_for_delivery" | "delivered" | "refunded" | "cancelled" | "return_accepted" | "return_declined";
 
 export interface OrderForUpdate {
   id: string;
@@ -36,6 +36,10 @@ export function orderUpdateText(o: OrderForUpdate, step: OrderUpdate, extra: { c
       return { title: "Delivered", body: `${o.title} was delivered. Something wrong with it? Report it from your order page.` };
     case "refunded":
       return { title: "Refund on its way", body: `We've refunded ${inr(Math.round((extra.refund ?? o.total) / 100))} for ${o.title}${extra.reason ? ` (${extra.reason})` : ""}. Banks usually take 5–7 working days.` };
+    case "return_accepted":
+      return { title: "Return accepted", body: `The seller accepted your return of ${o.title}. ${extra.reason ?? ""} You're refunded once it's back with them.`.replace(/\s+/g, " ").trim() };
+    case "return_declined":
+      return { title: "Return declined", body: `The seller declined your return of ${o.title}${extra.reason ? `: "${extra.reason}"` : ""}. If something is wrong with it, report a problem from your order page within 2 days and GhostCart will look at it.` };
     case "cancelled":
       return { title: "Order cancelled", body: `Your order for ${o.title} was cancelled${extra.reason ? ` (${extra.reason})` : ""} and ${amount} is being refunded. Banks usually take 5–7 working days.` };
   }

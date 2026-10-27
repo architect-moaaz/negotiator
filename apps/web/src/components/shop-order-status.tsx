@@ -10,6 +10,8 @@ interface BuyerOrder {
   canReportProblem: boolean;
   shipment?: { courier: string; awb: string; lastStatus: string; events: { at: string; status: string }[]; handoverCode: string };
   dispute?: { reason: string; status: string; resolution: string | null };
+  returnWindowEndsAt?: string;
+  returnRequest?: { reason: string; status: string; sellerNote: string | null };
 }
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -18,6 +20,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "n
 export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: string; storeName: string; returnUrl?: string }) {
   const [order, setOrder] = useState<BuyerOrder | null>(null);
   const [problem, setProblem] = useState({ open: false, reason: "not_received", details: "" });
+  const [ret, setRet] = useState({ open: false, reason: "changed_mind", details: "" });
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -37,7 +40,10 @@ export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: stri
     setError("");
     const res = await fetch(`/api/orders/${dealId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "Something went wrong.");
-    else setProblem({ ...problem, open: false });
+    else {
+      setProblem({ ...problem, open: false });
+      setRet({ ...ret, open: false });
+    }
     load();
   }
 
@@ -71,6 +77,14 @@ export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: stri
             : `Your report was resolved: ${order.dispute.status.replace(/_/g, " ")}. ${order.dispute.resolution ?? ""}`}
         </p>
       )}
+      {order.returnRequest && (
+        <p className="text-muted">
+          {order.returnRequest.status === "requested" && `You asked to return this. ${storeName} has 3 days to answer; the payment is on hold meanwhile.`}
+          {order.returnRequest.status === "accepted" && `${storeName} accepted your return: ${order.returnRequest.sellerNote ?? ""} You're refunded once it's back with them.`}
+          {order.returnRequest.status === "declined" && `${storeName} declined the return: "${order.returnRequest.sellerNote ?? ""}". If something is wrong with it, report a problem.`}
+          {order.returnRequest.status === "escalated" && `${storeName} didn't answer your return, so GhostCart is looking at it.`}
+        </p>
+      )}
       {order.status === "refunded" && <p>Refunded to your UPI account.</p>}
       {order.status === "cancelled" && <p>{storeName} didn&apos;t ship in time, so the order was cancelled and you were refunded in full.</p>}
 
@@ -78,6 +92,36 @@ export function ShopOrderStatus({ dealId, storeName, returnUrl }: { dealId: stri
         <button onClick={() => setProblem({ ...problem, open: true })} className="text-muted underline underline-offset-4 hover:text-fg">
           Report a problem
         </button>
+      )}
+      {order.returnWindowEndsAt && !ret.open && !problem.open && (
+        <button onClick={() => setRet({ ...ret, open: true })} className="block text-muted underline underline-offset-4 hover:text-fg">
+          Return it (until {day(order.returnWindowEndsAt)})
+        </button>
+      )}
+      {ret.open && (
+        <form
+          className="grid gap-3 rounded-xl border border-line p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            act({ action: "return", reason: ret.reason, details: ret.details });
+          }}
+        >
+          <label className="grid gap-1">
+            <span className="text-muted">Why are you returning it?</span>
+            <select value={ret.reason} onChange={(e) => setRet({ ...ret, reason: e.target.value })} className="rounded-lg border border-line bg-panel px-3 py-2">
+              <option value="changed_mind">I changed my mind</option>
+              <option value="damaged">It arrived damaged</option>
+              <option value="not_as_described">It isn&apos;t what was described</option>
+              <option value="wrong_item">I got the wrong item</option>
+              <option value="other">Something else</option>
+            </select>
+          </label>
+          <label className="grid gap-1">
+            <span className="text-muted">A few words for the seller</span>
+            <textarea required rows={3} value={ret.details} onChange={(e) => setRet({ ...ret, details: e.target.value })} className="rounded-lg border border-line bg-panel px-3 py-2" />
+          </label>
+          <button className="w-fit rounded-xl bg-saffron px-4 py-2.5 font-semibold text-paper-ink">Ask to return</button>
+        </form>
       )}
       {problem.open && (
         <form

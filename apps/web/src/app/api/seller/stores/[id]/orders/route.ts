@@ -1,5 +1,6 @@
 import { requireStoreAccess } from "@/lib/shop/access";
 import { disputeFor, shipmentsFor } from "@/lib/orders/fulfilment";
+import { returnsFor } from "@/lib/orders/returns";
 import { ordersForStore, storeMoney } from "@/lib/orders/service";
 import { trackingProvider } from "@/lib/orders/tracking";
 
@@ -9,6 +10,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/seller/store
   if (denied) return denied;
   const [orders, money] = await Promise.all([ordersForStore(store.id), storeMoney(store.id)]);
   const shipments = new Map((await shipmentsFor(orders.map((o) => o.id))).map((s) => [s.orderId, s]));
+  const returns = new Map((await returnsFor(orders.filter((o) => o.status.startsWith("return_")).map((o) => o.id))).map((r) => [r.orderId, r]));
   const rows = await Promise.all(
     orders.map(async (o) => {
       const s = shipments.get(o.id);
@@ -27,6 +29,10 @@ export async function GET(request: Request, ctx: RouteContext<"/api/seller/store
         address: o.status === "placed" || o.status === "shipped" ? o.address : undefined,
         // Never the handover code.
         shipment: s && { courier: s.courier, awb: s.awb, lastStatus: s.lastStatus, trackingProvider: s.trackingProvider, labelUrl: s.labelUrl, pickupAt: s.pickupAt },
+        returnRequest: (() => {
+          const r = returns.get(o.id);
+          return r && { reason: r.reason, details: r.details, status: r.status, sellerNote: r.sellerNote, createdAt: r.createdAt };
+        })(),
         dispute: d && { reason: d.reason, details: d.details, sellerResponse: d.sellerResponse, createdAt: d.createdAt },
       };
     }),

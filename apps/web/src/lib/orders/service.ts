@@ -135,7 +135,9 @@ export async function markDelivered(orderId: string, via: string, at = new Date(
   if (order.status === "delivered" || order.status === "completed") return order;
   if (order.status !== "shipped" && order.status !== "placed") throw new OrderError(`This order is ${order.status}.`, 409);
   const shopStore = await getStore(order.storeId);
-  const days = TIER_LIMITS[(shopStore?.tier ?? "new") as SellerTier].payoutHoldDays;
+  // Hold the payout until the store's return window closes too, so a return can be refunded from it.
+  const returnDays = Math.max(0, Math.min(30, shopStore?.disclosure?.returnDays ?? 0));
+  const days = Math.max(TIER_LIMITS[(shopStore?.tier ?? "new") as SellerTier].payoutHoldDays, returnDays);
   const db = await getDb();
   const [updated] = await db.update(orders).set({ status: "delivered", deliveredAt: at, updatedAt: new Date() }).where(eq(orders.id, orderId)).returning();
   await db.update(holds).set({ releaseAt: new Date(at.getTime() + days * 24 * 60 * 60 * 1000), updatedAt: new Date() }).where(eq(holds.orderId, orderId));
@@ -242,6 +244,8 @@ export async function runOrderJobs(now = new Date()) {
       console.error(`couldn't release order ${orderId}`, err);
     }
   }
+  const { escalateUnansweredReturns } = await import("./returns");
+  const escalatedReturns = await escalateUnansweredReturns(now);
   const promoted = await promoteStores();
   const { retryWebhooks } = await import("../integrations/webhooks");
   await retryWebhooks();
@@ -249,7 +253,7 @@ export async function runOrderJobs(now = new Date()) {
   await pollAmazonImports();
   const { revokeExpiredGrants } = await import("../grants/service");
   const revokedGrants = await revokeExpiredGrants();
-  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted, revokedGrants };
+  return { tracked: tracking.checked, delivered: tracking.delivered, cancelled, released, promoted, revokedGrants, escalatedReturns };
 }
 
 /** Seller money at a glance: on hold until delivery, and released (on its way to the bank). */

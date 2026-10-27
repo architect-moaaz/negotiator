@@ -449,6 +449,31 @@ export const disputes = pgTable(
   (t) => [index("disputes_order_idx").on(t.orderId), index("disputes_status_idx").on(t.status)],
 );
 
+/**
+ * A buyer asks to return a delivered order within the store's return window. The payout is frozen while
+ * it's open. requested → accepted → received (refunded) | declined | escalated (became a dispute).
+ */
+export const returnRequests = pgTable(
+  "return_requests",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    /** changed_mind | damaged | not_as_described | wrong_item | other */
+    reason: text("reason").notNull(),
+    details: text("details").notNull(),
+    evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
+    status: text("status").notNull().default("requested"),
+    /** How the seller will collect it (accepted), or why not (declined). */
+    sellerNote: text("seller_note"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    decidedAt: ts("decided_at"),
+    closedAt: ts("closed_at"),
+  },
+  (t) => [index("return_requests_order_idx").on(t.orderId), index("return_requests_status_idx").on(t.status)],
+);
+
 /* ---------- Fraud signals ---------- */
 
 /** Which accounts have used which device (the hashed visitor cookie). Used to spot self-dealing and multi-accounting. */

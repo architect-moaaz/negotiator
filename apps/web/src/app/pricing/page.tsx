@@ -63,6 +63,7 @@ export default function PricingPage() {
             <li>Verified: {TIER_LIMITS.verified.payoutHoldDays} days</li>
             <li>Trusted: {TIER_LIMITS.trusted.payoutHoldDays} day</li>
           </ul>
+          <p className="mt-2 text-sm text-muted">If your return window is longer, the payout waits until it closes, so a return can be refunded.</p>
           <p className="mt-2 text-sm text-muted">Orders paid on your own Shopify or WooCommerce checkout are paid to you by that checkout as usual.</p>
         </div>
       </section>
