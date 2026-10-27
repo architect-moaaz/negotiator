@@ -47,7 +47,7 @@ export async function bundleFor(cart: Pick<CartRow, "lines">, store: Store, reco
  * whole cart. Limits are each line's recovery limits summed (cartTerms); from here the normal haggle,
  * approval and grant flow runs, and a multi-line grant puts every item in the seller's checkout.
  */
-export async function startCartNegotiation(cartId: string, userId: string, opts: { city?: string; request?: Request } = {}) {
+export async function startCartNegotiation(cartId: string, userId: string, opts: { city?: string; request?: Request; language?: "en" | "hi" } = {}) {
   const cart = await getCart(cartId);
   if (!cart) throw new ShopError("This cart isn't available.", 404);
   if (cart.dealId) {
@@ -87,9 +87,14 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
   const itemCount = lines.reduce((s, l) => s + l.quantity, 0);
   const title = lines.length === 1 && lines[0].quantity === 1 ? lines[0].title : `Your cart: ${itemCount} items from ${store.name}`;
   const now = Date.now();
+  const hi = opts.language === "hi";
   const opening = rescue
-    ? `${title} comes to ${inr(listTotal)} at ${store.name}. For you, right now: ${inr(terms.opening)}. Make me an offer.`
-    : `Welcome back. ${title} comes to ${inr(listTotal)}. As a GhostCart Privilege offer from ${store.name}, I can do ${inr(terms.opening)} right now. Make me an offer.`;
+    ? hi
+      ? `${store.name} पर ${title} का कुल दाम ${inr(listTotal)} है। आपके लिए अभी: ${inr(terms.opening)}। अपना दाम बताइए।`
+      : `${title} comes to ${inr(listTotal)} at ${store.name}. For you, right now: ${inr(terms.opening)}. Make me an offer.`
+    : hi
+      ? `फिर से स्वागत है। ${title} का कुल दाम ${inr(listTotal)} है। ${store.name} की ओर से GhostCart प्रिविलेज ऑफ़र: अभी ${inr(terms.opening)}। अपना दाम बताइए।`
+      : `Welcome back. ${title} comes to ${inr(listTotal)}. As a GhostCart Privilege offer from ${store.name}, I can do ${inr(terms.opening)} right now. Make me an offer.`;
   const deal: Deal = {
     id: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     product: { title, seller: store.name, price: listTotal, imageUrl: lines[0].image, inStock: true },
@@ -108,6 +113,7 @@ export async function startCartNegotiation(cartId: string, userId: string, opts:
     status: "negotiating",
     city: opts.city,
     channel: "web",
+    language: opts.language,
     userId,
     shop: {
       storeId: store.id,

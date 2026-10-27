@@ -107,6 +107,7 @@ export async function submitOffer(deal: Deal, offer: number) {
     quotes: deal.alternatives,
     negotiation: n,
     offer,
+    language: deal.language,
   }));
   const { move, message } = overrideAfterRejection(chosen.move, n) ?? chosen;
   n.messages.push({ from: "agent", text: message, price: move.price, at: Date.now() });

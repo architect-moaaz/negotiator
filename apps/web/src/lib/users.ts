@@ -19,7 +19,18 @@ export async function currentUser() {
   return id ? store.getUser(id) : undefined;
 }
 
-export async function signUp(input: { name: string; phone: string; email?: string; channel: Channel; city?: string; consent: boolean; demographics?: Demographics; source?: string }) {
+export async function signUp(input: {
+  name: string;
+  phone: string;
+  email?: string;
+  channel: Channel;
+  city?: string;
+  consent: boolean;
+  /** The consent sentence as the shopper saw it (another language); defaults to DEAL_CONTACT_WORDING. */
+  consentWording?: string;
+  demographics?: Demographics;
+  source?: string;
+}) {
   const { user, created } = await store.upsertUser({
     id: crypto.randomUUID(),
     name: input.name.trim().slice(0, 80),
@@ -33,7 +44,7 @@ export async function signUp(input: { name: string; phone: string; email?: strin
   });
   // Every tick of the box is recorded, including on sign-back-in: it renews consent the person may have withdrawn.
   if (input.consent) {
-    await recordConsent(user.id, "deal_contact", "granted", DEAL_CONTACT_WORDING, `signup:${input.source ?? input.channel}`);
+    await recordConsent(user.id, "deal_contact", "granted", input.consentWording ?? DEAL_CONTACT_WORDING, `signup:${input.source ?? input.channel}`);
     if (!user.consentAt) await store.updateUser({ ...user, consentAt: Date.now() });
   }
   await store.log({

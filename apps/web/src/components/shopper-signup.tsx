@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
+import { t, type Lang } from "@/lib/i18n";
 import { Turnstile, turnstileRequired } from "./turnstile";
 
 const field = "rounded-xl border border-line bg-panel px-4 py-3 text-fg placeholder:text-muted/60 focus:border-saffron focus:outline-none disabled:opacity-60";
 
 /** Shopper signup with the phone code (same two steps as /api/signup). Calls onDone once signed in. */
-export function ShopperSignup({ onDone }: { onDone: () => void }) {
+export function ShopperSignup({ onDone, lang = "en" }: { onDone: () => void; lang?: Lang }) {
   const [form, setForm] = useState({ name: "", phone: "", consent: false, code: "" });
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +23,7 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, phone: form.phone, consent: form.consent, code: note ? form.code : undefined, source: "shop", turnstile: note ? undefined : captcha }),
+      body: JSON.stringify({ name: form.name, phone: form.phone, consent: form.consent, lang, code: note ? form.code : undefined, source: "shop", turnstile: note ? undefined : captcha }),
     });
     if (!note) {
       setCaptcha("");
@@ -30,8 +31,8 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
     }
     const data = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) return setError(data.error || "Couldn't sign you up. Try again.");
-    if (data.codeSent) return setNote(data.via === "call" ? `We're calling ${data.phone} now with your 6-digit code.` : "Dev mode: the code is in the server console.");
+    if (!res.ok) return setError(data.error || t(lang, "signup.failed"));
+    if (data.codeSent) return setNote(data.via === "call" ? t(lang, "signup.calling", { phone: data.phone }) : "Dev mode: the code is in the server console.");
     onDone();
   }
 
@@ -43,19 +44,19 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
         submit();
       }}
     >
-      <p className="font-semibold">Quick sign-up so the seller can reach you about this deal</p>
+      <p className="font-semibold">{t(lang, "signup.title")}</p>
       <p className="-mt-2 text-sm text-muted">
-        Been here before?{" "}
+        {t(lang, "signup.before")}{" "}
         <Link href="/login" className="text-fg underline underline-offset-4">
-          Log in with a code
+          {t(lang, "signup.login")}
         </Link>
       </p>
       <label className="grid gap-2">
-        <span className="text-muted">Your name</span>
+        <span className="text-muted">{t(lang, "signup.name")}</span>
         <input required autoComplete="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={busy} className={field} />
       </label>
       <label className="grid gap-2">
-        <span className="text-muted">Mobile number</span>
+        <span className="text-muted">{t(lang, "signup.phone")}</span>
         <input
           required
           type="tel"
@@ -70,7 +71,7 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
       </label>
       <label className="flex items-start gap-3 text-sm text-muted">
         <input type="checkbox" required checked={form.consent} onChange={(e) => setForm({ ...form, consent: e.target.checked })} className="mt-0.5 size-4 accent-saffron" />
-        <span>GhostCart and this seller can contact me on this number about this deal. No marketing.</span>
+        <span>{t(lang, "signup.consent")}</span>
       </label>
       {note && (
         <label className="grid gap-2">
@@ -95,7 +96,7 @@ export function ShopperSignup({ onDone }: { onDone: () => void }) {
       )}
       {!note && <Turnstile onToken={onToken} resetKey={captchaReset} />}
       <button disabled={busy || (!!note && form.code.length !== 6) || (!note && turnstileRequired && !captcha)} className="rounded-xl bg-saffron px-6 py-3.5 text-lg font-semibold text-paper-ink disabled:opacity-50">
-        {busy ? "One moment…" : note ? "Verify and start haggling" : "Call me with a code"}
+        {busy ? t(lang, "signup.wait") : note ? t(lang, "signup.verify") : t(lang, "signup.call")}
       </button>
     </form>
   );

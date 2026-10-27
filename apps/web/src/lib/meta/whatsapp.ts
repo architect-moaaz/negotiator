@@ -9,6 +9,9 @@ import { CHAT_CONTACT_WORDING, recordConsent } from "../privacy/consent";
 import { normalizePhone } from "../users";
 import { store as kv } from "../store";
 import { graph, metaConfig } from "@ghostcart/channels";
+import { sendMetaTemplate, type TemplateMessage } from "./templates";
+
+export { sendMetaTemplate, type TemplateMessage };
 
 const { platformConnections } = schema;
 
@@ -27,14 +30,6 @@ export async function storeWhatsApp(storeId: string) {
   return rows.find((r) => r.platform === "whatsapp") ?? rows.find((r) => r.platform === "gupshup");
 }
 
-export interface TemplateMessage {
-  /** Meta template name, or Gupshup template id. */
-  template: string;
-  language?: string;
-  body: string[];
-  /** Dynamic part of the template's URL button (e.g. the private link token). */
-  urlSuffix?: string;
-}
 
 /**
  * Send an approved template from the store's own number: the only way to message a shopper outside the
@@ -61,15 +56,6 @@ export async function sendWhatsAppTemplate(conn: NonNullable<Awaited<ReturnType<
   await sendMetaTemplate(conn.externalId, decryptSecret(conn.accessTokenEncrypted), digits, msg);
 }
 
-/** A template through Meta's Cloud API from a given number (a seller's, or GhostCart's own for order updates). */
-export async function sendMetaTemplate(phoneNumberId: string, token: string, to: string, msg: TemplateMessage) {
-  const components: unknown[] = [{ type: "body", parameters: msg.body.map((text) => ({ type: "text", text })) }];
-  if (msg.urlSuffix) components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: msg.urlSuffix }] });
-  await graph(`${phoneNumberId}/messages`, {
-    token,
-    body: { messaging_product: "whatsapp", recipient_type: "individual", to: to.replace(/^\+/, ""), type: "template", template: { name: msg.template, language: { code: msg.language ?? "en" }, components } },
-  });
-}
 
 export async function whatsappConnection(phoneNumberId: string) {
   const db = await getDb();

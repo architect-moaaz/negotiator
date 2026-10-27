@@ -8,6 +8,8 @@ import { PriceAlert } from "@/components/shop/price-alert";
 import { SellerDetailsBlock } from "@/components/shop/seller-details";
 import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { getLang } from "@/lib/lang";
 import { GRANT_PLATFORMS } from "@/lib/grants/adapters";
 import { getProduct } from "@/lib/shop/products";
 import { policyForProduct } from "@/lib/shop/policies";
@@ -33,7 +35,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
   const product = shop && (await getProduct(productId));
   if (!shop || !product || product.storeId !== shop.store.id || product.status !== "active") notFound();
   const { store, preview } = shop;
-  const [policy, seller] = await Promise.all([policyForProduct(product), sellerDetails(store)]);
+  const [policy, seller, lang] = await Promise.all([policyForProduct(product), sellerDetails(store), getLang()]);
   const raw = (await searchParams).return;
   const back = await allowedReturnUrl(store.id, typeof raw === "string" ? raw : undefined);
 
@@ -41,7 +43,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
     <>
       {back ? (
         <a href={back} className="text-muted hover:text-fg">
-          ← Back to {new URL(back).hostname}
+          {t(lang, "product.back", { site: new URL(back).hostname })}
         </a>
       ) : (
         <Link href={`/s/${store.slug}`} className="text-muted hover:text-fg">
@@ -62,21 +64,23 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
             <span className="font-semibold">{inr(product.price)}</span>
             {product.mrp && product.mrp > product.price && <s className="ml-3 text-lg text-muted">MRP {inr(product.mrp)}</s>}
           </p>
-          <p className="mt-1 text-sm text-muted">{product.stock > 0 ? `${product.stock} in stock` : "Out of stock"} · ships from {store.name}</p>
+          <p className="mt-1 text-sm text-muted">
+            {product.stock > 0 ? t(lang, "product.inStock", { n: product.stock }) : t(lang, "product.outOfStock")} · {t(lang, "product.shipsFrom", { store: store.name })}
+          </p>
           <div className="mt-8">
             {preview ? (
               <p className="rounded-xl border border-saffron/60 px-4 py-3 text-sm">Preview: shoppers can haggle once your shop is live.</p>
             ) : policy.enabled ? (
               <div className="grid gap-3">
-                <HaggleButton productId={product.id} disabled={product.stock < 1} label="Make an offer" returnUrl={back ?? undefined} />
-                <PriceAlert productId={product.id} price={product.price} />
+                <HaggleButton productId={product.id} disabled={product.stock < 1} label={t(lang, "product.offer")} returnUrl={back ?? undefined} lang={lang} />
+                <PriceAlert productId={product.id} price={product.price} lang={lang} />
               </div>
             ) : (
-              <p className="text-muted">This item is sold at a fixed price.</p>
+              <p className="text-muted">{t(lang, "product.fixed")}</p>
             )}
           </div>
           {product.description && <p className="mt-8 whitespace-pre-line text-muted">{product.description}</p>}
-          {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">Country of origin: {product.countryOfOrigin}</p>}
+          {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">{t(lang, "product.origin", { c: product.countryOfOrigin })}</p>}
         </div>
       </div>
       <SellerDetailsBlock seller={seller} paidOn={GRANT_PLATFORMS.has(store.platform) ? store.name : undefined} />

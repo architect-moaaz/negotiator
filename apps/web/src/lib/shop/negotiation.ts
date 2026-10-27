@@ -27,7 +27,7 @@ export class ShopError extends Error {
 export async function startShopNegotiation(
   productId: string,
   userId: string,
-  opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"] } = {},
+  opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"]; language?: "en" | "hi" } = {},
 ) {
   const product = await getProduct(productId);
   const store = product && (await getStore(product.storeId));
@@ -56,7 +56,10 @@ export async function startShopNegotiation(
   const policy = await policyForProduct(product);
 
   const now = Date.now();
-  const opening = `${product.title} lists at ${inr(product.price)}. For you, right now: ${inr(terms.opening)}. Make me an offer.`;
+  const opening =
+    opts.language === "hi"
+      ? `${product.title} का दाम ${inr(product.price)} है। आपके लिए अभी: ${inr(terms.opening)}। अपना दाम बताइए।`
+      : `${product.title} lists at ${inr(product.price)}. For you, right now: ${inr(terms.opening)}. Make me an offer.`;
   const deal: Deal = {
     id: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     product: {
@@ -83,6 +86,7 @@ export async function startShopNegotiation(
     city: opts.city,
     channel: opts.chat?.channel ?? (opts.channel === "api" ? "api" : "web"),
     chat: opts.chat,
+    language: opts.language,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };

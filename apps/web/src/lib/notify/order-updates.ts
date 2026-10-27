@@ -1,6 +1,6 @@
 import { sendEmail, simpleHtml } from "../email";
 import { inr } from "../format";
-import { sendMetaTemplate } from "../meta/whatsapp";
+import { sendMetaTemplate } from "../meta/templates";
 import { mayContact } from "../privacy/consent";
 import { notifyBuyer } from "../push";
 import { store as kv } from "../store";
