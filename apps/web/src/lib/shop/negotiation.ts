@@ -4,6 +4,7 @@ import { grantAdapterFor, GRANT_PLATFORMS } from "../grants/adapters";
 import { allowedReturnUrl } from "../integrations/keys";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
+import { openingFor } from "../experiments";
 import { recordEvent } from "../negotiation-events";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
@@ -54,8 +55,10 @@ export async function startShopNegotiation(
     throw err;
   }
 
-  const terms = await termsForProduct(product, store, opts.channel ?? "shop");
-  if (!terms) throw new ShopError("This product is sold at a fixed price.", 409);
+  const base = await termsForProduct(product, store, opts.channel ?? "shop");
+  if (!base) throw new ShopError("This product is sold at a fixed price.", 409);
+  const { opening: openAt, variant } = openingFor(base, userId);
+  const terms = { ...base, opening: openAt };
   const policy = await policyForProduct(product);
 
   const now = Date.now();
@@ -90,6 +93,7 @@ export async function startShopNegotiation(
     channel: opts.chat?.channel ?? (opts.channel === "api" ? "api" : "web"),
     chat: opts.chat,
     language: opts.language,
+    experiments: variant ? { opening_position: variant } : undefined,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };

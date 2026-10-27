@@ -92,6 +92,20 @@ refunded orders put it back.
 - Experiments: sticky A/B assignment per shopper, results by conversion, for copy and the agent's
   opening position (always inside the seller's limits; code still sets every price).
 
+## Status (feat/growth)
+
+All waves are built and tested, one commit each. Known limits:
+- G0: production still needs the lead's steps in `docs/launch.md` (Neon, settings, Root Directory).
+- G2: Shiprocket booking is written from its public API and runs against a mock; confirm field names in
+  their sandbox. Reverse pickups for returns aren't booked automatically yet.
+- G5: home, product, sign-up, alerts and Privilege are in Hindi; the haggle room, checkout, search and
+  Rescue screens are still English. A native speaker should check the Hindi.
+- G8: stores are one platform each, so stock is checked live from Shopify/Woo at haggle time rather
+  than pushed between channels.
+- G10: referral rewards and promoted-listing prices are business decisions; the code only attributes
+  and labels.
+- G11: experiments are off until `EXPERIMENTS` names them.
+
 ## Not in code (lead)
 
 Company and GST; Pine Labs partner agreement; Meta verification and the order-update template;

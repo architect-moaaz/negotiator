@@ -119,6 +119,8 @@ export interface Deal extends Offer {
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
   shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string; platform?: string };
   grant?: PriceGrant;
+  /** Experiment variants this haggle ran under (lib/experiments.ts), for results. */
+  experiments?: Record<string, string>;
   /** The shopper's language for the agent's replies (default English). */
   language?: "en" | "hi";
   /** GhostCart Privilege: the haggle is on a whole cart (a bundle), not one product. */
