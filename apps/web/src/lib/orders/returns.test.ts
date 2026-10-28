@@ -74,4 +74,27 @@ describe("returns", () => {
     expect((await getOrder(o.id))?.status).toBe("disputed");
     expect((await disputeFor(o.id))?.reason).toBe("damaged");
   });
+
+  it("open only one return when the buyer submits twice at once", async () => {
+    const o = await delivered(7);
+    const both = await Promise.allSettled([
+      requestReturn(o.id, { reason: "changed_mind", details: "Double tap one" }),
+      requestReturn(o.id, { reason: "changed_mind", details: "Double tap two" }),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const db = await getDb();
+    const { schema } = await import("@ghostcart/db");
+    const { eq } = await import("drizzle-orm");
+    expect(await db.select().from(schema.returnRequests).where(eq(schema.returnRequests.orderId, o.id))).toHaveLength(1);
+  });
+
+  it("send an accepted return that never comes back to staff, so the payout isn't frozen forever", async () => {
+    const o = await delivered(7);
+    await requestReturn(o.id, { reason: "changed_mind", details: "Not needed" });
+    await acceptReturn(o.id, "Our courier collects it on Friday between 10 and 1.");
+    expect(await escalateUnansweredReturns(new Date(Date.now() + 13 * 86_400_000))).not.toContain(o.id);
+    expect(await escalateUnansweredReturns(new Date(Date.now() + 15 * 86_400_000))).toContain(o.id);
+    expect((await getOrder(o.id))?.status).toBe("disputed");
+    expect((await disputeFor(o.id))?.details).toContain("not marked received");
+  });
 });

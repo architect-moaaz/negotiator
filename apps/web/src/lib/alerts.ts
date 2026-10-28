@@ -92,9 +92,10 @@ export async function firePriceAlerts(productId: string, now = new Date()) {
   let sent = 0;
   for (const a of due) {
     const body = `${product.title} is now ${inr(product.price)} at ${store?.name ?? "the shop"} (you asked at ${inr(a.targetPrice)}; it was ${inr(a.priceAtSet)}). You can still make an offer.`;
+    let delivered = false;
     try {
       const user = await kv.getUser(a.userId);
-      await notifyBuyer(a.userId, { title: "Price dropped", body, data: { type: "product", productId: product.id } });
+      delivered = (await notifyBuyer(a.userId, { title: "Price dropped", body, data: { type: "product", productId: product.id } })) > 0;
       if (user?.email) {
         await sendEmail({
           to: user.email,
@@ -102,12 +103,19 @@ export async function firePriceAlerts(productId: string, now = new Date()) {
           text: `${body}\n\n${url}\n\nThis was a one-time alert you set. It's now off.`,
           html: simpleHtml([body], { label: "See it", url }, "This was a one-time alert you set on GhostCart. It's now off."),
         });
+        delivered = true;
       }
-      sent++;
-      await kv.log({ type: "price_alert_sent", actor: "system", userId: a.userId, detail: `${product.title} reached ${inr(product.price)} (target ${inr(a.targetPrice)})` });
     } catch (err) {
       console.warn(`price alert ${a.id} failed`, err);
     }
+    if (!delivered) {
+      // Nothing reached the shopper (no app, no email, or both failed): keep the alert live so it can
+      // still fire on a later price change, and it stays on their account page.
+      await db.update(priceAlerts).set({ firedAt: null }).where(eq(priceAlerts.id, a.id));
+      continue;
+    }
+    sent++;
+    await kv.log({ type: "price_alert_sent", actor: "system", userId: a.userId, detail: `${product.title} reached ${inr(product.price)} (target ${inr(a.targetPrice)})` });
   }
   return sent;
 }

@@ -471,7 +471,8 @@ export const returnRequests = pgTable(
     decidedAt: ts("decided_at"),
     closedAt: ts("closed_at"),
   },
-  (t) => [index("return_requests_order_idx").on(t.orderId), index("return_requests_status_idx").on(t.status)],
+  // One return request per order (a double-tap must not open two).
+  (t) => [uniqueIndex("return_requests_order_uq").on(t.orderId), index("return_requests_status_idx").on(t.status)],
 );
 
 /**

@@ -1,5 +1,5 @@
 import { schema } from "@ghostcart/db";
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray, lte, or } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { getDb } from "../db";
 import { notifyShopperOrder } from "../notify/order-updates";
@@ -14,6 +14,8 @@ export type ReturnRequest = typeof returnRequests.$inferSelect;
 export const RETURN_REASONS = ["changed_mind", "damaged", "not_as_described", "wrong_item", "other"] as const;
 /** A seller who hasn't answered a return in this long has it sent to GhostCart staff as a dispute. */
 export const RETURN_ANSWER_HOURS = 72;
+/** An accepted return that isn't back with the seller in this long also goes to staff, so the payout isn't frozen forever. */
+export const RETURN_BACK_DAYS = 14;
 const OPEN = ["requested", "accepted"];
 
 /** The store's return window in days (0 means no returns), from its seller disclosure. */
@@ -55,7 +57,9 @@ export async function requestReturn(orderId: string, input: { reason: string; de
   const [r] = await db
     .insert(returnRequests)
     .values({ id: `ret_${randomBytes(9).toString("base64url")}`, orderId, reason: input.reason, details: input.details.trim().slice(0, 2000), evidence: (input.evidence ?? []).slice(0, 6) })
+    .onConflictDoNothing({ target: returnRequests.orderId })
     .returning();
+  if (!r) throw new OrderError("You've already asked to return this order.", 409);
   await db.update(holds).set({ state: "frozen", updatedAt: new Date() }).where(and(eq(holds.orderId, orderId), eq(holds.state, "held")));
   await setOrderStatus(orderId, "return_requested");
   await kv.log({ type: "order_status", actor: "user", userId: order.userId, dealId: order.dealId, detail: `${orderId}: buyer asked to return it (${input.reason}); payout frozen` });
@@ -115,17 +119,29 @@ export async function returnReceived(orderId: string, by: string) {
   return refunded;
 }
 
-/** Scheduled: returns the seller hasn't answered in RETURN_ANSWER_HOURS become disputes for staff. */
+/**
+ * Scheduled: returns the seller hasn't answered in RETURN_ANSWER_HOURS, and accepted returns not back with
+ * the seller in RETURN_BACK_DAYS, become disputes for staff (who refund or release the frozen payout).
+ */
 export async function escalateUnansweredReturns(now = new Date()) {
   const db = await getDb();
   const stale = await db
     .select()
     .from(returnRequests)
-    .where(and(eq(returnRequests.status, "requested"), lte(returnRequests.createdAt, new Date(now.getTime() - RETURN_ANSWER_HOURS * 3600_000))));
+    .where(
+      or(
+        and(eq(returnRequests.status, "requested"), lte(returnRequests.createdAt, new Date(now.getTime() - RETURN_ANSWER_HOURS * 3600_000))),
+        and(eq(returnRequests.status, "accepted"), lte(returnRequests.decidedAt, new Date(now.getTime() - RETURN_BACK_DAYS * 86_400_000))),
+      ),
+    );
   const escalated: string[] = [];
   for (const r of stale) {
     const reason = r.reason === "damaged" || r.reason === "not_as_described" ? r.reason : "other";
-    await db.insert(schema.disputes).values({ id: `dsp_${randomBytes(9).toString("base64url")}`, orderId: r.orderId, reason, details: `Return not answered by the seller in ${RETURN_ANSWER_HOURS} hours. Buyer said: ${r.details}`, evidence: r.evidence });
+    const why =
+      r.status === "accepted"
+        ? `Return accepted by the seller but not marked received in ${RETURN_BACK_DAYS} days. Seller said: ${r.sellerNote ?? ""}. Buyer said: ${r.details}`
+        : `Return not answered by the seller in ${RETURN_ANSWER_HOURS} hours. Buyer said: ${r.details}`;
+    await db.insert(schema.disputes).values({ id: `dsp_${randomBytes(9).toString("base64url")}`, orderId: r.orderId, reason, details: why, evidence: r.evidence });
     await db.update(returnRequests).set({ status: "escalated", closedAt: now }).where(eq(returnRequests.id, r.id));
     await setOrderStatus(r.orderId, "disputed");
     escalated.push(r.orderId);

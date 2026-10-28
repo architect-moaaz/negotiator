@@ -5,6 +5,7 @@ import { currentConsents } from "./privacy/consent";
 import { createOrg } from "./shop/orgs";
 import { createProduct, updateProduct } from "./shop/products";
 import { createStore, updateStore } from "./shop/stores";
+import { store as kv } from "./store";
 import { signUp } from "./users";
 
 let n = 0;
@@ -54,5 +55,17 @@ describe("price-drop alerts", () => {
     const { alert } = await setPriceAlert(user.id, product.id, 1400);
     expect(await stopPriceAlert({ id: alert.id, userId: "someone-else" })).toBeUndefined();
     expect(await stopPriceAlert({ id: alert.id, userId: user.id })).toBeTruthy();
+  });
+
+  it("keep an alert that reached nobody, so it can still fire once the shopper is reachable", async () => {
+    const { product, reprice } = await setup();
+    const phoneOnly = await signUp({ name: "ZZ Phone Only", phone: `+9190000031${String(n).padStart(2, "0")}`, channel: "web", consent: true });
+    await setPriceAlert(phoneOnly.id, product.id, 1800);
+    await reprice(1750); // no app, no email: nothing delivered
+    expect((await alertsForUser(phoneOnly.id)).map((a) => a.targetPrice)).toEqual([1800]);
+    await kv.updateUser({ ...(await kv.getUser(phoneOnly.id))!, email: `zz.phoneonly${n}@example.com` });
+    await reprice(1740);
+    expect(mailsTo(`zz.phoneonly${n}@example.com`)).toHaveLength(1);
+    expect(await alertsForUser(phoneOnly.id)).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import { schema } from "@ghostcart/db";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { normalizeGtin } from "@ghostcart/core";
+import { after } from "next/server";
 import { z } from "zod";
 import { getDb } from "../db";
 import { newId } from "./ids";
@@ -79,7 +80,19 @@ export async function updateProduct(storeId: string, id: string, input: ProductI
     .where(and(eq(products.id, id), eq(products.storeId, storeId)))
     .returning();
   // A lower listed price may meet shoppers' price alerts (the module imports this one, so load it late).
-  if (row) await (await import("../alerts")).firePriceAlerts(row.id).catch((err) => console.warn("price alerts failed", err));
+  // Sent after the response so a save or a catalogue sync never waits on messages; scripts and tests,
+  // which have no request, send them inline.
+  if (row) {
+    const fire = () =>
+      import("../alerts")
+        .then((m) => m.firePriceAlerts(row.id))
+        .catch((err) => console.warn("price alerts failed", err));
+    try {
+      after(fire);
+    } catch {
+      await fire();
+    }
+  }
   return row as Product | undefined;
 }
 
