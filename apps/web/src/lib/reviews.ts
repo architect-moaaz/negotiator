@@ -16,10 +16,11 @@ export type Review = typeof productReviews.$inferSelect;
 const REVIEWABLE = ["delivered", "completed"];
 const LINK = /https?:\/\/|www\./i;
 
-/** "Asha Kumar" → "Asha K." */
+/** "Asha Kumar" → "Asha K."; brackets and punctuation in later words are ignored ("Asha (Mumbai)" → "Asha M."). */
 export const shortName = (name: string) => {
   const [first, ...rest] = name.trim().split(/\s+/);
-  return rest.length ? `${first} ${rest.at(-1)![0].toUpperCase()}.` : first || "Buyer";
+  const last = rest.map((w) => w.replace(/[^\p{L}\p{M}\p{N}]/gu, "")).filter(Boolean).at(-1);
+  return last ? `${first} ${last[0].toUpperCase()}.` : first || "Buyer";
 };
 
 export async function reviewForOrder(orderId: string) {

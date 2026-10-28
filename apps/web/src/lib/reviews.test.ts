@@ -61,5 +61,9 @@ describe("verified-buyer reviews", () => {
   it("shorten names to first name and initial", () => {
     expect(shortName("Asha Kumar")).toBe("Asha K.");
     expect(shortName("Ravi")).toBe("Ravi");
+    expect(shortName("ZZ Growth Shopper (Claude)")).toBe("ZZ C.");
+    expect(shortName("Priya (Pune)")).toBe("Priya P.");
+    expect(shortName("Arjun ()")).toBe("Arjun");
+    expect(shortName("अमित शर्मा")).toBe("अमित श.");
   });
 });
