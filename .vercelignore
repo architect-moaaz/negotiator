@@ -1,0 +1,11 @@
+# Local builds, caches and dev data never belong in a CLI deploy (Vercel builds from source).
+node_modules
+**/node_modules
+.turbo
+**/.next
+**/.pglite
+**/.expo
+**/dist
+**/coverage
+.env*
+!.env.example

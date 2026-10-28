@@ -67,6 +67,18 @@ export async function POST(request: Request, ctx: Ctx) {
         return Response.json({ data: { metafieldsSet: { metafields: [{ id: "gid://shopify/Metafield/1" }], ...ok } } });
       case "GhostCartHook":
         return Response.json({ data: { webhookSubscriptionCreate: { webhookSubscription: { id: `gid://shopify/WebhookSubscription/${variables.topic}` }, ...ok } } });
+      case "GhostCartStock": {
+        const ids = variables.ids as string[];
+        const nodes = await Promise.all(
+          ids.map(async (id) => {
+            const p = PRODUCTS.find((x) => x.variant === id);
+            if (!p) return null;
+            const override = await kv.kvGet<number>(`mockshopify:${shop}:stock:${id}`);
+            return { id, inventoryQuantity: override ?? p.stock };
+          }),
+        );
+        return Response.json({ data: { nodes } });
+      }
       case "GhostCartProducts":
         return Response.json({
           data: {

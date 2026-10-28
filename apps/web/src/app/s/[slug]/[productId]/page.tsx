@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HaggleButton } from "@/components/shop/haggle-button";
+import { PriceAlert } from "@/components/shop/price-alert";
 import { SellerDetailsBlock } from "@/components/shop/seller-details";
 import { sellerDetails } from "@/lib/shop/disclosure";
 import { inr } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { getLang } from "@/lib/lang";
+import { reviewSummary } from "@/lib/reviews";
 import { GRANT_PLATFORMS } from "@/lib/grants/adapters";
 import { getProduct } from "@/lib/shop/products";
 import { policyForProduct } from "@/lib/shop/policies";
@@ -32,7 +36,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
   const product = shop && (await getProduct(productId));
   if (!shop || !product || product.storeId !== shop.store.id || product.status !== "active") notFound();
   const { store, preview } = shop;
-  const [policy, seller] = await Promise.all([policyForProduct(product), sellerDetails(store)]);
+  const [policy, seller, lang, reviews] = await Promise.all([policyForProduct(product), sellerDetails(store), getLang(), reviewSummary({ productId: product.id })]);
   const raw = (await searchParams).return;
   const back = await allowedReturnUrl(store.id, typeof raw === "string" ? raw : undefined);
 
@@ -40,7 +44,7 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
     <>
       {back ? (
         <a href={back} className="text-muted hover:text-fg">
-          ← Back to {new URL(back).hostname}
+          {t(lang, "product.back", { site: new URL(back).hostname })}
         </a>
       ) : (
         <Link href={`/s/${store.slug}`} className="text-muted hover:text-fg">
@@ -61,20 +65,44 @@ async function ProductView({ params, searchParams }: { params: PageProps<"/s/[sl
             <span className="font-semibold">{inr(product.price)}</span>
             {product.mrp && product.mrp > product.price && <s className="ml-3 text-lg text-muted">MRP {inr(product.mrp)}</s>}
           </p>
-          <p className="mt-1 text-sm text-muted">{product.stock > 0 ? `${product.stock} in stock` : "Out of stock"} · ships from {store.name}</p>
+          <p className="mt-1 text-sm text-muted">
+            {product.stock > 0 ? t(lang, "product.inStock", { n: product.stock }) : t(lang, "product.outOfStock")} · {t(lang, "product.shipsFrom", { store: store.name })}
+          </p>
           <div className="mt-8">
             {preview ? (
               <p className="rounded-xl border border-saffron/60 px-4 py-3 text-sm">Preview: shoppers can haggle once your shop is live.</p>
             ) : policy.enabled ? (
-              <HaggleButton productId={product.id} disabled={product.stock < 1} label="Make an offer" returnUrl={back ?? undefined} />
+              <div className="grid gap-3">
+                <HaggleButton productId={product.id} disabled={product.stock < 1} label={t(lang, "product.offer")} returnUrl={back ?? undefined} lang={lang} />
+                <PriceAlert productId={product.id} price={product.price} lang={lang} />
+              </div>
             ) : (
-              <p className="text-muted">This item is sold at a fixed price.</p>
+              <p className="text-muted">{t(lang, "product.fixed")}</p>
             )}
           </div>
           {product.description && <p className="mt-8 whitespace-pre-line text-muted">{product.description}</p>}
-          {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">Country of origin: {product.countryOfOrigin}</p>}
+          {product.countryOfOrigin && <p className="mt-4 text-sm text-muted">{t(lang, "product.origin", { c: product.countryOfOrigin })}</p>}
         </div>
       </div>
+      {reviews.count > 0 && (
+        <section aria-label="Reviews" className="mt-12">
+          <h2 className="text-xl font-semibold">
+            {reviews.average.toFixed(1)} ★ <span className="text-base font-normal text-muted">from {reviews.count} verified buyer{reviews.count === 1 ? "" : "s"}</span>
+          </h2>
+          <ul className="mt-4 grid gap-4">
+            {reviews.latest.map((r) => (
+              <li key={r.id} className="border-t border-line pt-4">
+                <p>
+                  <span aria-label={`${r.rating} out of 5`}>{"★".repeat(r.rating)}</span>
+                  <span className="text-muted">{"★".repeat(5 - r.rating).replace(/★/g, "☆")}</span> <span className="text-sm text-muted">{r.authorName}</span>
+                </p>
+                {r.body && <p className="mt-1">{r.body}</p>}
+                {r.sellerReply && <p className="mt-2 text-sm text-muted">{store.name} replied: {r.sellerReply}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <SellerDetailsBlock seller={seller} paidOn={GRANT_PLATFORMS.has(store.platform) ? store.name : undefined} />
     </>
   );

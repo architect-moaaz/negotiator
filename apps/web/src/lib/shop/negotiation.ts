@@ -4,11 +4,13 @@ import { grantAdapterFor, GRANT_PLATFORMS } from "../grants/adapters";
 import { allowedReturnUrl } from "../integrations/keys";
 import { settlementGateway } from "../orders/settlement";
 import { LOCK_FEE_INR, testPayments } from "../payments";
+import { openingFor } from "../experiments";
 import { recordEvent } from "../negotiation-events";
 import { store as kv } from "../store";
 import type { Deal } from "../types";
 import { policyForProduct, termsForProduct } from "./policies";
 import { getProduct } from "./products";
+import { refreshLiveStock } from "./stock";
 import { getStore } from "./stores";
 
 export class ShopError extends Error {
@@ -27,11 +29,11 @@ export class ShopError extends Error {
 export async function startShopNegotiation(
   productId: string,
   userId: string,
-  opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"] } = {},
+  opts: { channel?: string; city?: string; request?: Request; returnUrl?: string; chat?: Deal["chat"]; language?: "en" | "hi" } = {},
 ) {
-  const product = await getProduct(productId);
-  const store = product && (await getStore(product.storeId));
-  if (!product || !store || product.status !== "active") throw new ShopError("This product isn't available.", 404);
+  const found = await getProduct(productId);
+  const store = found && (await getStore(found.storeId));
+  if (!found || !store || found.status !== "active") throw new ShopError("This product isn't available.", 404);
   if (store.status !== "live") throw new ShopError("This shop isn't open yet.", 409);
   const grants = GRANT_PLATFORMS.has(store.platform);
   if (grants) {
@@ -41,6 +43,8 @@ export async function startShopNegotiation(
     // Without a settlement gateway the buyer's money would land with GhostCart instead of on hold for the seller.
     throw new ShopError("This shop isn't taking payments yet. Check back soon.", 503);
   }
+  // Shopify/Woo: check the store's own stock now, so nobody haggles for something already sold there.
+  const [product] = grants ? await refreshLiveStock(store, [found]) : [found];
   if (product.stock < 1) throw new ShopError("Out of stock right now.", 409);
   const cap = TIER_LIMITS[store.tier as SellerTier]?.maxOrderValue ?? TIER_LIMITS.new.maxOrderValue;
   if (product.price > cap) throw new ShopError(`This shop can take orders up to ${inr(cap)} for now.`, 409);
@@ -51,12 +55,17 @@ export async function startShopNegotiation(
     throw err;
   }
 
-  const terms = await termsForProduct(product, store, opts.channel ?? "shop");
-  if (!terms) throw new ShopError("This product is sold at a fixed price.", 409);
+  const base = await termsForProduct(product, store, opts.channel ?? "shop");
+  if (!base) throw new ShopError("This product is sold at a fixed price.", 409);
+  const { opening: openAt, variant } = openingFor(base, userId);
+  const terms = { ...base, opening: openAt };
   const policy = await policyForProduct(product);
 
   const now = Date.now();
-  const opening = `${product.title} lists at ${inr(product.price)}. For you, right now: ${inr(terms.opening)}. Make me an offer.`;
+  const opening =
+    opts.language === "hi"
+      ? `${product.title} का दाम ${inr(product.price)} है। आपके लिए अभी: ${inr(terms.opening)}। अपना दाम बताइए।`
+      : `${product.title} lists at ${inr(product.price)}. For you, right now: ${inr(terms.opening)}. Make me an offer.`;
   const deal: Deal = {
     id: crypto.randomUUID().replace(/-/g, "").slice(0, 10),
     product: {
@@ -83,6 +92,8 @@ export async function startShopNegotiation(
     city: opts.city,
     channel: opts.chat?.channel ?? (opts.channel === "api" ? "api" : "web"),
     chat: opts.chat,
+    language: opts.language,
+    experiments: variant ? { opening_position: variant } : undefined,
     userId,
     shop: { storeId: store.id, productId: product.id, slug: store.slug, storeName: store.name, platform: store.platform, returnUrl: (await allowedReturnUrl(store.id, opts.returnUrl)) ?? undefined },
   };

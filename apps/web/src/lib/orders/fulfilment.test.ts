@@ -7,7 +7,7 @@ import { createOrg } from "../shop/orgs";
 import { createProduct } from "../shop/products";
 import { createStore, updateStore } from "../shop/stores";
 import { store as kv } from "../store";
-import { canDispute, confirmReceivedByBuyer, confirmWithHandoverCode, markShipped, openDispute, pollTracking, resolveDispute, respondToDispute, shipmentFor } from "./fulfilment";
+import { bookPickup, canDispute, confirmReceivedByBuyer, confirmWithHandoverCode, markShipped, openDispute, pollTracking, resolveDispute, respondToDispute, shipmentFor } from "./fulfilment";
 import { trialBalance } from "./ledger";
 import { getOrder, heldFor, orderForDeal, runOrderJobs, storeMoney } from "./service";
 
@@ -61,6 +61,41 @@ describe("shipping and delivery", () => {
     const later = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
     expect((await runOrderJobs(later)).released).toContain(o.id);
     expect((await storeMoney(store.id)).released).toBe(o.sellerShare);
+  });
+});
+
+describe("one-click pickup", () => {
+  it("books a courier, ships the order with its AWB, and keeps the pickup date", async () => {
+    const { order: o, deal } = await order();
+    const { booking } = await bookPickup(o.id, { weightKg: 0.5, lengthCm: 20, breadthCm: 15, heightCm: 10 }, "seller");
+    expect(booking.awb).toMatch(/^ZZSR/);
+    expect((await getOrder(o.id))?.status).toBe("shipped");
+    expect(await shipmentFor(o.id)).toMatchObject({ courier: "ZZ Mock Courier", awb: booking.awb, bookingRef: `mock-${o.id}`, pickupAt: expect.any(Date) });
+    expect((await kv.getDeal(deal.id))?.checkout?.awb).toBe(booking.awb);
+    await expect(bookPickup(o.id, { weightKg: 0.5, lengthCm: 20, breadthCm: 15, heightCm: 10 }, "seller")).rejects.toThrow("shipped");
+  });
+
+  it("checks the parcel, and leaves the order alone when no courier takes it", async () => {
+    const { order: o } = await order();
+    await expect(bookPickup(o.id, { weightKg: 0, lengthCm: 20, breadthCm: 15, heightCm: 10 }, "seller")).rejects.toThrow("Weight");
+    await expect(bookPickup(o.id, { weightKg: 1, lengthCm: 999, breadthCm: 15, heightCm: 10 }, "seller")).rejects.toThrow("side");
+    const db = await getDb();
+    const { schema } = await import("@ghostcart/db");
+    const { eq } = await import("drizzle-orm");
+    await db.update(schema.orders).set({ address: { ...(o.address as Record<string, string>), pincode: "000000" } }).where(eq(schema.orders.id, o.id));
+    await expect(bookPickup(o.id, { weightKg: 1, lengthCm: 20, breadthCm: 15, heightCm: 10 }, "seller")).rejects.toThrow("No courier");
+    expect((await getOrder(o.id))?.status).toBe("placed");
+  });
+});
+
+describe("stock", () => {
+  it("goes back on sale when an unshipped order is cancelled", async () => {
+    const { order: o } = await order();
+    const { getProduct } = await import("../shop/products");
+    const before = (await getProduct(o.productId!))!.stock;
+    await runOrderJobs(new Date(o.shipBy.getTime() + 1000));
+    expect((await getOrder(o.id))?.status).toBe("cancelled");
+    expect((await getProduct(o.productId!))!.stock).toBe(before + 1);
   });
 });
 

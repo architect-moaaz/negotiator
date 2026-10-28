@@ -31,6 +31,9 @@ export default function SellPage() {
         <Link href="/seller" className="text-muted underline underline-offset-4 hover:text-fg">
           I already have one
         </Link>
+        <Link href="/pricing" className="text-muted underline underline-offset-4 hover:text-fg">
+          Pricing
+        </Link>
       </div>
       <p className="mt-10 text-sm text-muted">
         Approving deals for an Amazon or Flipkart listing from before?{" "}

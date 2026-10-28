@@ -200,6 +200,18 @@ describe.skipIf(!WP)("WooCommerce plugin on a real WordPress", () => {
     expect((await call(other, "apply-coupon", { code })).status).toBe(400);
   }, 60_000);
 
+  it("answers live stock, signed, and GhostCart takes it before a haggle", async () => {
+    const { grantAdapterFor } = await import("../grants/adapters");
+    const { getProductByRef } = await import("../shop/products");
+    const { getStore } = await import("../shop/stores");
+    const store = (await getStore(ctx.storeId))!;
+    const product = (await getProductByRef(ctx.storeId, `woo-${lamp.id}`))!;
+    const live = await (await grantAdapterFor(store))!.liveStock!({ store, products: [product] });
+    expect(live.get(product.id)).toBeGreaterThanOrEqual(0);
+    const unsigned = await fetch(`${WP}/wp-json/ghostcart/v1/stock`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productIds: [lamp.id] }) });
+    expect(unsigned.status).toBe(401);
+  }, 60_000);
+
   it("rejects coupon requests that aren't signed with the site's secret, or are stale, or overpay", async () => {
     const conn = (await wooConnectionForStore(ctx.storeId))!;
     const secret = decryptSecret(conn.accessTokenEncrypted);

@@ -1,0 +1,223 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { inr } from "@/lib/format";
+import type { SellerResults } from "@/lib/shop/results";
+import { api } from "./ui";
+
+interface Day {
+  day: string;
+  negotiations: number;
+  agreed: number;
+  agreedValue: number;
+}
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-2xl border border-line p-4">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+      {sub && <p className="mt-0.5 text-sm text-muted">{sub}</p>}
+    </div>
+  );
+}
+
+interface SellerReview {
+  id: string;
+  authorName: string;
+  rating: number;
+  body: string;
+  sellerReply: string | null;
+  hidden: boolean;
+  createdAt: string;
+}
+
+interface Suggestion {
+  productId: string;
+  title: string;
+  haggles: number;
+  lost: number;
+  closable: number;
+  currentAutoPct: number;
+  suggestedAutoPct: number;
+}
+
+/** Playbook: limits worth changing, from this store's own lost haggles. The seller applies them. */
+function Suggestions({ storeId }: { storeId: string }) {
+  const [list, setList] = useState<Suggestion[] | null>(null);
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api<{ suggestions: Suggestion[] }>(`/api/seller/stores/${storeId}/automation`).then((r) => live && r.ok && setList(r.data.suggestions));
+    return () => {
+      live = false;
+    };
+  }, [storeId]);
+  if (!list?.length) return null;
+  return (
+    <section className="grid max-w-2xl gap-3 rounded-2xl border border-saffron/60 p-5">
+      <h3 className="font-semibold">Suggestions from your last 30 days</h3>
+      {list.map((s) => (
+        <div key={s.productId} className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+          <p className="max-w-md">
+            <span className="font-medium">{s.title}</span>: {s.lost} of {s.haggles} haggles ended without a sale, though the shopper&apos;s offer was inside your own maximum
+            discount. Letting your agent go to {s.suggestedAutoPct}% on its own (now {s.currentAutoPct}%) would have closed {s.closable} of them.
+          </p>
+          {done[s.productId] ? (
+            <span className="text-muted">Applied</span>
+          ) : (
+            <button
+              onClick={async () => {
+                setError("");
+                const r = await api(`/api/seller/stores/${storeId}/automation`, { body: { productId: s.productId, autoApprovePct: s.suggestedAutoPct } });
+                if (!r.ok) return setError(r.error);
+                setDone({ ...done, [s.productId]: true });
+              }}
+              className="rounded-xl border border-line px-3 py-2 hover:border-saffron"
+            >
+              Apply {s.suggestedAutoPct}%
+            </button>
+          )}
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className="text-alarm">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Buyers' reviews of this store's orders, with one reply each. */
+function Reviews({ storeId }: { storeId: string }) {
+  const [list, setList] = useState<SellerReview[] | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const load = () => api<{ reviews: SellerReview[] }>(`/api/seller/stores/${storeId}/reviews`).then((r) => r.ok && setList(r.data.reviews));
+  useEffect(() => {
+    let live = true;
+    api<{ reviews: SellerReview[] }>(`/api/seller/stores/${storeId}/reviews`).then((r) => live && r.ok && setList(r.data.reviews));
+    return () => {
+      live = false;
+    };
+  }, [storeId]);
+  if (!list?.length) return null;
+  return (
+    <section className="grid max-w-2xl gap-4">
+      <h3 className="font-semibold">What buyers said</h3>
+      {list.map((r) => (
+        <div key={r.id} className="border-t border-line pt-3">
+          <p>
+            {"★".repeat(r.rating)}
+            <span className="text-muted">{"☆".repeat(5 - r.rating)}</span> <span className="text-sm text-muted">{r.authorName}</span>
+            {r.hidden && <span className="ml-2 text-sm text-alarm">hidden by GhostCart</span>}
+          </p>
+          {r.body && <p className="mt-1">{r.body}</p>}
+          {r.sellerReply ? (
+            <p className="mt-1 text-sm text-muted">You replied: {r.sellerReply}</p>
+          ) : (
+            <div className="mt-2 flex gap-2">
+              <input
+                value={drafts[r.id] ?? ""}
+                onChange={(e) => setDrafts({ ...drafts, [r.id]: e.target.value })}
+                placeholder="Reply once, publicly"
+                className="min-w-0 flex-1 rounded-xl border border-line bg-panel px-3 py-2"
+              />
+              <button
+                onClick={async () => {
+                  setError("");
+                  const res = await api(`/api/seller/stores/${storeId}/reviews`, { body: { reviewId: r.id, reply: drafts[r.id] } });
+                  if (!res.ok) setError(res.error);
+                  load();
+                }}
+                className="rounded-xl border border-line px-3 py-2 hover:border-saffron"
+              >
+                Reply
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className="text-alarm">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** What selling through haggles did for the store: sales, the discounts that bought them, fees, what's kept. */
+export function ResultsTab({ storeId }: { storeId: string }) {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<{ from: string; to: string; results: SellerResults; days: Day[] } | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<{ from: string; to: string; results: SellerResults; days: Day[] }>(`/api/seller/stores/${storeId}/metrics?days=${days}`).then((r) => live && r.ok && setData(r.data));
+    return () => {
+      live = false;
+    };
+  }, [storeId, days]);
+
+  if (!data) return <p className="mt-6 text-muted">Loading…</p>;
+  const r = data.results;
+  return (
+    <div className="mt-6 grid gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-muted">
+          {data.from} to {data.to} (IST, updated nightly)
+        </p>
+        <div role="group" aria-label="Period" className="flex gap-2">
+          {[7, 30, 90].map((d) => (
+            <button key={d} onClick={() => setDays(d)} aria-pressed={days === d} className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-saffron text-fg" : "border-line text-muted"}`}>
+              {d} days
+            </button>
+          ))}
+        </div>
+      </div>
+      {!r.haggles ? (
+        <p className="text-muted">No haggles in this period yet. Your results appear the day after your first one.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <Tile label="Sales from haggles" value={inr(r.sales)} sub={`${r.deals} deals from ${r.haggles} haggles (${pct(r.agreeRate)})`} />
+            <Tile label="Discounts you gave" value={inr(r.discounts)} sub={`${pct(r.averageDiscount)} off list on average`} />
+            <Tile label="Closed by your agent" value={String(r.closedByAgent)} sub={`${r.cameToYou} came to you for a decision`} />
+            <Tile label="Kept from GhostCart orders" value={inr(r.keptFromGhostCartOrders)} sub={`${inr(r.paidOnGhostCart)} paid, less ${inr(r.fees)} fees and ${inr(r.refunds)} refunds`} />
+          </div>
+          <p className="max-w-2xl text-sm text-muted">
+            Sales count every agreed haggle, paid on GhostCart or on your own checkout. Fees on your own checkout&apos;s sales come on your monthly GhostCart invoice.
+            {r.disputes ? ` ${r.disputes} order${r.disputes === 1 ? "" : "s"} had a buyer problem reported.` : ""}
+          </p>
+          <table className="w-full max-w-2xl text-sm">
+            <caption className="mb-2 text-left font-semibold">By day</caption>
+            <thead className="text-muted">
+              <tr>
+                <th className="py-1 text-left font-normal">Day</th>
+                <th className="py-1 text-right font-normal">Haggles</th>
+                <th className="py-1 text-right font-normal">Deals</th>
+                <th className="py-1 text-right font-normal">Sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...data.days].reverse().map((d) => (
+                <tr key={d.day} className="border-t border-line">
+                  <td className="py-1">{d.day}</td>
+                  <td className="py-1 text-right tabular-nums">{d.negotiations}</td>
+                  <td className="py-1 text-right tabular-nums">{d.agreed}</td>
+                  <td className="py-1 text-right tabular-nums">{inr(Math.round(d.agreedValue / 100))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      <Suggestions storeId={storeId} />
+      <Reviews storeId={storeId} />
+    </div>
+  );
+}

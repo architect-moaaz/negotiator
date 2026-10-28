@@ -119,6 +119,10 @@ export interface Deal extends Offer {
   /** Set when the deal is for a GhostCart Shop product: the seller's list price is the benchmark. */
   shop?: { storeId: string; productId: string; slug: string; storeName: string; returnUrl?: string; platform?: string };
   grant?: PriceGrant;
+  /** Experiment variants this haggle ran under (lib/experiments.ts), for results. */
+  experiments?: Record<string, string>;
+  /** The shopper's language for the agent's replies (default English). */
+  language?: "en" | "hi";
   /** GhostCart Privilege: the haggle is on a whole cart (a bundle), not one product. */
   cart?: DealCart;
   /** Set when the haggle happens in a chat app, so decisions made elsewhere are messaged back. */
@@ -241,7 +245,9 @@ export type ActivityType =
   | "privilege_invited"
   | "privilege_opened"
   | "cart_recovered"
-  | "privilege_opt_out";
+  | "privilege_opt_out"
+  | "price_alert_set"
+  | "price_alert_sent";
 
 /** Timestamped audit trail: signups, agent actions and payments (proof-of-life export). */
 export interface Activity {

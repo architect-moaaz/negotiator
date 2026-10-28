@@ -13,7 +13,7 @@ export interface PushMessage {
   title: string;
   body: string;
   /** What the app opens when the notification is tapped. */
-  data: { type: "approval"; storeId: string; dealId: string } | { type: "deal"; dealId: string } | { type: "order"; dealId: string };
+  data: { type: "approval"; storeId: string; dealId: string } | { type: "deal"; dealId: string } | { type: "order"; dealId: string } | { type: "product"; productId: string };
 }
 
 const EXPO_TOKEN = /^Expo(nent)?PushToken\[[\w-]+\]$/;
@@ -65,7 +65,7 @@ export async function notifyApprovers(orgId: string, msg: PushMessage) {
   const phones = (await approverPhones(orgId)).map((p) => p.phone);
   // Phones (the app) and browsers (the web dashboard), whichever they use.
   const url = msg.data.type === "approval" ? `/seller?store=${msg.data.storeId}&tab=approvals` : "/seller";
-  const [app, web] = await Promise.all([send("member", phones, msg), sendWebPush(phones, { title: msg.title, body: msg.body, url, tag: `deal-${msg.data.dealId}` })]);
+  const [app, web] = await Promise.all([send("member", phones, msg), sendWebPush(phones, { title: msg.title, body: msg.body, url, tag: "dealId" in msg.data ? `deal-${msg.data.dealId}` : undefined })]);
   return app + web;
 }
 

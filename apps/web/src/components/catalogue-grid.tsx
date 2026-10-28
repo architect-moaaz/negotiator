@@ -22,7 +22,10 @@ export function CatalogueGrid({ items }: { items: CatalogueItem[] }) {
               <span className="font-semibold">{inr(p.price)}</span>
               {p.mrp && p.mrp > p.price && <s className="ml-2 text-sm text-muted">{inr(p.mrp)}</s>}
             </p>
-            <p className="text-sm text-muted">{p.storeName} · make an offer</p>
+            <p className="text-sm text-muted">
+              {p.sponsored && <span className="mr-1 rounded border border-line px-1 text-xs">Sponsored</span>}
+              {p.storeName} · make an offer
+            </p>
           </Link>
         </li>
       ))}

@@ -10,6 +10,20 @@ registerGrantAdapter("woocommerce", {
   async ready(store) {
     return !!(await wooConnectionForStore(store.id));
   },
+  async liveStock({ store, products }) {
+    const conn = await wooConnectionForStore(store.id);
+    const byWoo = new Map<number, string>(
+      products.flatMap((p): [number, string][] => {
+        const id = Number(p.source.startsWith("woo:") ? p.source.slice(4) : p.sku?.replace(/^woo-/, ""));
+        return id > 0 ? [[id, p.id]] : [];
+      }),
+    );
+    if (!conn || !byWoo.size) return new Map();
+    const { stock } = await callPlugin<{ stock: Record<string, number> }>(conn.externalId, conn.accessTokenEncrypted, "stock", { productIds: [...byWoo.keys()] });
+    const out = new Map<string, number>();
+    for (const [id, qty] of Object.entries(stock ?? {})) if (byWoo.has(Number(id)) && Number.isFinite(qty)) out.set(byWoo.get(Number(id))!, Math.max(0, Math.floor(qty)));
+    return out;
+  },
   async createGrant({ store, product, code, discountInr, expiresAt, lines }) {
     const conn = await wooConnectionForStore(store.id);
     const wooIdOf = (p: typeof product) => (p.source.startsWith("woo:") ? p.source.slice(4) : p.sku?.replace(/^woo-/, ""));

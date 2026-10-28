@@ -417,6 +417,10 @@ export const shipments = pgTable("shipments", {
   events: jsonb("events").$type<{ at: string; status: string; note?: string }[]>().notNull().default([]),
   /** Four digits the buyer reads out at handover; the seller enters them to confirm delivery. */
   handoverCode: text("handover_code").notNull(),
+  /** Booked through the aggregator (one-click pickup): its shipment id, label and pickup date. */
+  bookingRef: text("booking_ref"),
+  labelUrl: text("label_url"),
+  pickupAt: ts("pickup_at"),
   lastCheckedAt: ts("last_checked_at"),
   createdAt: ts("created_at").notNull().defaultNow(),
 });
@@ -444,6 +448,103 @@ export const disputes = pgTable(
   },
   (t) => [index("disputes_order_idx").on(t.orderId), index("disputes_status_idx").on(t.status)],
 );
+
+/**
+ * A buyer asks to return a delivered order within the store's return window. The payout is frozen while
+ * it's open. requested → accepted → received (refunded) | declined | escalated (became a dispute).
+ */
+export const returnRequests = pgTable(
+  "return_requests",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    /** changed_mind | damaged | not_as_described | wrong_item | other */
+    reason: text("reason").notNull(),
+    details: text("details").notNull(),
+    evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
+    status: text("status").notNull().default("requested"),
+    /** How the seller will collect it (accepted), or why not (declined). */
+    sellerNote: text("seller_note"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+    decidedAt: ts("decided_at"),
+    closedAt: ts("closed_at"),
+  },
+  // One return request per order (a double-tap must not open two).
+  (t) => [uniqueIndex("return_requests_order_uq").on(t.orderId), index("return_requests_status_idx").on(t.status)],
+);
+
+/**
+ * A rating from the buyer of a delivered order: one per order, never edited, never paid for. Sellers can
+ * reply once; staff can hide abusive ones (with a reason, logged), never change the rating.
+ */
+export const productReviews = pgTable(
+  "product_reviews",
+  {
+    id: text("id").primaryKey(),
+    orderId: text("order_id")
+      .notNull()
+      .references(() => orders.id),
+    storeId: text("store_id").notNull(),
+    productId: text("product_id"),
+    userId: text("user_id").notNull(),
+    /** First name and initial, as shown. */
+    authorName: text("author_name").notNull(),
+    rating: integer("rating").notNull(),
+    body: text("body").notNull().default(""),
+    sellerReply: text("seller_reply"),
+    sellerRepliedAt: ts("seller_replied_at"),
+    hiddenAt: ts("hidden_at"),
+    hiddenReason: text("hidden_reason"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("product_reviews_order_idx").on(t.orderId), index("product_reviews_product_idx").on(t.productId), index("product_reviews_store_idx").on(t.storeId)],
+);
+
+/** A store's "when I'm away" approval rule (packages/core away.ts). One row per store. */
+export const awayRules = pgTable("away_rules", {
+  storeId: text("store_id")
+    .primaryKey()
+    .references(() => stores.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  maxPctOff: doublePrecision("max_pct_off").notNull().default(0),
+  days: integer("days").array().notNull().default(sql`'{0,1,2,3,4,5,6}'::integer[]`),
+  startHour: integer("start_hour").notNull().default(21),
+  endHour: integer("end_hour").notNull().default(9),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+
+/** Each shopper's invite code (Rescue, referrals). Created on first use. */
+export const referralCodes = pgTable("referral_codes", {
+  code: text("code").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** Who brought whom: recorded once, when a new shopper signs up through an invite link. */
+export const referrals = pgTable(
+  "referrals",
+  {
+    referredUserId: text("referred_user_id").primaryKey(),
+    referrerUserId: text("referrer_user_id").notNull(),
+    code: text("code").notNull(),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("referrals_referrer_idx").on(t.referrerUserId)],
+);
+
+/** Promoted listings: staff-set, time-limited, always labelled "Sponsored" to shoppers. */
+export const productBoosts = pgTable("product_boosts", {
+  productId: text("product_id")
+    .primaryKey()
+    .references(() => products.id, { onDelete: "cascade" }),
+  storeId: text("store_id").notNull(),
+  until: ts("until").notNull(),
+  note: text("note").notNull().default(""),
+  createdBy: text("created_by").notNull(),
+  createdAt: ts("created_at").notNull().defaultNow(),
+});
 
 /* ---------- Fraud signals ---------- */
 
@@ -799,6 +900,32 @@ export const recoverySettings = pgTable("recovery_settings", {
   exitPrompt: boolean("exit_prompt").notNull().default(true),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
+
+/**
+ * A shopper asked to hear when a product's listed price drops to their target (never about a seller's
+ * private haggle limits). One live alert per shopper and product; expires after 60 days.
+ */
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    /** Whole rupees. */
+    targetPrice: integer("target_price").notNull(),
+    /** Listed price when the alert was set, for the message. */
+    priceAtSet: integer("price_at_set").notNull(),
+    /** sha256 of the token in the alert's stop link. */
+    stopTokenHash: text("stop_token_hash").notNull(),
+    expiresAt: ts("expires_at").notNull(),
+    firedAt: ts("fired_at"),
+    stoppedAt: ts("stopped_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("price_alerts_product_idx").on(t.productId), uniqueIndex("price_alerts_live_idx").on(t.userId, t.productId).where(sql`fired_at is null and stopped_at is null`)],
+);
 
 /**
  * A shopper's cart on a store, captured with the seller's integration (widget, Shopify webhook, Woo

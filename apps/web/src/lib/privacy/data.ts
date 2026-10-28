@@ -16,7 +16,7 @@ const { activity, deviceLinks, disputes, grievances, orders } = schema;
 export const ORDER_RETENTION_YEARS = 8;
 
 /** Orders still in motion: deleting the account would leave a seller unable to ship or a dispute unresolved. */
-const OPEN_ORDER = ["placed", "shipped", "delivered", "disputed"];
+const OPEN_ORDER = ["placed", "shipped", "delivered", "disputed", "return_requested", "return_accepted"];
 
 export class PrivacyError extends Error {
   constructor(

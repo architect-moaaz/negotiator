@@ -1,22 +1,43 @@
-import { confirmWithHandoverCode, markShipped, respondToDispute } from "@/lib/orders/fulfilment";
+import { bookPickup, confirmWithHandoverCode, markShipped, respondToDispute } from "@/lib/orders/fulfilment";
+import { acceptReturn, declineReturn, returnReceived } from "@/lib/orders/returns";
 import { getOrder, OrderError } from "@/lib/orders/service";
 import { logSellerAction, requireStoreAccess } from "@/lib/shop/access";
 
-/** Body: { action: "ship", courier, awb } | { action: "handover", code } | { action: "respond", response }. */
+/**
+ * Body: { action: "book", weightKg, lengthCm, breadthCm, heightCm, pickupLocation? } (one-click pickup) |
+ * { action: "ship", courier, awb } | { action: "handover", code } | { action: "respond", response } |
+ * { action: "accept_return" | "decline_return", response } | { action: "return_received" }.
+ */
 export async function POST(request: Request, ctx: RouteContext<"/api/seller/stores/[id]/orders/[orderId]">) {
   const { id, orderId } = await ctx.params;
   const { store, phone, denied } = await requireStoreAccess(request, id, "catalogue");
   if (denied) return denied;
   const order = await getOrder(orderId);
   if (!order || order.storeId !== store.id) return Response.json({ error: "Order not found." }, { status: 404 });
-  const body = (await request.json().catch(() => ({}))) as { action?: string; courier?: string; awb?: string; code?: string; response?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    action?: string;
+    courier?: string;
+    awb?: string;
+    code?: string;
+    response?: string;
+    weightKg?: unknown;
+    lengthCm?: unknown;
+    breadthCm?: unknown;
+    heightCm?: unknown;
+    pickupLocation?: string;
+  };
   try {
-    if (body.action === "ship") await markShipped(orderId, { courier: body.courier ?? "", awb: body.awb ?? "" }, phone);
+    if (body.action === "book")
+      await bookPickup(orderId, { weightKg: Number(body.weightKg), lengthCm: Number(body.lengthCm), breadthCm: Number(body.breadthCm), heightCm: Number(body.heightCm), pickupLocation: body.pickupLocation }, phone);
+    else if (body.action === "ship") await markShipped(orderId, { courier: body.courier ?? "", awb: body.awb ?? "" }, phone);
     else if (body.action === "handover") await confirmWithHandoverCode(orderId, body.code ?? "");
     else if (body.action === "respond") {
       if (!body.response?.trim()) return Response.json({ error: "Write your side of the story." }, { status: 400 });
       await respondToDispute(orderId, body.response);
-    } else return Response.json({ error: "Unknown action." }, { status: 400 });
+    } else if (body.action === "accept_return") await acceptReturn(orderId, body.response ?? "");
+    else if (body.action === "decline_return") await declineReturn(orderId, body.response ?? "");
+    else if (body.action === "return_received") await returnReceived(orderId, `seller:${phone}`);
+    else return Response.json({ error: "Unknown action." }, { status: 400 });
     await logSellerAction(store, phone, `${body.action} on order ${orderId}`);
     return Response.json(await getOrder(orderId));
   } catch (err) {

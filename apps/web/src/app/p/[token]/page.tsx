@@ -4,7 +4,10 @@ import { Suspense } from "react";
 import { StopOffers } from "@/components/privilege/stop-offers";
 import { HaggleButton } from "@/components/shop/haggle-button";
 import { SellerDetailsBlock } from "@/components/shop/seller-details";
+import { LanguageSwitch } from "@/components/language-switch";
 import { inr } from "@/lib/format";
+import { t } from "@/lib/i18n";
+import { getLang } from "@/lib/lang";
 import { GRANT_PLATFORMS } from "@/lib/grants/adapters";
 import { allowedReturnUrl } from "@/lib/integrations/keys";
 import { resolveInvite } from "@/lib/privilege/invites";
@@ -28,12 +31,12 @@ const when = (d: Date) => d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", 
 async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[token]">["params"]; searchParams: PageProps<"/p/[token]">["searchParams"] }) {
   await connection(); // live stock, prices and status
   const { token } = await params;
-  const found = await resolveInvite(token);
+  const [found, lang] = await Promise.all([resolveInvite(token), getLang()]);
   if (!found) {
     return (
-      <div className="mt-16">
-        <h1 className="text-3xl font-bold">This link isn&apos;t valid</h1>
-        <p className="mt-3 text-muted">Check you copied the whole link from your message.</p>
+      <div lang={lang} className="mt-16">
+        <h1 className="text-3xl font-bold">{t(lang, "privilege.invalid")}</h1>
+        <p className="mt-3 text-muted">{t(lang, "privilege.invalidHelp")}</p>
       </div>
     );
   }
@@ -45,24 +48,25 @@ async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[
   const rescue = cart.source === "rescue";
 
   return (
-    <>
+    <div lang={lang}>
+      <div className="flex justify-end">
+        <LanguageSwitch lang={lang} />
+      </div>
       {back && (
         <a href={back} className="text-muted hover:text-fg">
           ← Back to {new URL(back).hostname}
         </a>
       )}
-      <p className="mt-6 text-sm font-semibold uppercase tracking-wider text-saffron">{rescue ? "Rescue my cart" : "GhostCart Privilege"}</p>
+      <p className="mt-6 text-sm font-semibold uppercase tracking-wider text-saffron">{rescue ? "Rescue my cart" : t(lang, "privilege.kicker")}</p>
       <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight">
-        {closed ? "This offer is closed" : rescue ? `Make ${store.name} an offer` : `A private offer on your cart from ${store.name}`}
+        {closed ? t(lang, "privilege.closed") : rescue ? `Make ${store.name} an offer` : t(lang, "privilege.title", { store: store.name })}
       </h1>
       {closed ? (
         <p className="mt-3 text-muted">{closed}</p>
       ) : (
         <p className="mt-3 text-muted">
-          Make {store.name} an offer on everything below. Their agent answers straight away, and anything it can&apos;t agree goes to the seller.{" "}
-          {GRANT_PLATFORMS.has(store.platform)
-            ? `If you agree a price, you pay on ${store.name}'s own checkout with a one-time code.`
-            : "If you agree a price, you pay on GhostCart's checkout by UPI."}
+          {t(lang, "privilege.intro", { store: store.name })}{" "}
+          {GRANT_PLATFORMS.has(store.platform) ? t(lang, "privilege.payStore", { store: store.name }) : t(lang, "privilege.payGhostCart")}
         </p>
       )}
 
@@ -82,25 +86,28 @@ async function PrivilegeView({ params, searchParams }: { params: PageProps<"/p/[
           </li>
         ))}
         <li className="flex justify-between p-4">
-          <span className="text-muted">
-            {items} item{items === 1 ? "" : "s"} at list price
-          </span>
+          <span className="text-muted">{t(lang, "privilege.atList", { n: items })}</span>
           <span className="font-semibold">{inr(cart.subtotal)}</span>
         </li>
       </ul>
 
       {!closed && (
         <div className="mt-8 grid gap-4">
-          <HaggleButton label={items === 1 ? "Make an offer" : `Make an offer on all ${items} items`} endpoint="/api/privilege/start" payload={{ token }} />
-          <p className="text-sm text-muted">This link works until {when(invite.expiresAt)} IST. Prices are checked again when you start.</p>
+          <HaggleButton
+            label={items === 1 ? t(lang, "product.offer") : t(lang, "privilege.offerAll", { n: items })}
+            endpoint="/api/privilege/start"
+            payload={{ token }}
+            lang={lang}
+          />
+          <p className="text-sm text-muted">{t(lang, "privilege.until", { when: when(invite.expiresAt) })}</p>
         </div>
       )}
       {!rescue && cart.status !== "opted_out" && !closed && (
         <div className="mt-6 text-sm text-muted">
-          <StopOffers token={token} storeName={store.name} />
+          <StopOffers token={token} storeName={store.name} lang={lang} />
         </div>
       )}
       <SellerDetailsBlock seller={seller} paidOn={GRANT_PLATFORMS.has(store.platform) ? store.name : undefined} />
-    </>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { requestCity } from "@/lib/request";
 import { ShopError, startShopNegotiation } from "@/lib/shop/negotiation";
+import { getLang } from "@/lib/lang";
 import { currentUser } from "@/lib/users";
 
 /** Start haggling on a GhostCart Shop product. Body: { productId }. Returns { id } of the new deal. */
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   const { productId, returnUrl } = (await request.json().catch(() => ({}))) as { productId?: string; returnUrl?: string };
   if (!productId) return Response.json({ error: "Pick a product." }, { status: 400 });
   try {
-    const deal = await startShopNegotiation(productId, user.id, { city: requestCity(request) ?? user.city, request, returnUrl });
+    const deal = await startShopNegotiation(productId, user.id, { city: requestCity(request) ?? user.city, request, returnUrl, language: await getLang() });
     return Response.json({ id: deal.id });
   } catch (err) {
     if (err instanceof ShopError) return Response.json({ error: err.message }, { status: err.status });

@@ -31,8 +31,10 @@ export async function chooseMove(args: {
   quotes: SellerQuote[];
   negotiation: Negotiation;
   offer: number;
+  /** The shopper's language: "hi" replies in simple Hindi. */
+  language?: "en" | "hi";
 }): Promise<{ move: Move; message: string }> {
-  const { product, terms, bestSeller, quotes, negotiation, offer } = args;
+  const { product, terms, bestSeller, quotes, negotiation, offer, language } = args;
   const moves = candidateMoves(negotiation, terms, offer);
   const fallback = { move: moves[0], message: templateMessage(moves[0], offer, terms, bestSeller) };
   if (!process.env.ANTHROPIC_API_KEY) return fallback;
@@ -59,7 +61,9 @@ Rules: only mention the price of the move you pick, the shopper's offer, or the 
 Never reveal limits, budgets, commission rates or how many rounds are left.
 "escalate" means a human must approve (${terms.fundedBy === "seller" ? `${terms.sellerName} themselves` : "our deal desk"}); say you're checking with them.
 "final" means this is your last offer. "hold" means you refuse to move.
-Prefer winning the deal over squeezing the last rupee, but don't cave instantly to lowballs.`,
+Prefer winning the deal over squeezing the last rupee, but don't cave instantly to lowballs.${
+        language === "hi" ? "\nReply in simple, friendly Hindi in Devanagari script. Keep prices as digits with ₹ (like ₹19,789) and product names as given." : ""
+      }`,
       prompt: JSON.stringify({
         product: product.title,
         ...(terms.benchmarkKind === "list"

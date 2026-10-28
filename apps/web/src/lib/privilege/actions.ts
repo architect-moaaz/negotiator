@@ -9,7 +9,7 @@ import { startCartNegotiation } from "./negotiation";
 export const consentSubject = (cart: CartRow) => cart.userId ?? cart.phone ?? cart.email ?? cart.id;
 
 /** The shopper opened their private link and wants to make an offer. */
-export async function startFromInvite(token: string, userId: string, opts: { city?: string; request?: Request } = {}) {
+export async function startFromInvite(token: string, userId: string, opts: { city?: string; request?: Request; language?: "en" | "hi" } = {}) {
   const found = await resolveInvite(token);
   if (!found) throw new ShopError("This private offer link isn't valid.", 404);
   if (found.closed) throw new ShopError(found.closed, 409);

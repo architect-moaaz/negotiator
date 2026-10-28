@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { t, type Lang } from "@/lib/i18n";
 import { ShopperSignup } from "../shopper-signup";
 
 /**
@@ -15,6 +16,7 @@ export function HaggleButton({
   returnUrl,
   endpoint = "/api/shop/haggle",
   payload,
+  lang = "en",
 }: {
   productId?: string;
   disabled?: boolean;
@@ -22,6 +24,7 @@ export function HaggleButton({
   returnUrl?: string;
   endpoint?: string;
   payload?: Record<string, unknown>;
+  lang?: Lang;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -43,6 +46,7 @@ export function HaggleButton({
     return (
       <div className="rounded-2xl border border-line p-5">
         <ShopperSignup
+          lang={lang}
           onDone={() => {
             setNeedsSignup(false);
             start();
@@ -54,7 +58,7 @@ export function HaggleButton({
   return (
     <div className="grid gap-2">
       <button onClick={start} disabled={disabled || busy} className="rounded-xl bg-saffron px-6 py-4 text-lg font-semibold text-paper-ink disabled:opacity-50">
-        {busy ? "Starting…" : label}
+        {busy ? t(lang, "product.starting") : label}
       </button>
       {error && (
         <p role="alert" className="text-alarm">

@@ -20,7 +20,7 @@ const products = await import("@/app/api/v1/products/route");
  * X-GhostCart-Signature "t=…,v1=hmac(t.body)" within 5 minutes; verify signs the nonce; coupons create
  * a single-use coupon and return an add-to-cart link.
  */
-const sites = new Map<string, { secret: string | null; coupons: Record<string, unknown>[]; tamper?: boolean }>();
+const sites = new Map<string, { secret: string | null; coupons: Record<string, unknown>[]; tamper?: boolean; stock?: Record<string, number> }>();
 const realFetch = globalThis.fetch;
 beforeEach(() => {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -33,6 +33,7 @@ beforeEach(() => {
     if (!m || Math.abs(Date.now() / 1000 - Number(m[1])) > 300 || !timingSafeEqual(Buffer.from(expected.padEnd(64)), Buffer.from(m[2]))) return new Response("{}", { status: 401 });
     const data = JSON.parse(body);
     if (url.pathname.endsWith("/verify")) return Response.json({ signature: site.tamper ? "0".repeat(64) : createHmac("sha256", site.secret!).update(data.nonce).digest("hex") });
+    if (url.pathname.endsWith("/stock")) return Response.json({ stock: site.stock ?? {} });
     if (url.pathname.endsWith("/coupons")) {
       site.coupons.push(data);
       if (Array.isArray(data.items)) return Response.json({ checkoutUrl: `${url.origin}/cart/?ghostcart_coupon=${data.code}&ghostcart_items=${data.items.map((i: { productId: number; quantity: number }) => `${i.productId}:${i.quantity}`).join(",")}` });
@@ -138,6 +139,19 @@ describe("WooCommerce price grants", () => {
     expect((await call(checkouts.POST, w.sk, { externalRef: "991", completed: true })).status).toBe(200);
     expect((await getCart(cartId))?.status).toBe("completed");
     expect((await call(checkouts.POST, "gc_sk_wrong", { externalRef: "991", completed: true })).status).toBe(401);
+  });
+
+  it("checks the store's live stock before a haggle, so a sold-out item can't be haggled", async () => {
+    const w = await wooStore();
+    await pluginConnect(w);
+    await call(products.POST, w.sk, { products: [{ sku: "woo-71", title: "ZZ Woo Vase", price: 900, stock: 5 }] });
+    await updateStore(w.store.id, { status: "live" });
+    const product = (await getProductByRef(w.store.id, "woo-71"))!;
+    sites.get(w.site)!.stock = { "71": 0 };
+    await expect(startShopNegotiation(product.id, `woo-stock-buyer-${n}`)).rejects.toThrow("Out of stock");
+    expect((await getProductByRef(w.store.id, "woo-71"))?.stock).toBe(0);
+    sites.get(w.site)!.stock = { "71": 2 };
+    expect((await startShopNegotiation(product.id, `woo-stock-buyer-${n}`)).status).toBe("negotiating");
   });
 
   it("won't start haggles on a Woo store that never connected the plugin", async () => {

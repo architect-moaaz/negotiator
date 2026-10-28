@@ -1,3 +1,6 @@
+import { REF_COOKIE } from "@/lib/referrals";
+import { cookies } from "next/headers";
+import { isLang, t } from "@/lib/i18n";
 import { demographicsFrom } from "@/lib/demographics";
 import { linkDevice } from "@/lib/fraud/signals";
 import { OtpError, sendLoginCode, verifyLoginCode } from "@/lib/otp";
@@ -14,6 +17,7 @@ import { maskPhone, normalizePhone, publicUser, signUp } from "@/lib/users";
  */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
+    lang?: string;
     name?: string;
     phone?: string;
     email?: string;
@@ -51,7 +55,10 @@ export async function POST(request: Request) {
 
   // The number is proven, so an existing account for it simply signs back in.
   const demographics = demographicsFrom(request, { referrer: body.referrer, source: body.source });
-  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, demographics, source: body.source?.slice(0, 40) });
+  // Record the consent sentence in the language the shopper read it in.
+  const consentWording = isLang(body.lang) ? t(body.lang, "signup.consent") : undefined;
+  const inviteCode = (await cookies()).get(REF_COOKIE)?.value;
+  const user = await signUp({ name, phone, email: body.email, channel: "web", city: demographics.city, consent: true, consentWording, demographics, source: body.source?.slice(0, 40), inviteCode });
   await linkDevice(request, "buyer", user.id);
   // The mobile app keeps the session token itself; browsers get a cookie.
   if (body.client === "mobile") return Response.json({ ...publicUser(user), token: await issueSessionToken("buyer", user.id) });

@@ -11,6 +11,7 @@ import { DisputesPanel } from "./disputes-panel";
 import { GrievancesPanel } from "./grievances-panel";
 import { FinancePanel } from "./finance-panel";
 import { FraudPanel } from "./fraud-panel";
+import { ExperimentsPanel, SupportPanel } from "./ops-panels";
 import { ReviewsPanel } from "./reviews-panel";
 
 type AdminDeal = PublicDeal & {
@@ -35,7 +36,7 @@ interface AdminData {
   sellers: Seller[];
   demand: SellerDemand[];
 }
-type Tab = "analytics" | "approvals" | "reviews" | "disputes" | "grievances" | "fraud" | "money" | "users" | "activity" | "deals" | "sellers";
+type Tab = "analytics" | "approvals" | "support" | "reviews" | "disputes" | "grievances" | "fraud" | "money" | "experiments" | "users" | "activity" | "deals" | "sellers";
 
 const ist = (at: number) =>
   new Date(at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, dateStyle: "medium", timeStyle: "medium" });
@@ -167,10 +168,12 @@ export function AdminConsole() {
   const tabs: [Tab, string, number | null][] = [
     ["analytics", "Analytics", null],
     ["approvals", "Approvals", approvals.length],
+    ["support", "Support", null],
     ["reviews", "Seller reviews", null],
     ["disputes", "Disputes", null],
     ["grievances", "Complaints", null],
     ["fraud", "Fraud", null],
+    ["experiments", "Experiments", null],
     ...(data.me.role === "owner" ? ([["money", "Money", null]] as [Tab, string, null][]) : []),
     ["users", "Signups", data.users.length],
     ["activity", "Agent & payment log", data.activity.length],
@@ -199,7 +202,7 @@ export function AdminConsole() {
             {data.stats.users} shoppers · {data.stats.deals} deals negotiated · {data.stats.paid} locked · {inr(data.stats.saved)} saved
           </p>
         </div>
-        {!["approvals", "reviews", "disputes", "grievances", "fraud", "money", "sellers", "analytics"].includes(tab) && (
+        {!["approvals", "support", "reviews", "disputes", "grievances", "fraud", "money", "experiments", "sellers", "analytics"].includes(tab) && (
           <button onClick={exportTab} className="rounded-xl border border-line px-4 py-2.5 hover:border-saffron">
             Download CSV
           </button>
@@ -226,6 +229,8 @@ export function AdminConsole() {
       {tab === "disputes" && <DisputesPanel />}
       {tab === "grievances" && <GrievancesPanel />}
       {tab === "fraud" && <FraudPanel />}
+      {tab === "support" && <SupportPanel />}
+      {tab === "experiments" && <ExperimentsPanel />}
 
       {tab === "approvals" && (
         <div className="mt-6 space-y-4">

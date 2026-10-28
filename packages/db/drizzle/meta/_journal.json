@@ -134,6 +134,55 @@
       "when": 1793047585174,
       "tag": "0018_rescue_gtin_index",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793121934793,
+      "tag": "0019_shipment_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793122266307,
+      "tag": "0020_price_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793122776261,
+      "tag": "0021_return_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793122932272,
+      "tag": "0022_product_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793123272393,
+      "tag": "0023_away_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793123414013,
+      "tag": "0024_referrals_boosts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793169900871,
+      "tag": "0025_return_request_unique",
+      "breakpoints": true
     }
   ]
 }

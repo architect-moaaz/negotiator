@@ -2,7 +2,7 @@ import { schema } from "@ghostcart/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { randomBytes, randomInt } from "node:crypto";
 import { getDb } from "../db";
-import { notifyBuyer } from "../push";
+import { notifyShopperOrder } from "../notify/order-updates";
 import { store as kv } from "../store";
 import type { FulfilmentStage } from "../types";
 import { getOrder, heldFor, markDelivered, OrderError, orderPayload, refundOrder, type Order } from "./service";
@@ -49,11 +49,49 @@ export async function markShipped(orderId: string, input: { courier: string; awb
   await db.update(orders).set({ status: "shipped", shippedAt: new Date(), updatedAt: new Date() }).where(eq(orders.id, orderId));
   await syncDeal(order, "shipped", { courier, awb, note: `${courier} · AWB ${awb}` });
   await kv.log({ type: "order_status", actor: "seller", userId: order.userId, dealId: order.dealId, detail: `${orderId}: shipped by ${by} with ${courier}, AWB ${awb}` });
-  await notifyBuyer(order.userId, { title: "Your order has shipped", body: `${order.title} is on its way with ${courier}.`, data: { type: "order", dealId: order.dealId } });
+  await notifyShopperOrder(order, "shipped", { courier, awb });
   const shipped = (await getOrder(orderId))!;
   const { emitWebhook } = await import("../integrations/webhooks");
   await emitWebhook(shipped.storeId, "order.shipped", { ...orderPayload(shipped), courier, awb });
   return shipped;
+}
+
+/** Parcel size limits we accept from the seller's form (kg, cm). */
+const PARCEL = { weightKg: [0.05, 50], side: [1, 200] } as const;
+
+/**
+ * One-click pickup: the aggregator books a courier for the order, assigns an AWB, schedules pickup from
+ * the seller's saved pickup location and makes a shipping label. The order is then shipped as usual.
+ */
+export async function bookPickup(orderId: string, input: { weightKg: number; lengthCm: number; breadthCm: number; heightCm: number; pickupLocation?: string }, by: string) {
+  const provider = trackingProvider();
+  if (!provider?.book) throw new OrderError("Pickup booking isn't set up yet. Enter the courier and AWB yourself.", 503);
+  const order = await getOrder(orderId);
+  if (!order) throw new OrderError("Order not found.", 404);
+  if (order.status !== "placed") throw new OrderError(`This order is ${order.status}.`, 409);
+  const inRange = (v: number, [lo, hi]: readonly [number, number]) => Number.isFinite(v) && v >= lo && v <= hi;
+  if (!inRange(input.weightKg, PARCEL.weightKg)) throw new OrderError("Weight must be between 0.05 and 50 kg.");
+  if (![input.lengthCm, input.breadthCm, input.heightCm].every((v) => inRange(v, PARCEL.side))) throw new OrderError("Each side must be between 1 and 200 cm.");
+  const a = order.address as Record<string, string>;
+  const db = await getDb();
+  const [product] = order.productId ? await db.select().from(schema.products).where(eq(schema.products.id, order.productId)) : [];
+  let booking;
+  try {
+    booking = await provider.book({
+      orderId: order.id,
+      createdAt: order.createdAt,
+      pickupLocation: input.pickupLocation?.trim().slice(0, 60) || "Primary",
+      item: { title: order.title, sku: product?.sku ?? product?.id ?? order.id, quantity: 1, price: Math.round(order.total / 100) },
+      total: Math.round(order.total / 100),
+      address: { name: a.name, phone: a.phone, line1: a.line1, line2: a.line2, city: a.city, state: a.state, pincode: a.pincode },
+      parcel: { weightKg: input.weightKg, lengthCm: input.lengthCm, breadthCm: input.breadthCm, heightCm: input.heightCm },
+    });
+  } catch (err) {
+    throw new OrderError(err instanceof Error ? err.message : "Couldn't book the pickup.", 502);
+  }
+  const shipped = await markShipped(orderId, { courier: booking.courier, awb: booking.awb }, by);
+  await db.update(shipments).set({ bookingRef: booking.ref, labelUrl: booking.labelUrl ?? null, pickupAt: booking.pickupAt ?? null }).where(eq(shipments.orderId, orderId));
+  return { order: shipped, booking };
 }
 
 async function confirmDelivery(order: Order, via: string, at?: Date) {
@@ -94,7 +132,10 @@ export async function pollTracking() {
     try {
       const t = await provider.track(shipment.awb, shipment.courier);
       await db.update(shipments).set({ lastStatus: t.status, events: t.events, lastCheckedAt: new Date() }).where(eq(shipments.orderId, order.id));
-      if (t.status === "out_for_delivery") await syncDeal(order, "out_for_delivery", { note: "Out for delivery" });
+      if (t.status === "out_for_delivery") {
+        await syncDeal(order, "out_for_delivery", { note: "Out for delivery" });
+        await notifyShopperOrder(order, "out_for_delivery");
+      }
       if (t.status === "delivered") {
         await confirmDelivery(order, `${provider.name} tracking`, t.deliveredAt);
         delivered.push(order.id);
